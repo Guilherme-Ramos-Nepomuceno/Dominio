@@ -1,0 +1,226 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Moon, Sun, Warning } from "@phosphor-icons/react"
+// Importação necessária para os ícones dinâmicos
+import * as PhosphorIcons from "@phosphor-icons/react" 
+import { AppLayout } from "@/components/layout/app-layout"
+import { PageHeader } from "@/components/ui/page-header"
+import { useTheme } from "@/hooks/use-theme"
+import { getSettings, setSettings as saveSettings, getCategories, getTransactions } from "@/lib/storage"
+import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/date-utils"
+
+export default function SettingsPage() {
+  const { theme, toggleTheme } = useTheme()
+  const [spendingGoal, setSpendingGoal] = useState("")
+  const [currency, setCurrency] = useState("BRL")
+  const [categoryGoals, setCategoryGoals] = useState<any[]>([])
+  const categories = getCategories().filter((c) => c.type === "expense")
+
+  useEffect(() => {
+    const settings = getSettings()
+    setSpendingGoal(settings.spendingGoal.toString())
+    setCurrency(settings.currency)
+    setCategoryGoals(settings.categoryGoals || [])
+  }, [])
+
+  const handleSave = () => {
+    saveSettings({
+      spendingGoal: Number.parseFloat(spendingGoal),
+      currency,
+      categoryGoals,
+    })
+    alert("Configurações salvas com sucesso!")
+  }
+
+  const handlePercentageChange = (categoryId: string, value: number) => {
+    // Filtra removendo o antigo e adiciona o novo se > 0
+    const updated = categoryGoals.filter((g) => g.categoryId !== categoryId)
+    if (value > 0) {
+      updated.push({ categoryId, percentage: value })
+    }
+    setCategoryGoals(updated)
+  }
+
+  const totalPercentage = categoryGoals.reduce((sum, g) => sum + g.percentage, 0)
+
+  const transactions = getTransactions()
+  const warnings: string[] = []
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  const monthlyExpense = transactions
+    .filter((t) => t.type === "expense" && t.date.startsWith(currentMonth))
+    .reduce((sum, t) => sum + t.amount, 0)
+
+  categoryGoals.forEach((goal) => {
+    const categoryTotal = transactions
+      .filter((t) => t.type === "expense" && t.categoryId === goal.categoryId && t.date.startsWith(currentMonth))
+      .reduce((sum, t) => sum + t.amount, 0)
+
+    const allowedAmount = (monthlyExpense * goal.percentage) / 100
+    const category = categories.find((c) => c.id === goal.categoryId)
+
+    if (categoryTotal > allowedAmount && category) {
+      warnings.push(`${category.name}: Excedeu ${formatCurrency(categoryTotal - allowedAmount)}`)
+    }
+  })
+
+  return (
+    <AppLayout>
+      <PageHeader title="Configurações" subtitle="Personalize seu aplicativo" />
+
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Theme Toggle */}
+        <div className="rounded-[20px] bg-card p-6 border border-border/50">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Aparência</h3>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-foreground">Tema</p>
+              <p className="text-sm text-muted-foreground">Escolha entre claro ou escuro</p>
+            </div>
+
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-3 px-4 py-2 rounded-[1vw] bg-muted hover:bg-muted-foreground/20 transition-colors"
+            >
+              {theme === "dark" ? (
+                <>
+                  <Moon weight="fill" size={20} />
+                  <span className="font-medium">Escuro</span>
+                </>
+              ) : (
+                <>
+                  <Sun weight="fill" size={20} />
+                  <span className="font-medium">Claro</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Financial Settings */}
+        <div className="rounded-[20px] bg-card p-6 border border-border/50">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Configurações Financeiras</h3>
+
+          <div className="space-y-4">
+            {/* Spending Goal */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Meta Mensal de Gastos</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={spendingGoal}
+                  onChange={(e) => setSpendingGoal(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Defina o limite ideal de gastos mensais</p>
+            </div>
+
+            {/* Currency */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Moeda</label>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="BRL">Real Brasileiro (BRL)</option>
+                <option value="USD">Dólar Americano (USD)</option>
+                <option value="EUR">Euro (EUR)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[20px] bg-card p-6 border border-border/50">
+          <h3 className="text-lg font-semibold text-foreground mb-2">Metas de Gasto por Categoria</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Defina percentuais para controlar seus gastos (total deve ser 100%)
+          </p>
+
+          {warnings.length > 0 && (
+            <div className="mb-4 p-4 rounded-[1vw] bg-expense/10 border border-expense/20">
+              <div className="flex items-start gap-2">
+                <Warning size={20} weight="fill" className="text-expense mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold text-expense mb-1">Categorias Excedidas:</p>
+                  {warnings.map((w, i) => (
+                    <p key={i} className="text-sm text-expense">
+                      • {w}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3 mb-4">
+            {categories.map((category) => {
+              const goal = categoryGoals.find((g) => g.categoryId === category.id)
+              const percentage = goal?.percentage || 0
+              
+              // Lógica para recuperar o ícone correto
+              const IconComponent = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
+
+              return (
+                <div key={category.id} className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: category.color + "20", color: category.color }}
+                  >
+                     {/* @ts-ignore */}
+                    <IconComponent size={20} weight="fill" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">{category.name}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={percentage}
+                      onChange={(e) => handlePercentageChange(category.id, Number.parseInt(e.target.value) || 0)}
+                      className="w-20 px-3 py-2 rounded-lg bg-background border border-border text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">%</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-[1vw] bg-muted">
+            <span className="font-semibold text-foreground">Total</span>
+            <span
+              className={cn(
+                "text-xl font-bold",
+                totalPercentage === 100 ? "text-income" : totalPercentage > 100 ? "text-expense" : "text-foreground",
+              )}
+            >
+              {totalPercentage}%
+            </span>
+          </div>
+          {totalPercentage !== 100 && (
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              {totalPercentage > 100 ? "Reduza" : "Aumente"} para atingir 100%
+            </p>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <button
+          onClick={handleSave}
+          className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
+        >
+          Salvar Configurações
+        </button>
+      </div>
+    </AppLayout>
+  )
+}
