@@ -55,7 +55,6 @@ export function PeriodSelector({ selectedMonth, onMonthChange, className }: Peri
       })
     }
   }
-
   return (
     <div className={cn("relative", className)}>
       {/* Scroll buttons */}
@@ -88,14 +87,13 @@ export function PeriodSelector({ selectedMonth, onMonthChange, className }: Peri
         {months.map((month) => {
           const isSelected = month === selectedMonth
           const isCurrent = month === currentMonth
-
           return (
             <button
               key={month}
               data-month={month}
               onClick={() => onMonthChange(month)}
               className={cn(
-                "flex-shrink-0 px-6 py-3 rounded-[1vw] font-semibold transition-all text-sm",
+                "shrink-0 px-6 py-3 rounded-[1vw] font-semibold transition-all text-sm",
                 isSelected
                   ? "bg-primary text-primary-foreground shadow-md scale-105"
                   : "bg-card text-muted-foreground hover:text-foreground hover:bg-muted border border-border",

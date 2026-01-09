@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { formatCurrency } from "@/lib/date-utils"
 
 interface CircularBalanceProps {
@@ -11,8 +12,26 @@ interface CircularBalanceProps {
 }
 
 export function CircularBalance({ balance, income, expense, checkingBalance, totalSavings }: CircularBalanceProps) {
+  // 1. Estado para verificar se o componente já montou no cliente
+  const [isMounted, setIsMounted] = useState(false)
+
+  // 2. useEffect roda apenas no cliente após o primeiro render
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   const totalBalance = checkingBalance + totalSavings
   const isNegative = totalBalance < 0
+
+  // 3. Se não estiver montado, retorna um esqueleto ou null para evitar o erro de Hydration
+  // Isso evita que o servidor renderize o texto que causa o conflito
+  if (!isMounted) {
+    return (
+      <div className="relative flex flex-col items-center justify-center py-8">
+        <div className="w-64 h-32 rounded-t-full border-12 border-muted/20 animate-pulse" />
+      </div>
+    )
+  }
 
   if (isNegative) {
     const radius = 90
@@ -34,22 +53,11 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
 
         {/* Balance Display */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/4 text-center">
-          <p className="text-xs text-muted-foreground mb-1">Saldo Total</p>
-          <p className="text-3xl font-bold text-expense">{formatCurrency(totalBalance)}</p>
+          <p className="text-xs text-muted-foreground mb-1">Conta Corrente</p>
+          <p className="text-3xl font-bold text-expense">{formatCurrency(checkingBalance)}</p>
           <p className="text-xs text-expense mt-1">Saldo negativo</p>
         </div>
 
-        {/* Checking and savings balance info below */}
-        <div className="mt-6 flex gap-6 text-center">
-          <div>
-            <p className="text-xs text-muted-foreground">Conta Corrente</p>
-            <p className="text-sm font-semibold text-foreground">{formatCurrency(checkingBalance)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Reservas</p>
-            <p className="text-sm font-semibold text-foreground">{formatCurrency(totalSavings)}</p>
-          </div>
-        </div>
       </div>
     )
   }
@@ -101,25 +109,14 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
       </svg>
 
       {/* Balance Display - Show Total Balance (checking + savings) */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/4 text-center">
+      <div className="absolute top-2/3 left-1/2 -translate-x-1/2 -translate-y-1/4 text-center">
         <p className="text-xs text-muted-foreground mb-1">Saldo Total</p>
-        <p className="text-3xl font-bold text-foreground">{formatCurrency(totalBalance)}</p>
+        <p className="text-3xl font-bold text-foreground">{formatCurrency(checkingBalance)}</p>
         <p className="text-xs text-muted-foreground mt-1">
           {progressPercent.toFixed(0)}% {diffPercent >= 0 ? "disponível" : "negativo"}
         </p>
       </div>
 
-      {/* Checking and savings balance info below the arc */}
-      <div className="mt-4 flex gap-6 text-center">
-        <div>
-          <p className="text-xs text-muted-foreground">Conta Corrente</p>
-          <p className="text-sm font-semibold text-foreground">{formatCurrency(checkingBalance)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Reservas</p>
-          <p className="text-sm font-semibold text-foreground">{formatCurrency(totalSavings)}</p>
-        </div>
-      </div>
     </div>
   )
 }

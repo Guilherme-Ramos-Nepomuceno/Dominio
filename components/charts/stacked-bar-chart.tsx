@@ -1,14 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { CaretLeft, CaretRight } from "@phosphor-icons/react"
+import { useState, useEffect } from "react" // 1. Adicione useEffect
+import { CaretLeftIcon, CaretRightIcon, CircleNotchIcon } from "@phosphor-icons/react" // Adicionei um icone de loading opcional
 import { getCategories, getSettings, getTransactions } from "@/lib/storage"
-import type { Transaction } from "@/lib/types"
+import type { Transaction, Category } from "@/lib/types" // Ajuste os imports conforme seus tipos
 import { formatCurrency, formatShortMonth, getNextMonth, getPreviousMonth } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 
 interface StackedBarChartProps {
-  transactions: Transaction[]
+  transactions: Transaction[] // Notei que você recebe props mas usa o getTransactions interno, mantive sua lógica interna
   currentMonth: string
   threshold?: number
   onThresholdChange?: (value: number) => void
@@ -23,19 +23,52 @@ interface CategoryData {
 }
 
 export function StackedBarChart({
-  transactions,
+  transactions: propTransactions, // Renomeei para evitar conflito
   currentMonth,
   threshold: customThreshold,
   onThresholdChange,
   onMonthChange,
 }: StackedBarChartProps) {
-  const settings = getSettings()
-  const categories = getCategories()
-  const allTransactions = getTransactions()
+  
+  // 2. Crie estados para armazenar os dados do localStorage
+  const [data, setData] = useState<{
+    settings: any;
+    categories: Category[];
+    allTransactions: Transaction[];
+  } | null>(null);
 
-  const threshold = customThreshold ?? settings.spendingGoal
   const [isEditingThreshold, setIsEditingThreshold] = useState(false)
-  const [thresholdInput, setThresholdInput] = useState(threshold.toString())
+  const [thresholdInput, setThresholdInput] = useState("")
+
+  // 3. Carregue os dados APENAS no cliente usando useEffect
+  useEffect(() => {
+    const settings = getSettings();
+    const categories = getCategories();
+    const allTransactions = getTransactions();
+
+    setData({
+      settings,
+      categories,
+      allTransactions
+    });
+
+    // Inicializa o input do threshold aqui, agora que temos os dados
+    const initialThreshold = customThreshold ?? settings.spendingGoal;
+    setThresholdInput(initialThreshold.toString());
+  }, [customThreshold]);
+
+  // 4. Enquanto os dados não carregam, não renderize o gráfico (evita o erro de Hydration)
+  if (!data) {
+    return (
+        <div className="rounded-[20px] bg-card p-6 shadow-sm border border-border/50 h-[400px] flex items-center justify-center">
+            <CircleNotchIcon className="animate-spin text-muted-foreground" size={32} />
+        </div>
+    );
+  }
+
+  // Desestruturando os dados carregados
+  const { settings, categories, allTransactions } = data;
+  const threshold = customThreshold ?? settings.spendingGoal
 
   const prevMonth = getPreviousMonth(currentMonth)
   const nextMonth = getNextMonth(currentMonth)
@@ -43,17 +76,17 @@ export function StackedBarChart({
   // Calculate category totals for each month
   const getMonthData = (month: string) => {
     const monthTransactions = allTransactions.filter((t) => t.date.startsWith(month))
-    const data: CategoryData[] = []
+    const result: CategoryData[] = []
 
     monthTransactions.forEach((transaction) => {
       const category = categories.find((c) => c.id === transaction.categoryId)
       if (category?.type !== "expense") return
 
-      const existing = data.find((d) => d.categoryId === category.id)
+      const existing = result.find((d) => d.categoryId === category.id)
       if (existing) {
         existing.amount += transaction.amount
       } else {
-        data.push({
+        result.push({
           categoryId: category.id,
           name: category.name,
           color: category.color,
@@ -62,7 +95,7 @@ export function StackedBarChart({
       }
     })
 
-    return data.sort((a, b) => b.amount - a.amount)
+    return result.sort((a, b) => b.amount - a.amount)
   }
 
   const prevMonthData = getMonthData(prevMonth)
@@ -90,16 +123,16 @@ export function StackedBarChart({
 
   const thresholdPercentage = (threshold / maxValue) * 100
 
-  const renderBar = (data: CategoryData[], total: number, label: string, month: string, isCurrent: boolean) => (
+  const renderBar = (barData: CategoryData[], total: number, label: string, month: string, isCurrent: boolean) => (
     <div className="flex-1 flex flex-col items-center">
       <div className="w-full h-64 relative">
-        {data.length === 0 ? (
+        {barData.length === 0 ? (
           <div className="w-full h-full flex items-end justify-center">
             <div className="w-16 h-2 bg-muted rounded-full" />
           </div>
         ) : (
           <div className="w-full h-full flex flex-col-reverse">
-            {data.map((cat) => {
+            {barData.map((cat) => {
               const heightPercentage = (cat.amount / maxValue) * 100
 
               return (
@@ -189,13 +222,13 @@ export function StackedBarChart({
       {onMonthChange && (
         <div className="flex items-center justify-center gap-4 mt-6 pt-6 border-t border-border">
           <button onClick={() => onMonthChange(prevMonth)} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <CaretLeft size={20} weight="bold" />
+            <CaretLeftIcon size={20} weight="bold" />
           </button>
           <span className="text-sm font-medium text-foreground min-w-30 text-center">
             {formatShortMonth(currentMonth)}
           </span>
           <button onClick={() => onMonthChange(nextMonth)} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <CaretRight size={20} weight="bold" />
+            <CaretRightIcon size={20} weight="bold" />
           </button>
         </div>
       )}
