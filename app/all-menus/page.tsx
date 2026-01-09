@@ -1,20 +1,32 @@
 "use client"
 
 import Link from "next/link"
-import { House, ChartBar, CreditCard, Folders, PiggyBank, Repeat, Gear, Plus, Clock } from "@phosphor-icons/react"
+import {
+  HouseIcon,
+  ChartBarIcon,
+  CreditCardIcon,
+  FoldersIcon,
+  PiggyBankIcon,
+  RepeatIcon,
+  GearIcon,
+  PlusIcon,
+  ClockIcon,
+  ReceiptIcon,
+} from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 
 const allMenus = [
-  { href: "/", icon: House, label: "Home", description: "Visão geral das suas finanças" },
-  { href: "/stats", icon: ChartBar, label: "Estatísticas", description: "Gráficos e análises detalhadas" },
-  { href: "/cards", icon: CreditCard, label: "Cartões", description: "Gerencie seus cartões bancários" },
-  { href: "/categories", icon: Folders, label: "Categorias", description: "Organize suas transações" },
-  { href: "/savings", icon: PiggyBank, label: "Reservas", description: "Acompanhe suas economias" },
-  { href: "/recurring", icon: Repeat, label: "Recorrentes", description: "Dívidas e parcelas" },
-  { href: "/pending", icon: Clock, label: "Pendentes", description: "Transações agendadas" },
-  { href: "/settings", icon: Gear, label: "Configurações", description: "Personalize o app" },
-  { href: "/new", icon: Plus, label: "Nova Transação", description: "Registre receitas e despesas" },
+  { href: "/", icon: HouseIcon, label: "Home", description: "Visão geral das suas finanças" },
+  { href: "/stats", icon: ChartBarIcon, label: "Estatísticas", description: "Gráficos e análises detalhadas" },
+  { href: "/cards", icon: CreditCardIcon, label: "Cartões", description: "Gerencie seus cartões bancários" },
+  { href: "/categories", icon: FoldersIcon, label: "Categorias", description: "Organize suas transações" },
+  { href: "/savings", icon: PiggyBankIcon, label: "Reservas", description: "Acompanhe suas economias" },
+  { href: "/recurring", icon: RepeatIcon, label: "Recorrentes", description: "Dívidas e parcelas" },
+  { href: "/pending", icon: ClockIcon, label: "Pendentes", description: "Transações agendadas" },
+  { href: "/invoices", icon: ReceiptIcon, label: "Faturas", description: "Pagamento de faturas de crédito" },
+  { href: "/settings", icon: GearIcon, label: "Configurações", description: "Personalize o app" },
+  { href: "/new", icon: PlusIcon, label: "Nova Transação", description: "Registre receitas e despesas" },
 ]
 
 export default function AllMenusPage() {
@@ -31,7 +43,7 @@ export default function AllMenusPage() {
               href={menu.href}
               className="flex items-start gap-4 p-5 rounded-2xl bg-card border border-border/50 hover:border-primary/50 hover:shadow-md transition-all"
             >
-              <div className="w-12 h-12 rounded-[1vw] bg-primary/10 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Icon size={24} weight="fill" className="text-primary" />
               </div>
               <div className="flex-1">

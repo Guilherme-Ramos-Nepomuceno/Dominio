@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ClockIcon, CheckCircleIcon, XCircleIcon } from "@phosphor-icons/react"
+import { Clock, CheckCircle, XCircle, Wallet, CalendarCheck } from "@phosphor-icons/react"
 import {
   getPendingTransactions,
   getCategories,
@@ -28,56 +28,74 @@ interface Transaction {
   recurrenceId?: string
   installments?: number
   currentInstallment?: number
+  cardId?: string
 }
 
 export default function PendingTransactionsPage() {
   const router = useRouter()
   // @ts-ignore
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>(getPendingTransactions())
+  
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null)
   const [selectedCard, setSelectedCard] = useState<string>("")
+  
+  // NOVO ESTADO: Data de confirmação do pagamento
+  const [confirmDate, setConfirmDate] = useState<string>("")
+
   const categories = getCategories()
   const cards = getCards()
 
-  // Lógica unificada para Recorrências e Parcelamentos
   const visibleTransactions = useMemo(() => {
     const grouped = new Map<string, Transaction>()
     const singles: Transaction[] = []
 
-    pendingTransactions.forEach((t) => {
-      // Verifica se é Recorrência (ex: Assinatura) OU Parcelamento (ex: Compra em 10x)
+    const filteredTransactions = pendingTransactions.filter((t) => {
+      if (!t.cardId) return true 
+      const card = cards.find((c) => c.id === t.cardId)
+      return card?.type !== "credit" 
+    })
+
+    filteredTransactions.forEach((t) => {
       const isRecurring = t.recurrence && t.recurrence !== "none"
       const isInstallment = t.installments && t.installments > 1
 
-      // Se for compra única (nem recorrente, nem parcelada), passa direto
       if (!isRecurring && !isInstallment) {
         singles.push(t)
         return
       }
 
-      // Se entrou aqui, é uma série (parcelas ou assinatura).
-      // Agrupamos pelo ID único da série. Se não tiver ID (legado), tentamos agrupar pela descrição.
       const groupId = t.recurrenceId || t.description
-
       const existing = grouped.get(groupId)
 
-      // Lógica do "Próximo da Fila":
-      // Se ainda não pegamos nenhum desse grupo, OU se a transação atual (t)
-      // tem uma data ANTERIOR à que já guardamos, ela assume o lugar.
-      // Isso garante que mostramos a parcela 1/12. Quando ela for paga (sumir da lista),
-      // a lógica rodará de novo e a parcela 2/12 será a "mais antiga", aparecendo automaticamente.
       if (!existing || new Date(t.date) < new Date(existing.date)) {
         grouped.set(groupId, t)
       }
     })
 
-    // Junta as únicas com as "cabeças de chave" dos grupos e ordena por data
     return [...singles, ...Array.from(grouped.values())].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     )
-  }, [pendingTransactions])
+  }, [pendingTransactions, cards]) 
 
   const handleMarkAsPaid = (transactionId: string) => {
+    const transaction = pendingTransactions.find((t) => t.id === transactionId)
+    
+    if (transaction) {
+        // Se já tem cartão, seleciona
+        if (transaction.cardId) setSelectedCard(transaction.cardId)
+        else setSelectedCard("")
+
+        // DEFINE A DATA INICIAL:
+        // Aqui você escolhe a estratégia:
+        // Opção A: Pega a data original da transação (respeita o agendamento)
+        // Opção B: Pega a data de hoje (assume que está pagando agora)
+        
+        // Estou usando a Data Original da transação (t.date) para atender seu pedido
+        // de "não mudar a data automaticamente para o momento do clique".
+        // O .split('T')[0] é para formatar YYYY-MM-DD para o input
+        setConfirmDate(transaction.date.split('T')[0])
+    }
+    
     setSelectedTransaction(transactionId)
   }
 
@@ -85,14 +103,17 @@ export default function PendingTransactionsPage() {
     if (!selectedTransaction) return
 
     if (cards.length > 0 && !selectedCard) {
-      alert("Selecione um cartão para confirmar o pagamento")
+      alert("Selecione uma conta/cartão para confirmar onde o dinheiro saiu/entrou")
       return
     }
 
-    markTransactionAsPaid(selectedTransaction, selectedCard || undefined)
+    // Passamos a confirmDate para a função de storage
+    markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
+    
     setPendingTransactions(getPendingTransactions())
     setSelectedTransaction(null)
     setSelectedCard("")
+    setConfirmDate("")
   }
 
   const handleCancel = (transactionId: string) => {
@@ -106,23 +127,26 @@ export default function PendingTransactionsPage() {
     <AppLayout>
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
-          <PageHeader title="Transações Pendentes" />
+          <PageHeader 
+            title="Contas a Pagar/Receber" 
+            subtitle="Confirme seus pagamentos e recebimentos"
+          />
 
           <div className="space-y-4 mt-6">
             {visibleTransactions.length === 0 ? (
               <div className="text-center py-12">
-                <ClockIcon size={48} className="mx-auto text-muted-foreground mb-4" weight="light" />
-                <p className="text-muted-foreground">Nenhuma transação pendente</p>
+                <Clock size={48} className="mx-auto text-muted-foreground mb-4" weight="light" />
+                <p className="text-muted-foreground">Nenhuma pendência encontrada</p>
               </div>
             ) : (
               visibleTransactions.map((transaction) => {
                 const category = categories.find((c) => c.id === transaction.categoryId)
                 const isExpense = category?.type === "expense"
-                
-                // Variável para exibir se é parcela ou recorrência
-                const installmentLabel = transaction.installments 
-                  ? `${transaction.currentInstallment}/${transaction.installments}` 
-                  : transaction.recurrence === 'monthly' ? 'Mensal' : null
+                const linkedCard = transaction.cardId ? cards.find(c => c.id === transaction.cardId) : null
+
+                const installmentLabel = transaction.installments
+                  ? `${transaction.currentInstallment}/${transaction.installments}`
+                  : transaction.recurrence === "monthly" ? "Mensal" : null
 
                 return (
                   <div
@@ -140,18 +164,24 @@ export default function PendingTransactionsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-foreground truncate">{transaction.description}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                             <p className="text-sm text-muted-foreground">{category?.name}</p>
-                             
-                             {/* Badge de Parcela/Recorrência */}
-                             {installmentLabel && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                                  {installmentLabel}
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <p className="text-sm text-muted-foreground">{category?.name}</p>
+
+                            {installmentLabel && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                                {installmentLabel}
+                              </span>
+                            )}
+                            
+                            {linkedCard && (
+                                <span className="text-[10px] flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                   <Wallet size={10} weight="fill" />
+                                   {linkedCard.name}
                                 </span>
-                             )}
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1 capitalize">
-                            Vence em: {formatDate(transaction.date)}
+                            Vencimento: {formatDate(transaction.date)}
                           </p>
                         </div>
                       </div>
@@ -161,53 +191,82 @@ export default function PendingTransactionsPage() {
                       </p>
                     </div>
 
-                    {/* ... Restante do código de botões (igual ao anterior) ... */}
                     {selectedTransaction === transaction.id && cards.length > 0 ? (
-                      <div className="space-y-3 mt-4 pt-4 border-t border-border">
-                        <p className="text-sm font-medium text-foreground">Selecione o cartão de pagamento:</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          {cards.map((card) => {
-                            const BankIcon = getBankIcon(card.bankName)
-                            return (
-                              <button
-                                key={card.id}
-                                type="button"
-                                onClick={() => setSelectedCard(card.id)}
-                                className={cn(
-                                  "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
-                                  selectedCard === card.id
-                                    ? "border-primary bg-primary/5 shadow-sm"
-                                    : "border-border bg-background hover:bg-muted",
-                                )}
-                              >
-                                <div
-                                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                  style={{ backgroundColor: card.color + "20" }}
-                                >
-                                  <BankIcon size={24} color={card.color} weight="fill" />
-                                </div>
-                                <div className="flex-1 text-left">
-                                  <p className="text-sm font-medium text-foreground">{card.name}</p>
-                                  <p className="text-xs text-muted-foreground">•••• {card.lastDigits}</p>
-                                </div>
-                              </button>
-                            )
-                          })}
+                      <div className="space-y-4 mt-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-2">
+                        
+                        {/* SELEÇÃO DE DATA - NOVO CAMPO */}
+                        <div>
+                            <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
+                                <CalendarCheck size={16} />
+                                Data da baixa (Efetivação)
+                            </label>
+                            <input 
+                                type="date"
+                                value={confirmDate}
+                                onChange={(e) => setConfirmDate(e.target.value)}
+                                className="w-full px-4 py-2 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {isExpense ? "Data que o dinheiro saiu." : "Data que o dinheiro entrou."}
+                            </p>
                         </div>
-                        <div className="flex gap-2">
+
+                        {/* SELEÇÃO DE CONTA */}
+                        <div>
+                            <p className="text-sm font-medium text-foreground mb-2">
+                                {isExpense ? "Debitar de qual conta?" : "Receber em qual conta?"}
+                            </p>
+                            
+                            <div className="grid grid-cols-1 gap-2">
+                            {cards
+                                .map((card) => {
+                                const BankIcon = getBankIcon(card.bankName)
+                                return (
+                                <button
+                                    key={card.id}
+                                    type="button"
+                                    onClick={() => setSelectedCard(card.id)}
+                                    className={cn(
+                                    "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
+                                    selectedCard === card.id
+                                        ? "border-primary bg-primary/5 shadow-sm"
+                                        : "border-border bg-background hover:bg-muted",
+                                    )}
+                                >
+                                    <div
+                                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                    style={{ backgroundColor: card.color + "20" }}
+                                    >
+                                    <BankIcon size={24} color={card.color} weight="fill" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                    <p className="text-sm font-medium text-foreground">{card.name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-xs text-muted-foreground">•••• {card.lastDigits}</p>
+                                        <span className="text-[10px] bg-muted px-1 rounded">{card.type === 'credit' ? 'Crédito' : 'Débito'}</span>
+                                    </div>
+                                    </div>
+                                </button>
+                                )
+                            })}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
                           <Button
                             onClick={() => {
                               setSelectedTransaction(null)
                               setSelectedCard("")
+                              setConfirmDate("")
                             }}
                             variant="outline"
                             className="flex-1"
                           >
-                            Voltar
+                            Cancelar
                           </Button>
                           <Button onClick={confirmPayment} className="flex-1">
-                            <CheckCircleIcon size={20} weight="bold" className="mr-2" />
-                            Confirmar Pagamento
+                            <CheckCircle size={20} weight="bold" className="mr-2" />
+                            Confirmar
                           </Button>
                         </div>
                       </div>
@@ -215,17 +274,17 @@ export default function PendingTransactionsPage() {
                       <div className="flex gap-2 mt-3">
                         <Button
                           onClick={() => handleMarkAsPaid(transaction.id)}
-                          className="flex-1 bg-income hover:bg-income/90"
+                          className={cn("flex-1", isExpense ? "bg-primary" : "bg-income hover:bg-income/90")}
                         >
-                          <CheckCircleIcon size={20} weight="bold" className="mr-2" />
-                          Pagar
+                          <CheckCircle size={20} weight="bold" className="mr-2" />
+                          {isExpense ? "Pagar" : "Receber"}
                         </Button>
                         <Button
                           onClick={() => handleCancel(transaction.id)}
                           variant="outline"
                           className="flex-1 border-expense text-expense hover:bg-expense/10"
                         >
-                          <XCircleIcon size={20} weight="bold" className="mr-2" />
+                          <XCircle size={20} weight="bold" className="mr-2" />
                           Cancelar
                         </Button>
                       </div>
