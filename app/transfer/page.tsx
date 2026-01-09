@@ -10,7 +10,7 @@ import { getCards, addTransaction } from "@/lib/storage"
 import { getBankIcon } from "@/lib/bank-icons"
 import { formatCurrency, parseCurrencyInput, formatCurrencyInput } from "@/lib/date-utils"
 import { Button } from "@/components/ui/button"
-import { ArrowRightIcon } from "@phosphor-icons/react"
+import { ArrowRightIcon, CreditCard, WarningCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
 const QUICK_AMOUNTS = [2, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000]
@@ -18,6 +18,9 @@ const QUICK_AMOUNTS = [2, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000]
 export default function TransferPage() {
   const router = useRouter()
   const cards = getCards()
+  // Filtra apenas cartões de débito
+  const debitCards = cards.filter((c) => c.type === "debit")
+
   const [fromCardId, setFromCardId] = useState("")
   const [toCardId, setToCardId] = useState("")
   const [amount, setAmount] = useState("")
@@ -83,6 +86,39 @@ export default function TransferPage() {
     router.push("/")
   }
 
+  // Verifica se existem menos de 2 cartões de débito
+  if (debitCards.length < 2) {
+    return (
+      <AppLayout>
+        <PageHeader title="Transferir entre Contas" subtitle="Mova valores entre seus cartões" />
+        
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center space-y-6">
+          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+            <WarningCircle size={40} className="text-muted-foreground" weight="duotone" />
+          </div>
+          
+          <div className="space-y-2 max-w-sm">
+            <h3 className="text-xl font-semibold text-foreground">Transferência indisponível</h3>
+            <p className="text-muted-foreground">
+              Para realizar transferências entre contas, você precisa ter pelo menos <b>2 contas de débito</b> cadastradas.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Nota: Cartões de crédito não realizam transferências.
+            </p>
+          </div>
+
+          <Button 
+            onClick={() => router.push("/cards")} 
+            className="w-full max-w-xs h-12 rounded-[1vw] font-semibold gap-2"
+          >
+            <CreditCard size={20} weight="bold" />
+            Gerenciar Cartões
+          </Button>
+        </div>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout>
       <PageHeader title="Transferir entre Contas" subtitle="Mova valores entre seus cartões" />
@@ -92,7 +128,7 @@ export default function TransferPage() {
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">De qual conta?</label>
           <div className="grid grid-cols-1 gap-2">
-            {cards.filter((cards) => cards.type === "debit").map((card) => {
+            {debitCards.map((card) => {
               const BankIcon = getBankIcon(card.bankName)
               return (
                 <button
@@ -136,8 +172,8 @@ export default function TransferPage() {
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Para qual conta?</label>
             <div className="grid grid-cols-1 gap-2">
-              {cards
-                .filter((c) => c.id !== fromCardId && c.type === "debit")
+              {debitCards
+                .filter((c) => c.id !== fromCardId)
                 .map((card) => {
                   const BankIcon = getBankIcon(card.bankName)
                   return (
@@ -195,7 +231,7 @@ export default function TransferPage() {
                     onClick={() => handleQuickAmount(value)}
                     className="px-3 py-3 rounded-[1vw] bg-primary text-secondary text-sm font-medium hover:bg-primary/90 transition-colors"
                   >
-                   {formatCurrency(value)}
+                    {formatCurrency(value)}
                   </button>
                 ))}
               </div>
