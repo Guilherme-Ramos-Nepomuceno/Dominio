@@ -6,24 +6,25 @@
 /* Updated to ultra-minimalist finance app with clean white aesthetic */
 :root {
   /* Clean white background for minimalist look */
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.15 0 0);
+  --background: oklab(96.712% -0.00407 -0.00136);
+  --foreground: oklch(0.23 0 0);
 
   /* Pure white cards with subtle shadows */
-  --card: oklch(1 0 0);
+  --card: oklch(92.73% 0.00772 229.39);
   --card-foreground: oklch(0.15 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0 0);
 
   /* Accent colors for categories - matching reference */
-  --primary: oklch(0.48 0.18 210); /* Blue for primary actions */
+  --primary:oklab(34.046% -0.00036 -0.00376); 
+  --text-primary: oklch(30.519% 0.00003 271.152);
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.96 0.005 247);
   --secondary-foreground: oklch(0.15 0 0);
 
   /* Financial category colors - vibrant and distinct */
-  --income: oklch(0.55 0.2 145); /* Green for income */
-  --expense: oklch(0.6 0.18 340); /* Pink/Red for expenses */
+  --income: oklab(78.629% -0.12503 0.15995); /* Green for income */
+  --expense: oklab(45.122% 0.14454 0.08696); /* Pink/Red for expenses */
   --savings: oklch(0.58 0.22 280); /* Purple for savings */
   --wallet: oklch(0.6 0.2 180); /* Cyan/Turquoise for wallet */
   --hobby: oklch(0.58 0.2 230); /* Blue for hobbies */
@@ -45,7 +46,7 @@
   --chart-1: oklch(0.6 0.2 180);
   --chart-2: oklch(0.58 0.22 280);
   --chart-3: oklch(0.58 0.2 230);
-  --chart-4: oklch(0.55 0.2 145);
+  --chart-4: oklab(84.301% -0.20088 0.15163);
   --chart-5: oklch(0.6 0.18 340);
 
   /* Generous rounded corners */
@@ -67,27 +68,29 @@
   --background: oklch(0.12 0.01 247);
   --foreground: oklch(0.97 0.01 247);
 
-  --card: oklch(0.16 0.01 247);
-  --card-foreground: oklch(0.97 0.01 247);
+  --card: oklch(19.574% 0.00002 271.152);
+  --card-foreground: oklch(93.86% 0.00213 14.438);
   --popover: oklch(0.16 0.01 247);
   --popover-foreground: oklch(0.97 0.01 247);
 
-  --primary: oklch(0.58 0.2 210);
+  --primary: oklab(87.08399999999999% -0.01239 -0.03111);
+  --text-primary: oklch(0.99 0 0);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.2 0.01 247);
   --secondary-foreground: oklch(0.97 0.01 247);
 
-  --income: oklch(0.6 0.2 145);
-  --expense: oklch(0.65 0.18 340);
-  --savings: oklch(0.62 0.22 280);
-  --wallet: oklch(0.65 0.2 180);
-  --hobby: oklch(0.62 0.2 230);
+  --income: oklab(89.271% -0.11781 0.16283);
+  
+  --expense: oklch(65.526% 0.23087 26.386);
+  --savings:oklch(70.628% 0.14718 248.406);
+  --wallet: oklab(89.271% -0.11781 0.16283);
+  --hobby: oklab(70.882% -0.05449 -0.13539);
 
   --muted: oklch(0.2 0.01 247);
   --muted-foreground: oklch(0.58 0.01 247);
   --accent: oklch(0.2 0.01 247);
   --accent-foreground: oklch(0.97 0.01 247);
-  --destructive: oklch(0.55 0.22 25);
+  --destructive: oklab(65.526% 0.20682 0.1026);
   --destructive-foreground: oklch(0.99 0 0);
 
   --border: oklch(0.24 0.01 247);
@@ -97,7 +100,7 @@
   --chart-1: oklch(0.65 0.2 180);
   --chart-2: oklch(0.62 0.22 280);
   --chart-3: oklch(0.62 0.2 230);
-  --chart-4: oklch(0.6 0.2 145);
+  --chart-4: oklab(89.271% -0.11781 0.16283);
   --chart-5: oklch(0.65 0.18 340);
   --sidebar: oklch(0.16 0.01 247);
   --sidebar-foreground: oklch(0.97 0.01 247);

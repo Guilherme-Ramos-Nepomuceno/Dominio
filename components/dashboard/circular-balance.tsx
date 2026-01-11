@@ -65,9 +65,9 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
   const diff = income - expense
   const diffPercent = income > 0 ? (totalBalance / income) * 100 : 0
 
-  let arcColor = "#ef4444" // red
+  let arcColor = "var(--expense)" // red
   if (diffPercent < 0) {
-    arcColor = "#ef4444" // red
+    arcColor = "var(--expense)" // red
   } else if (diffPercent <= 15) {
     arcColor = "#f97316" // orange
   } else if (diffPercent <= 40) {
@@ -75,7 +75,7 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
   } else if (diffPercent <= 70) {
     arcColor = "#3b82f6" // blue
   } else {
-    arcColor = "#10b981" // green
+    arcColor = "var(--income)" // green
   }
 
   const progressPercent = income > 0 ? Math.min(Math.abs(diffPercent), 100) : 0

@@ -1,126 +1,155 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { ArrowUp, ArrowDown, Receipt } from "@phosphor-icons/react"
+import { useEffect, useState } from "react"
+import { MiniBarChart, type ChartDataPoint } from "./mini-bar-chart"
 import { formatCurrency } from "@/lib/date-utils"
-import { MiniBarChart } from "./mini-bar-chart"
 import type { PeriodType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface IncomeExpenseCardsProps {
   income: number
   expense: number
-  transactions: any[]
+  transactions?: any[]
   period: PeriodType
   onPeriodChange: (period: PeriodType) => void
 }
 
-export function IncomeExpenseCards({ income, expense, transactions, period, onPeriodChange }: IncomeExpenseCardsProps) {
-  const [incomeData, setIncomeData] = useState<number[]>([])
-  const [expenseData, setExpenseData] = useState<number[]>([])
-
-  const expenseCount = transactions.filter((t) => t.type === "expense").length
+export function IncomeExpenseCards({
+  income,
+  expense,
+  transactions = [],
+  period,
+  onPeriodChange,
+}: IncomeExpenseCardsProps) {
+  const [incomeChartData, setIncomeChartData] = useState<ChartDataPoint[]>([])
+  const [expenseChartData, setExpenseChartData] = useState<ChartDataPoint[]>([])
 
   useEffect(() => {
-    // Generate data based on period
-    const generateData = () => {
-      if (period === "week") {
-        // Last 7 days
-        return Array.from({ length: 7 }, (_, i) => {
-          const date = new Date()
-          date.setDate(date.getDate() - (6 - i))
-          return date.toISOString().split("T")[0]
-        })
-      } else if (period === "month") {
-        // Current month, all days
+    const generateChartData = () => {
+        const dataPoints: { dateStr: string, dateObj: Date }[] = []
         const now = new Date()
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-        return Array.from({ length: daysInMonth }, (_, i) => {
-          const date = new Date(now.getFullYear(), now.getMonth(), i + 1)
-          return date.toISOString().split("T")[0]
-        })
-      } else {
-        // Last month, all days
-        const now = new Date()
-        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        const daysInLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
-        return Array.from({ length: daysInLastMonth }, (_, i) => {
-          const date = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), i + 1)
-          return date.toISOString().split("T")[0]
-        })
-      }
+        const formatDateLocalYYYYMMDD = (date: Date) => {
+          const year = date.getFullYear()
+          const month = String(date.getMonth() + 1).padStart(2, "0")
+          const day = String(date.getDate()).padStart(2, "0")
+          return `${year}-${month}-${day}`
+        }
+
+        if (period === "week") {
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date()
+            d.setDate(now.getDate() - i)
+            dataPoints.push({ dateStr: formatDateLocalYYYYMMDD(d), dateObj: d })
+          }
+        } else {
+          const targetMonth = period === "month" ? now.getMonth() : now.getMonth() - 1
+          let targetYear = now.getFullYear()
+          let adjustedMonth = targetMonth;
+          if (targetMonth < 0) { adjustedMonth = 11; targetYear = targetYear - 1; }
+          const daysInMonth = new Date(targetYear, adjustedMonth + 1, 0).getDate()
+
+          for (let i = 1; i <= daysInMonth; i++) {
+            const d = new Date(targetYear, adjustedMonth, i)
+            dataPoints.push({ dateStr: formatDateLocalYYYYMMDD(d), dateObj: d })
+          }
+        }
+
+        const processTransactions = (type: "income" | "expense"): ChartDataPoint[] => {
+          return dataPoints.map(({ dateStr, dateObj }) => {
+            const totalValue = transactions
+              .filter((t) => t.type === type && t.date.startsWith(dateStr))
+              .reduce((sum, t) => sum + t.amount, 0)
+
+            let label = "";
+            if (period === 'week') {
+               label = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(dateObj).replace('.', '');
+            } else {
+               // --- MUDANÇA AQUI: Força o formato "01", "02", "03" ---
+               // Pega o dia e adiciona o zero à esquerda se necessário
+               label = String(dateObj.getDate()).padStart(2, '0');
+            }
+            const fullDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(dateObj);
+            
+            return { value: totalValue, label: label, fullDate: fullDate }
+          })
+        }
+        setIncomeChartData(processTransactions("income"))
+        setExpenseChartData(processTransactions("expense"))
     }
-
-    const dates = generateData()
-    const incomeByDate = dates.map((date) =>
-      transactions.filter((t) => t.type === "income" && t.date.startsWith(date)).reduce((sum, t) => sum + t.amount, 0),
-    )
-    const expenseByDate = dates.map((date) =>
-      transactions.filter((t) => t.type === "expense" && t.date.startsWith(date)).reduce((sum, t) => sum + t.amount, 0),
-    )
-
-    setIncomeData(incomeByDate)
-    setExpenseData(expenseByDate)
+    generateChartData()
   }, [transactions, period])
 
-  const periods: { value: PeriodType; label: string }[] = [
-    { value: "week", label: "Semana" },
-    { value: "month", label: "Mês" },
-    { value: "lastMonth", label: "Mês Anterior" },
-  ]
-
   return (
-    <div className="space-y-4">
-      {/* Period Selector */}
-      <div className="flex gap-2 justify-center">
-        {periods.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => onPeriodChange(p.value)}
-            className={cn(
-              "px-4 py-2 rounded-[1vw] text-sm font-medium transition-all",
-              period === p.value
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-muted/50 text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
+    <div className="space-y-4  mt-4">
+      {/* Seletor Deslizante */}
+      <div className="flex justify-center">
+        <div className="relative grid grid-cols-2 bg-card p-1 rounded-lg border border-white/5 w-[200px]">
+            <div 
+              className={cn(
+                "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-foreground rounded-md shadow-sm transition-transform duration-300 ease-in-out",
+                period === "month" ? "translate-x-full" : "translate-x-0"
+              )}
+            />
+            <button
+                onClick={() => onPeriodChange("week")}
+                className={cn(
+                "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+                period === "week" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+                )}
+            >
+                Semanal
+            </button>
+            <button
+                onClick={() => onPeriodChange("month")}
+                className={cn(
+                "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+                period === "month" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+                )}
+            >
+                Mensal
+            </button>
+        </div>
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Expense Card - shown first on mobile */}
-        <div className="rounded-2xl bg-card p-4 shadow-sm border border-border/50 order-2 md:order-1">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 rounded-lg bg-expense/10">
-              <ArrowDown weight="bold" size={16} className="text-expense" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Despesas</p>
-              <p className="text-lg font-bold text-foreground">{formatCurrency(expense)}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <Receipt size={12} className="text-muted-foreground" />
-                <p className="text-[10px] text-muted-foreground">{expenseCount} movimentações</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Income Card */}
+        <div className="rounded-2xl bg-card p-6 border border-white/5 relative overflow-hidden group">
+           <div className="flex items-end justify-between relative z-10 gap-4">
+              <div className="flex flex-col justify-between h-[100px]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-income"></div>
+                    <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Receitas</p>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-bold text-text-primary tracking-tight">
+                      {formatCurrency(income)}
+                    </p>
+                  </div>
               </div>
-            </div>
-          </div>
-          <MiniBarChart data={expenseData} color="#ef4444" height={32} />
+              <div className="w-[55%] pb-1">
+                 <MiniBarChart data={incomeChartData} color="var(--income)" height={80} />
+              </div>
+           </div>
         </div>
 
-        {/* Income Card - shown second on mobile */}
-        <div className="rounded-2xl bg-card p-4 shadow-sm border border-border/50 order-1 md:order-2">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 rounded-lg bg-income/10">
-              <ArrowUp weight="bold" size={16} className="text-income" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Receitas</p>
-              <p className="text-lg font-bold text-foreground">{formatCurrency(income)}</p>
-            </div>
+        {/* Expense Card */}
+        <div className="rounded-2xl bg-card p-6 border border-white/5 relative overflow-hidden group">
+          <div className="flex items-end justify-between relative z-10 gap-4">
+              <div className="flex flex-col justify-between h-[100px]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-expense"></div>
+                    <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Despesas</p>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-bold text-text-primary tracking-tight">
+                      {formatCurrency(expense)}
+                    </p>
+                  </div>
+              </div>
+              <div className="w-[55%] pb-1">
+                <MiniBarChart data={expenseChartData} color="#FF3B3B" height={80} />
+              </div>
           </div>
-          <MiniBarChart data={incomeData} color="#10b981" height={32} />
         </div>
       </div>
     </div>

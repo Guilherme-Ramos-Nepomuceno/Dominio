@@ -110,8 +110,7 @@ export default function RecurringPage() {
                   <div className="text-right">
                     <p
                       className={cn(
-                        "text-xl font-bold",
-                        transaction.type === "income" ? "text-income" : "text-expense",
+                        "text-xl font-bold text-text-primary",
                       )}
                     >
                       {transaction.type === "expense" ? "-" : "+"}
@@ -170,8 +169,7 @@ export default function RecurringPage() {
                     <div className="text-right">
                       <p
                         className={cn(
-                          "text-xl font-bold",
-                          transaction.type === "income" ? "text-income" : "text-expense",
+                          "text-xl font-bold text-text-primary"
                         )}
                       >
                         {transaction.type === "expense" ? "-" : "+"}

@@ -185,7 +185,7 @@ export default function PendingTransactionsPage() {
                           </p>
                         </div>
                       </div>
-                      <p className={cn("font-bold text-lg", isExpense ? "text-expense" : "text-income")}>
+                      <p className={cn("font-bold text-lg text-text-primary")}>
                         {isExpense ? "-" : "+"}
                         {formatCurrency(transaction.amount)}
                       </p>
@@ -274,9 +274,9 @@ export default function PendingTransactionsPage() {
                       <div className="flex gap-2 mt-3">
                         <Button
                           onClick={() => handleMarkAsPaid(transaction.id)}
-                          className={cn("flex-1", isExpense ? "bg-primary" : "bg-income hover:bg-income/90")}
+                          className={cn("flex-1", isExpense ? "bg-primary" : "bg-income hover:bg-income/90 text-background")}
                         >
-                          <CheckCircle size={20} weight="bold" className="mr-2" />
+                          <CheckCircle size={20} weight="bold" className="mr-2 text-background" />
                           {isExpense ? "Pagar" : "Receber"}
                         </Button>
                         <Button
