@@ -42,7 +42,7 @@ export function DesktopNav() {
       <div className="flex flex-col flex-1 overflow-y-auto">
         {/* Logo / Brand */}
         <div className="flex items-center justify-between h-20 px-6 border-b border-border">
-          <h1 className="text-2xl font-bold text-foreground">FinanceApp</h1>
+          <h1 className="text-2xl font-bold text-foreground">Dominio</h1>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg hover:bg-muted transition-colors"

@@ -29,15 +29,7 @@ export default function Home() {
           totalSavings={balanceData.totalSavings}
         />
 
-        <div className="flex justify-center">
-          <Link
-            href="/transfer"
-            className="flex items-center gap-2 px-4 py-2 rounded-[1vw] bg-primary text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-          >
-            <ArrowsLeftRight size={20} weight="bold" />
-            Transferir
-          </Link>
-        </div>
+        
 
         {/* Income/Expense Cards with Mini Charts */}
         <IncomeExpenseCards

@@ -68,7 +68,7 @@ export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransac
                 </div>
               </div>
 
-              <p className={cn("font-bold text-sm whitespace-nowrap", isExpense ? "text-expense" : "text-income")}>
+              <p className={cn("font-bold text-sm whitespace-nowrap text-text-primary",)}>
                 {isExpense ? "-" : "+"} {formatCurrency(transaction.amount)}
               </p>
             </div>
