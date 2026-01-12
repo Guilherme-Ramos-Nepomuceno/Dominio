@@ -33,8 +33,7 @@ export function MiniBarChart({
   const values = safeData.map(d => d.value)
   const maxValue = Math.max(...values, 1)
 
-  // Gap mais apertado (1px) se for muitos dados (mensal) para caber os números
-  const gapClass = safeData.length > 15 ? "gap-[4px]" : "gap-2"
+  const gapClass = safeData.length > 15 ? "gap-[1px]" : "gap-2"
 
   return (
     <div
@@ -58,29 +57,36 @@ export function MiniBarChart({
               {/* ÁREA DA BARRA */}
               <div className="flex-1 w-full flex items-end justify-center relative z-10 mb-1.5">
                 
-                {/* TOOLTIP */}
+                {/* --- TOOLTIP --- */}
                 {isHovered && item.value > 0 && (
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
                      <div className="flex flex-col items-center animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200">
-                        <div className="bg-[#111111] text-white rounded-md px-3 py-2 shadow-2xl border border-white/10 flex flex-col items-center whitespace-nowrap">
-                          <span className="text-[9px] text-neutral-400 font-medium tracking-wide uppercase mb-0.5">
-                            {item.fullDate}
-                          </span>
-                          <span className="text-xs font-bold tracking-tight">
+                        
+                        {/* Caixa do Tooltip - COR FIXA CINZA */}
+                        <div 
+                            // MUDANÇA AQUI: Adicionado bg-[#383838] (tom de cinza chumbo) e removido o style={}
+                            className="text-white rounded-md px-2 py-1 shadow-xl flex items-center justify-center whitespace-nowrap bg-[#383838]"
+                        >
+                          <span className="text-[10px] font-bold tracking-tight">
                             {formatCurrency(item.value)}
                           </span>
                         </div>
-                        <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-[#111] mt-[-1px]"></div>
+
+                        {/* Triângulo (Seta) - COR FIXA CINZA */}
+                        <div 
+                            // MUDANÇA AQUI: Adicionado border-t-[#383838] e removido o style={}
+                            className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent mt-[-1px] border-t-[#383838]"
+                        ></div>
                      </div>
                   </div>
                 )}
 
-                {/* BARRA VISUAL */}
+                {/* BARRA VISUAL (Continua usando a cor dinâmica) */}
                 <div
                   className={cn(
                     "w-full rounded-t-[3px] transition-all duration-300 ease-out",
                     item.value > 0 ? "opacity-100" : "opacity-20",
-                    isHovered && item.value > 0 ? "brightness-125 shadow-[0_0_10px_rgba(255,255,255,0.3)]" : ""
+                    isHovered && item.value > 0 ? "brightness-110 shadow-[0_0_15px_rgba(255,255,255,0.2)]" : ""
                   )}
                   style={{
                     height: `${Math.max(barPercentage, 4)}%`,
@@ -89,14 +95,11 @@ export function MiniBarChart({
                 />
               </div>
 
-              {/* ÁREA DO LABEL - Atualizada */}
+              {/* LABEL */}
               <div className="h-[20px] w-full flex items-start justify-center overflow-visible">
                  <span className={cn(
-                    // Removido 'truncate'.
-                    // Adicionado tracking-tighter (letras mais juntas) para caber "30" dias
-                    // Fonte reduzida para 8px em telas normais para não encavalar
                     "text-[8px] sm:text-[9px] text-neutral-600 font-semibold uppercase w-full text-center transition-colors duration-200 tracking-tighter",
-                     isHovered ? "text-white scale-105" : ""
+                     isHovered ? "text-text-primary scale-105" : ""
                  )}>
                     {item.label}
                  </span>

@@ -8,6 +8,7 @@ import { CategoryItem } from "@/components/categories/category-item"
 import { AddCategoryDialog } from "@/components/categories/add-category-dialog"
 import { getCategories, getTransactions, setCategories, getSettings } from "@/lib/storage"
 import type { Category } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 export default function CategoriesPage() {
   const [categories, setLocalCategories] = useState<Category[]>([])
@@ -105,32 +106,56 @@ export default function CategoriesPage() {
     <AppLayout>
       <PageHeader title="Categorias" subtitle="Gerencie suas categorias de receitas e despesas" />
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 p-1 bg-muted rounded-[1vw]">
-        <button
-          onClick={() => setFilter("all")}
-          className={`flex-1 py-2 px-4 rounded-[1vw] font-medium transition-all ${
-            filter === "all" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-          }`}
-        >
-          Todas
-        </button>
-        <button
-          onClick={() => setFilter("income")}
-          className={`flex-1 py-2 px-4 rounded-[1vw] font-medium transition-all ${
-            filter === "income" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-          }`}
-        >
-          Receitas
-        </button>
-        <button
-          onClick={() => setFilter("expense")}
-          className={`flex-1 py-2 px-4 rounded-[1vw] font-medium transition-all ${
-            filter === "expense" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-          }`}
-        >
-          Despesas
-        </button>
+ {/* Filter Tabs */}
+      <div className="flex justify-center mb-6">
+        <div className="relative grid grid-cols-3 bg-card p-1 rounded-lg border border-white/5 w-full max-w-[300px]">
+          
+          {/* O Fundo Deslizante (Pill) */}
+          <div
+            className={cn(
+              "absolute top-1 bottom-1 left-1 bg-foreground rounded-md shadow-sm transition-transform duration-300 ease-in-out",
+              // CÁLCULO DE LARGURA PARA 3 COLUNAS: (100% do pai - 8px de padding total) dividido por 3
+              "w-[calc((100%-8px)/3)]",
+              // Translações baseadas na largura da pílula
+              filter === "all" && "translate-x-0",
+              filter === "income" && "translate-x-[100%]",
+              filter === "expense" && "translate-x-[200%]"
+            )}
+          />
+
+          {/* Botão: Todas */}
+          <button
+            onClick={() => setFilter("all")}
+            className={cn(
+              "relative z-10 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+              filter === "all" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+            )}
+          >
+            Todas
+          </button>
+
+          {/* Botão: Receitas */}
+          <button
+            onClick={() => setFilter("income")}
+            className={cn(
+              "relative z-10 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+              filter === "income" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+            )}
+          >
+            Receitas
+          </button>
+
+          {/* Botão: Despesas */}
+          <button
+            onClick={() => setFilter("expense")}
+            className={cn(
+              "relative z-10 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+              filter === "expense" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+            )}
+          >
+            Despesas
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">

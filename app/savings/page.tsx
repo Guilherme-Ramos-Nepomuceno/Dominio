@@ -74,7 +74,7 @@ export default function SavingsPage() {
         <PageHeader title="Reservas" subtitle="Organize seu dinheiro por objetivos" />
         <button
           onClick={() => setIsDialogOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
         >
           <Plus size={20} weight="bold" />
           Nova Reserva
@@ -103,7 +103,7 @@ export default function SavingsPage() {
           <p className="text-sm text-muted-foreground mb-6">Crie reservas para organizar seu dinheiro por objetivos</p>
           <button
             onClick={() => setIsDialogOpen(true)}
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
+            className="px-6 py-3 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
           >
             Criar Primeira Reserva
           </button>

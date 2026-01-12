@@ -397,13 +397,12 @@ export function TransactionForm() {
           <div className="flex gap-3 pt-4">
             <Button
               type="button"
-              variant="outline"
-              className="flex-1 h-12 rounded-[1vw] bg-transparent"
+              className="flex-1 h-12 rounded-[1vw] bg-background hover:bg-background/70"
               onClick={() => router.push("/")}
             >
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1 h-12 rounded-[1vw] font-semibold">
+            <Button type="submit" className="flex-1 h-12 rounded-[1vw] font-semibold text-background">
               Salvar Transação
             </Button>
           </div>

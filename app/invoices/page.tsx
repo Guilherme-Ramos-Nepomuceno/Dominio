@@ -201,7 +201,7 @@ export default function InvoicesPage() {
                       </h3>
 
                       <div className="flex flex-col sm:flex-row gap-3">
-                        <Button onClick={handlePayFull} className="flex-1 bg-income hover:bg-income/90">
+                        <Button onClick={handlePayFull} className="flex-1 text-background bg-income hover:bg-income/90">
                           Pagar Restante ({formatCurrency(selectedInvoice.totalPending)})
                         </Button>
                       </div>

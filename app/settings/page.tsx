@@ -82,7 +82,7 @@ export default function SettingsPage() {
 
             <button
               onClick={toggleTheme}
-              className="flex items-center gap-3 px-4 py-2 rounded-[1vw] bg-muted hover:bg-muted-foreground/20 transition-colors"
+              className="flex items-center gap-3 px-4 py-2 rounded-[1vw] bg-background hover:bg-muted-foreground/20 transition-colors"
             >
               {theme === "dark" ? (
                 <>
@@ -106,7 +106,7 @@ export default function SettingsPage() {
           <div className="space-y-4">
             {/* Spending Goal */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Meta Mensal de Gastos</label>
+              <label className="block text-sm font-medium text-foreground mb-2">Meta para limite Mensal de Gastos</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
                 <input
@@ -170,8 +170,8 @@ export default function SettingsPage() {
               return (
                 <div key={category.id} className="flex items-center gap-3">
                   <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: category.color + "20", color: category.color }}
+                    className="w-10 h-10 rounded-lg flex items-center justify-center bg-background"
+                    style={{ color: category.color }}
                   >
                      {/* @ts-ignore */}
                     <IconComponent size={20} weight="fill" />
@@ -195,7 +195,7 @@ export default function SettingsPage() {
             })}
           </div>
 
-          <div className="flex items-center justify-between p-4 rounded-[1vw] bg-muted">
+          <div className="flex items-center justify-between p-4 rounded-[1vw] bg-background">
             <span className="font-semibold text-foreground">Total</span>
             <span
               className={cn(
@@ -216,7 +216,7 @@ export default function SettingsPage() {
         {/* Save Button */}
         <button
           onClick={handleSave}
-          className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
+          className="w-full py-3 px-4 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
         >
           Salvar Configurações
         </button>

@@ -49,8 +49,8 @@ export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransac
               className="flex items-center gap-4 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors"
             >
               <div
-                className="w-10 h-10 rounded-[1vw] flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: `${category?.color}20`, color: category?.color }}
+                className="w-10 h-10 rounded-[1vw] flex items-center justify-center flex-shrink-0 bg-background"
+                style={{ color: category?.color }}
               >
                 {/* @ts-ignore - Dynamic icon component */}
                 <IconComponent size={20} weight="bold" />

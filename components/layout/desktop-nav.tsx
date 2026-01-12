@@ -65,7 +65,7 @@ export function DesktopNav() {
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium",
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
+                    ? "bg-primary text-background shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
@@ -80,7 +80,7 @@ export function DesktopNav() {
         <div className="p-4 border-t border-border">
           <Link
             href="/new"
-            className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/90 transition-colors"
+            className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-background rounded-xl font-semibold hover:bg-primary/90 transition-colors"
           >
             <PlusIcon weight="bold" size={20} />
             Nova Transação
