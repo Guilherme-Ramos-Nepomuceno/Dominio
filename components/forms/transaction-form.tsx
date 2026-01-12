@@ -12,8 +12,8 @@ import {
   TagIcon, 
   WalletIcon, 
   RepeatIcon,
-  WarningCircle, // Importando ícone de aviso
-  PlusCircle // Importando ícone de adicionar
+  WarningCircle, 
+  PlusCircle 
 } from "@phosphor-icons/react"
 import { addTransaction, getCategories, getCards, getTransactions } from "@/lib/storage"
 import type { TransactionType, RecurrenceType } from "@/lib/types"
@@ -37,27 +37,30 @@ export function TransactionForm() {
   const categories = getCategories()
   const cards = getCards()
 
-  // Verifica se existe cartão de débito
   const hasDebitCard = cards.some((c) => c.type === "debit")
 
   const [type, setType] = useState<TransactionType>("expense")
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
   const [categoryId, setCategoryId] = useState("")
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
+  // Inicializa com a data local correta
+  const [date, setDate] = useState(() => {
+    const now = new Date()
+    // Ajuste para garantir YYYY-MM-DD local
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, "0")
+    const day = String(now.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  })
   const [recurrence, setRecurrence] = useState<RecurrenceType>("none")
   const [installments, setInstallments] = useState("1")
   const [cardId, setCardId] = useState<string>("")
 
   const filteredCategories = categories.filter((cat) => cat.type === type)
 
-  const selectedDate = new Date(date)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
-  const selectedDateStr = date;
-  const todayStr = new Date().toISOString().split("T")[0];
-  const isFutureTransaction = selectedDateStr > todayStr;
+  // Comparação de datas (apenas strings YYYY-MM-DD para evitar erro de fuso na UI)
+  const todayStr = new Date().toLocaleDateString("sv-SE") // Hack confiável para YYYY-MM-DD local
+  const isFutureTransaction = date > todayStr
 
   const handleQuickAmount = (value: number) => {
     const currentAmount = parseCurrencyInput(amount)
@@ -74,7 +77,6 @@ export function TransactionForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Bloqueio extra no submit caso o usuário tente burlar
     if (type === "income" && !hasDebitCard) {
       alert("Você precisa cadastrar uma conta/cartão de débito para receber valores.")
       return
@@ -120,12 +122,18 @@ export function TransactionForm() {
 
     const status = isCreditCard || isFutureTransaction ? "pending" : "paid"
 
+    // --- CORREÇÃO DE DATA ---
+    // Criamos a data usando o input (YYYY-MM-DD) e forçamos o horário para 12:00:00 (Meio-dia)
+    // Isso garante que a data permaneça correta independente do fuso horário local.
+    const [year, month, day] = date.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day, 12, 0, 0);
+
     addTransaction({
       description,
       amount: numAmount,
       type,
       categoryId,
-      date: new Date(date).toISOString(),
+      date: dateObj.toISOString(), // Salva como ISO string segura
       recurrence,
       installments: recurrence === "none" && numInstallments > 1 ? numInstallments : undefined,
       cardId: cardId || undefined,
@@ -135,7 +143,6 @@ export function TransactionForm() {
     router.push("/")
   }
 
-  // Se for Receita E não tiver cartão de débito, mostramos o aviso bloqueante
   const showIncomeWarning = type === "income" && !hasDebitCard;
 
   return (
@@ -176,7 +183,7 @@ export function TransactionForm() {
         <div className="flex flex-col items-center justify-center py-8 px-4 text-center space-y-6 bg-card border border-border rounded-[20px]">
           <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center">
             <WarningCircle size={32} className="text-warning" weight="duotone" />
-             
+              
           </div>
           
           <div className="space-y-2 max-w-sm">

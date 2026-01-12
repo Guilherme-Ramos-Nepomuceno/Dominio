@@ -274,7 +274,7 @@ export default function PendingTransactionsPage() {
                       <div className="flex gap-2 mt-3">
                         <Button
                           onClick={() => handleMarkAsPaid(transaction.id)}
-                          className={cn("flex-1", isExpense ? "bg-primary" : "bg-income hover:bg-income/90 text-background")}
+                          className={cn("flex-1", isExpense ? "bg-expense hover:bg-expense/90 text-background" : "bg-income hover:bg-income/90 text-background")}
                         >
                           <CheckCircle size={20} weight="bold" className="mr-2 text-background" />
                           {isExpense ? "Pagar" : "Receber"}
