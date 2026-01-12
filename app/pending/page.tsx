@@ -2,13 +2,15 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Clock, CheckCircle, XCircle, Wallet, CalendarCheck } from "@phosphor-icons/react"
+import { Clock, CheckCircle, XCircle, Wallet, CalendarCheck, Warning } from "@phosphor-icons/react"
 import {
   getPendingTransactions,
   getCategories,
   markTransactionAsPaid,
   cancelTransaction,
   getCards,
+  addTransaction,
+  updateTransaction
 } from "@/lib/storage"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { PageHeader } from "@/components/ui/page-header"
@@ -16,6 +18,8 @@ import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
+// Importe os tipos corretos se necessário, ou defina aqui
+import type { Category, Card } from "@/lib/types"
 
 interface Transaction {
   id: string
@@ -27,52 +31,42 @@ interface Transaction {
   recurrence?: string
   recurrenceId?: string
   installments?: number
-  currentInstallment?: number
+  paidInstallments?: number 
   cardId?: string
+  status?: string
 }
 
 export default function PendingTransactionsPage() {
   const router = useRouter()
-  // @ts-ignore
-  const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>(getPendingTransactions())
-  
+
+  // 1. CORREÇÃO: Inicialize os estados vazios para garantir que o Server e Client sejam iguais no início
+  const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [cards, setCards] = useState<Card[]>([])
+  const [isLoaded, setIsLoaded] = useState(false) // Para evitar flash de conteúdo vazio
+
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null)
   const [selectedCard, setSelectedCard] = useState<string>("")
-  
-  // NOVO ESTADO: Data de confirmação do pagamento
   const [confirmDate, setConfirmDate] = useState<string>("")
 
-  const categories = getCategories()
-  const cards = getCards()
+  // 2. CORREÇÃO: Carregue os dados do localStorage APENAS no useEffect (lado do cliente)
+  useEffect(() => {
+    setPendingTransactions(getPendingTransactions())
+    setCategories(getCategories())
+    setCards(getCards())
+    setIsLoaded(true)
+  }, [])
 
   const visibleTransactions = useMemo(() => {
-    const grouped = new Map<string, Transaction>()
-    const singles: Transaction[] = []
-
     const filteredTransactions = pendingTransactions.filter((t) => {
-      if (!t.cardId) return true 
-      const card = cards.find((c) => c.id === t.cardId)
-      return card?.type !== "credit" 
+      if (t.cardId) {
+          const card = cards.find((c) => c.id === t.cardId)
+          if (card?.type === "credit") return false 
+      }
+      return true
     })
 
-    filteredTransactions.forEach((t) => {
-      const isRecurring = t.recurrence && t.recurrence !== "none"
-      const isInstallment = t.installments && t.installments > 1
-
-      if (!isRecurring && !isInstallment) {
-        singles.push(t)
-        return
-      }
-
-      const groupId = t.recurrenceId || t.description
-      const existing = grouped.get(groupId)
-
-      if (!existing || new Date(t.date) < new Date(existing.date)) {
-        grouped.set(groupId, t)
-      }
-    })
-
-    return [...singles, ...Array.from(grouped.values())].sort(
+    return filteredTransactions.sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     )
   }, [pendingTransactions, cards]) 
@@ -81,18 +75,8 @@ export default function PendingTransactionsPage() {
     const transaction = pendingTransactions.find((t) => t.id === transactionId)
     
     if (transaction) {
-        // Se já tem cartão, seleciona
         if (transaction.cardId) setSelectedCard(transaction.cardId)
         else setSelectedCard("")
-
-        // DEFINE A DATA INICIAL:
-        // Aqui você escolhe a estratégia:
-        // Opção A: Pega a data original da transação (respeita o agendamento)
-        // Opção B: Pega a data de hoje (assume que está pagando agora)
-        
-        // Estou usando a Data Original da transação (t.date) para atender seu pedido
-        // de "não mudar a data automaticamente para o momento do clique".
-        // O .split('T')[0] é para formatar YYYY-MM-DD para o input
         setConfirmDate(transaction.date.split('T')[0])
     }
     
@@ -101,14 +85,48 @@ export default function PendingTransactionsPage() {
 
   const confirmPayment = () => {
     if (!selectedTransaction) return
+    const transaction = pendingTransactions.find(t => t.id === selectedTransaction)
+    if (!transaction) return
 
     if (cards.length > 0 && !selectedCard) {
       alert("Selecione uma conta/cartão para confirmar onde o dinheiro saiu/entrou")
       return
     }
 
-    // Passamos a confirmDate para a função de storage
-    markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
+    const totalInstallments = transaction.installments || 1
+    const paidCount = transaction.paidInstallments || 0
+    const currentInstallment = paidCount + 1
+    const isInstallmentPayment = totalInstallments > 1 && transaction.recurrence === 'none'
+
+    if (isInstallmentPayment) {
+        const installmentAmount = transaction.amount / totalInstallments
+
+        addTransaction({
+            description: `${transaction.description} (${currentInstallment}/${totalInstallments})`,
+            amount: installmentAmount,
+            type: transaction.type,
+            categoryId: transaction.categoryId,
+            date: new Date(confirmDate).toISOString(),
+            cardId: selectedCard || undefined,
+            status: 'paid',
+            recurrence: 'none',
+        })
+
+        if (currentInstallment >= totalInstallments) {
+            markTransactionAsPaid(transaction.id, undefined, confirmDate)
+        } else {
+            const nextMonthDate = new Date(transaction.date)
+            nextMonthDate.setMonth(nextMonthDate.getMonth() + 1)
+
+            updateTransaction(transaction.id, {
+                paidInstallments: currentInstallment,
+                date: nextMonthDate.toISOString()
+            })
+        }
+
+    } else {
+        markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
+    }
     
     setPendingTransactions(getPendingTransactions())
     setSelectedTransaction(null)
@@ -123,13 +141,24 @@ export default function PendingTransactionsPage() {
     }
   }
 
+  // Se ainda não carregou no cliente, retorna null ou loading para evitar erro de hidratação
+  if (!isLoaded) {
+      return (
+        <AppLayout>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        </AppLayout>
+      )
+  }
+
   return (
     <AppLayout>
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
           <PageHeader 
             title="Contas a Pagar/Receber" 
-            subtitle="Confirme seus pagamentos e recebimentos"
+            subtitle="Gerencie suas pendências"
           />
 
           <div className="space-y-4 mt-6">
@@ -144,9 +173,18 @@ export default function PendingTransactionsPage() {
                 const isExpense = category?.type === "expense"
                 const linkedCard = transaction.cardId ? cards.find(c => c.id === transaction.cardId) : null
 
-                const installmentLabel = transaction.installments
-                  ? `${transaction.currentInstallment}/${transaction.installments}`
+                const totalInst = transaction.installments || 1
+                const paidInst = transaction.paidInstallments || 0
+                const currentInst = paidInst + 1
+                const isInstallment = totalInst > 1 && transaction.recurrence === 'none'
+
+                const installmentLabel = isInstallment
+                  ? `${currentInst}/${totalInst}`
                   : transaction.recurrence === "monthly" ? "Mensal" : null
+
+                const displayAmount = isInstallment 
+                    ? transaction.amount / totalInst 
+                    : transaction.amount;
 
                 return (
                   <div
@@ -185,16 +223,23 @@ export default function PendingTransactionsPage() {
                           </p>
                         </div>
                       </div>
+                      
                       <p className={cn("font-bold text-lg text-text-primary")}>
                         {isExpense ? "-" : "+"}
-                        {formatCurrency(transaction.amount)}
+                        {formatCurrency(displayAmount)}
                       </p>
                     </div>
 
-                    {selectedTransaction === transaction.id && cards.length > 0 ? (
+                    {selectedTransaction === transaction.id ? (
                       <div className="space-y-4 mt-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-2">
                         
-                        {/* SELEÇÃO DE DATA - NOVO CAMPO */}
+                        {isInstallment && (
+                            <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-[1vw] text-blue-500 text-xs">
+                                <Warning size={16} weight="bold" />
+                                <p>Isso registrará o pagamento da parcela <b>{currentInst}</b> de <b>{totalInst}</b> e a próxima ficará para o mês seguinte.</p>
+                            </div>
+                        )}
+
                         <div>
                             <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
                                 <CalendarCheck size={16} />
@@ -206,51 +251,46 @@ export default function PendingTransactionsPage() {
                                 onChange={(e) => setConfirmDate(e.target.value)}
                                 className="w-full px-4 py-2 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                             />
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {isExpense ? "Data que o dinheiro saiu." : "Data que o dinheiro entrou."}
-                            </p>
                         </div>
 
-                        {/* SELEÇÃO DE CONTA */}
-                        <div>
-                            <p className="text-sm font-medium text-foreground mb-2">
-                                {isExpense ? "Debitar de qual conta?" : "Receber em qual conta?"}
-                            </p>
-                            
-                            <div className="grid grid-cols-1 gap-2">
-                            {cards
-                                .map((card) => {
-                                const BankIcon = getBankIcon(card.bankName)
-                                return (
-                                <button
-                                    key={card.id}
-                                    type="button"
-                                    onClick={() => setSelectedCard(card.id)}
-                                    className={cn(
-                                    "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
-                                    selectedCard === card.id
-                                        ? "border-primary bg-primary/5 shadow-sm"
-                                        : "border-border bg-background hover:bg-muted",
-                                    )}
-                                >
-                                    <div
-                                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                    style={{ backgroundColor: card.color + "20" }}
+                        {cards.length > 0 && (
+                            <div>
+                                <p className="text-sm font-medium text-foreground mb-2">
+                                    {isExpense ? "Debitar de qual conta?" : "Receber em qual conta?"}
+                                </p>
+                                <div className="grid grid-cols-1 gap-2">
+                                {cards.map((card) => {
+                                    const BankIcon = getBankIcon(card.bankName)
+                                    return (
+                                    <button
+                                        key={card.id}
+                                        type="button"
+                                        onClick={() => setSelectedCard(card.id)}
+                                        className={cn(
+                                        "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
+                                        selectedCard === card.id
+                                            ? "border-primary bg-primary/5 shadow-sm"
+                                            : "border-border bg-background hover:bg-muted",
+                                        )}
                                     >
-                                    <BankIcon size={24} color={card.color} weight="fill" />
-                                    </div>
-                                    <div className="flex-1 text-left">
-                                    <p className="text-sm font-medium text-foreground">{card.name}</p>
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-xs text-muted-foreground">•••• {card.lastDigits}</p>
-                                        <span className="text-[10px] bg-muted px-1 rounded">{card.type === 'credit' ? 'Crédito' : 'Débito'}</span>
-                                    </div>
-                                    </div>
-                                </button>
-                                )
-                            })}
+                                        <div
+                                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                        style={{ backgroundColor: card.color + "20" }}
+                                        >
+                                        <BankIcon size={24} color={card.color} weight="fill" />
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                        <p className="text-sm font-medium text-foreground">{card.name}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-muted px-1 rounded">{card.type === 'credit' ? 'Crédito' : 'Débito'}</span>
+                                        </div>
+                                        </div>
+                                    </button>
+                                    )
+                                })}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         <div className="flex gap-2 pt-2">
                           <Button
