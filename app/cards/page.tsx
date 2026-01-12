@@ -27,7 +27,7 @@ export default function CardsPage() {
       <div className="flex justify-center mt-6">
         <Link
           href="/transfer"
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-white font-semibold shadow-lg hover:shadow-xl hover:bg-primary/90 hover:-translate-y-0.5 transition-all duration-300"
+          className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-background font-semibold shadow-lg hover:shadow-xl hover:bg-primary/90 hover:-translate-y-0.5 transition-all duration-300"
         >
           {/* Se sua versão do phosphor usa 'Icon' no final, mantenha. Se for a padrão, é só o nome */}
           <ArrowsLeftRight size={20} weight="bold" />
@@ -75,10 +75,10 @@ export default function CardsPage() {
         {/* Botão de Adicionar */}
         <button
           onClick={() => setIsDialogOpen(true)}
-          className="min-h-[220px] rounded-[2rem] border-2 border-dashed border-neutral-800 flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all duration-300 group"
+          className="min-h-[220px] rounded-[2rem] border-2 border-dashed border-foreground/40 flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all duration-300 group"
         >
-          <div className="w-14 h-14 rounded-full bg-neutral-900 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
-            <Plus weight="bold" size={24} />
+          <div className="w-14 h-14 rounded-full bg-foreground/40 group-hover:bg-foreground flex items-center justify-center transition-colors">
+            <Plus weight="bold" size={24}  className="text-background"/>
           </div>
           <span className="font-medium">Adicionar Cartão</span>
         </button>

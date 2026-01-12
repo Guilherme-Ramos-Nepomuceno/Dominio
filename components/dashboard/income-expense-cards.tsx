@@ -64,8 +64,6 @@ export function IncomeExpenseCards({
             if (period === 'week') {
                label = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(dateObj).replace('.', '');
             } else {
-               // --- MUDANÇA AQUI: Força o formato "01", "02", "03" ---
-               // Pega o dia e adiciona o zero à esquerda se necessário
                label = String(dateObj.getDate()).padStart(2, '0');
             }
             const fullDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(dateObj);
@@ -80,7 +78,7 @@ export function IncomeExpenseCards({
   }, [transactions, period])
 
   return (
-    <div className="space-y-4  mt-4">
+    <div className="space-y-4 mt-4">
       {/* Seletor Deslizante */}
       <div className="flex justify-center">
         <div className="relative grid grid-cols-2 bg-card p-1 rounded-lg border border-white/5 w-[200px]">
@@ -113,7 +111,8 @@ export function IncomeExpenseCards({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Income Card */}
-        <div className="rounded-2xl bg-card p-6 border border-white/5 relative overflow-hidden group">
+        {/* REMOVIDO: overflow-hidden. ADICIONADO: relative z-0 (opcional, para garantir stacking context) */}
+        <div className="rounded-2xl bg-card p-6 border border-white/5 relative group">
            <div className="flex items-end justify-between relative z-10 gap-4">
               <div className="flex flex-col justify-between h-[100px]">
                   <div className="flex items-center gap-2">
@@ -127,13 +126,15 @@ export function IncomeExpenseCards({
                   </div>
               </div>
               <div className="w-[55%] pb-1">
-                 <MiniBarChart data={incomeChartData} color="var(--income)" height={80} />
+                 {/* Passando a cor diretamente para combinar com o tooltip */}
+                 <MiniBarChart data={incomeChartData} color="#A3E635" height={80} />
               </div>
            </div>
         </div>
 
         {/* Expense Card */}
-        <div className="rounded-2xl bg-card p-6 border border-white/5 relative overflow-hidden group">
+        {/* REMOVIDO: overflow-hidden */}
+        <div className="rounded-2xl bg-card p-6 border border-white/5 relative group">
           <div className="flex items-end justify-between relative z-10 gap-4">
               <div className="flex flex-col justify-between h-[100px]">
                   <div className="flex items-center gap-2">
@@ -147,7 +148,8 @@ export function IncomeExpenseCards({
                   </div>
               </div>
               <div className="w-[55%] pb-1">
-                <MiniBarChart data={expenseChartData} color="#FF3B3B" height={80} />
+                {/* Passando a cor diretamente para combinar com o tooltip */}
+                <MiniBarChart data={expenseChartData} color="#F87171" height={80} />
               </div>
           </div>
         </div>

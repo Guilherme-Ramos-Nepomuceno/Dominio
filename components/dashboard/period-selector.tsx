@@ -95,7 +95,7 @@ export function PeriodSelector({ selectedMonth, onMonthChange, className }: Peri
               className={cn(
                 "shrink-0 px-6 py-3 rounded-[1vw] font-semibold transition-all text-sm",
                 isSelected
-                  ? "bg-primary text-primary-foreground shadow-md scale-105"
+                  ? "bg-primary text-background shadow-md scale-105"
                   : "bg-card text-muted-foreground hover:text-foreground hover:bg-muted border border-border",
               )}
             >
