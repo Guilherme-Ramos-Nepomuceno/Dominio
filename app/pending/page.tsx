@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
-// Importe os tipos corretos se necessário, ou defina aqui
 import type { Category, Card } from "@/lib/types"
 
 interface Transaction {
@@ -39,17 +38,15 @@ interface Transaction {
 export default function PendingTransactionsPage() {
   const router = useRouter()
 
-  // 1. CORREÇÃO: Inicialize os estados vazios para garantir que o Server e Client sejam iguais no início
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [cards, setCards] = useState<Card[]>([])
-  const [isLoaded, setIsLoaded] = useState(false) // Para evitar flash de conteúdo vazio
+  const [isLoaded, setIsLoaded] = useState(false)
 
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null)
   const [selectedCard, setSelectedCard] = useState<string>("")
   const [confirmDate, setConfirmDate] = useState<string>("")
 
-  // 2. CORREÇÃO: Carregue os dados do localStorage APENAS no useEffect (lado do cliente)
   useEffect(() => {
     setPendingTransactions(getPendingTransactions())
     setCategories(getCategories())
@@ -57,8 +54,10 @@ export default function PendingTransactionsPage() {
     setIsLoaded(true)
   }, [])
 
+  // --- LÓGICA CORRIGIDA: AGRUPAMENTO ---
   const visibleTransactions = useMemo(() => {
-    const filteredTransactions = pendingTransactions.filter((t) => {
+    // 1. Filtra primeiro (remove crédito, etc)
+    const filtered = pendingTransactions.filter((t) => {
       if (t.cardId) {
           const card = cards.find((c) => c.id === t.cardId)
           if (card?.type === "credit") return false 
@@ -66,7 +65,37 @@ export default function PendingTransactionsPage() {
       return true
     })
 
-    return filteredTransactions.sort(
+    // 2. Agrupa por Recorrência ou Descrição para mostrar apenas a PRÓXIMA
+    const grouped = new Map<string, Transaction>()
+    const singles: Transaction[] = []
+
+    filtered.forEach((t) => {
+      const isRecurring = t.recurrence && t.recurrence !== "none"
+      // Também consideramos parcelamento como algo que deve ser agrupado
+      // Se não tiver ID de recorrência, usamos a descrição como chave de grupo
+      const isInstallment = t.installments && t.installments > 1
+
+      if (!isRecurring && !isInstallment) {
+        singles.push(t)
+        return
+      }
+
+      // Chave única para agrupar: ID de recorrência > ID Pai > Descrição
+      // Isso garante que "Netflix" (mensal) ou "TV" (parcelado) só apareça uma vez na lista
+      const groupId = t.recurrenceId || t.description 
+      
+      const existing = grouped.get(groupId)
+
+      // Lógica do "Rei da Colina": Se não tem ninguém no grupo, entra.
+      // Se já tem, só substitui se a data deste (t) for ANTERIOR à do existente.
+      // Assim, sempre sobra a transação mais antiga (a próxima a vencer).
+      if (!existing || new Date(t.date) < new Date(existing.date)) {
+        grouped.set(groupId, t)
+      }
+    })
+
+    // Junta os únicos + os vencedores dos grupos e ordena por data
+    return [...singles, ...Array.from(grouped.values())].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     )
   }, [pendingTransactions, cards]) 
@@ -141,7 +170,6 @@ export default function PendingTransactionsPage() {
     }
   }
 
-  // Se ainda não carregou no cliente, retorna null ou loading para evitar erro de hidratação
   if (!isLoaded) {
       return (
         <AppLayout>
@@ -304,7 +332,7 @@ export default function PendingTransactionsPage() {
                           >
                             Cancelar
                           </Button>
-                          <Button onClick={confirmPayment} className="flex-1">
+                          <Button onClick={confirmPayment} className="flex-1 text-background ">
                             <CheckCircle size={20} weight="bold" className="mr-2" />
                             Confirmar
                           </Button>
