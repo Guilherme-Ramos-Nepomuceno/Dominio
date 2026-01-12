@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { CreditCardIcon, CalendarIcon, ReceiptIcon, CheckCircle } from "@phosphor-icons/react"
 import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction } from "@/lib/storage"
-import { formatCurrency, formatDate } from "@/lib/date-utils" // Removi getCurrentMonth do import para usar o local seguro
+import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
@@ -14,10 +14,9 @@ import { PeriodSelector } from "@/components/dashboard/period-selector"
 export default function InvoicesPage() {
   const [cards] = useState(getCards().filter((c) => c.type === "credit"))
 
-  // 1. FIX: Garante que o mês atual seja gerado corretamente (Mês 0-11 + 1)
+  // Garante que o mês atual seja gerado corretamente
   const getSafeCurrentMonth = () => {
     const now = new Date()
-    // getMonth() retorna 0 para Jan, então somamos 1
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
   }
 
@@ -27,27 +26,66 @@ export default function InvoicesPage() {
   const [partialAmount, setPartialAmount] = useState("")
   const categories = getCategories()
 
-  // 2. FIX: Formatação de data segura contra Fuso Horário
   const getFormattedMonthTitle = (monthStr: string) => {
     if (!monthStr) return ""
     const [year, month] = monthStr.split("-").map(Number)
-    
-    // Cria a data definindo a hora para 12:00 (meio-dia).
-    // Isso evita que o fuso horário (GMT-4) volte o dia para o mês anterior.
-    // month - 1 é necessário pois o construtor Date usa mês 0-11
     const date = new Date(year, month - 1, 1, 12, 0, 0)
-    
     return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
   }
 
+  // --- NOVA LÓGICA: PROJEÇÃO DE PARCELAS ---
   const cardInvoices = cards.map((card) => {
+    // 1. Filtra transações deste cartão que são despesas
     const cardTransactions = transactions.filter(
       (t) =>
         t.cardId === card.id &&
         categories.find((c) => c.id === t.categoryId)?.type === "expense"
     )
 
-    const monthTransactions = cardTransactions.filter((t) => t.date.startsWith(selectedMonth))
+    // 2. Processa as transações para o mês selecionado
+    // Em vez de filtrar direto por data, vamos "explodir" os parcelamentos
+    const monthTransactions: any[] = []
+
+    cardTransactions.forEach((t) => {
+      const transactionDate = new Date(t.date)
+      // Ajuste de fuso horário simples para garantir leitura correta do ano/mês
+      const tYear = transactionDate.getFullYear()
+      const tMonth = transactionDate.getMonth() + 1 // 1-12
+
+      const [selYear, selMonth] = selectedMonth.split("-").map(Number)
+
+      const installments = t.installments && t.installments > 1 ? t.installments : 1
+
+      if (installments === 1) {
+        // Compra à vista: Só entra se for exatamente o mês selecionado
+        if (t.date.startsWith(selectedMonth)) {
+          monthTransactions.push(t)
+        }
+      } else {
+        // Compra Parcelada: Verifica se o mês selecionado está dentro do range de parcelas
+        
+        // Diferença em meses entre a data da compra e o mês selecionado
+        // Ex: Compra em Jan (1), Selecionado Mar (3). Diff = 2.
+        const monthDiff = (selYear - tYear) * 12 + (selMonth - tMonth)
+
+        // Se a diferença for >= 0 e menor que o total de parcelas, este mês tem uma fatura
+        if (monthDiff >= 0 && monthDiff < installments) {
+          // Calcula o valor da parcela (Valor Total / Qtd Parcelas)
+          const installmentAmount = t.amount / installments
+          
+          // Cria uma transação "virtual" para exibição correta neste mês
+          monthTransactions.push({
+            ...t,
+            // Substitui o valor total pelo valor da parcela
+            amount: installmentAmount, 
+            // Calcula qual é o número desta parcela (base 1)
+            currentInstallment: monthDiff + 1,
+            // Mantém a data original ou ajusta para o mês atual (opcional, mantendo original para referência)
+            originalDate: t.date 
+          })
+        }
+      }
+    })
 
     const totalInvoice = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
     const pendingTransactions = monthTransactions.filter(t => t.status === "pending")
@@ -61,6 +99,7 @@ export default function InvoicesPage() {
       totalPending: totalPending
     }
   })
+  // ----------------------------------------
 
   const selectedInvoice = cardInvoices.find((inv) => inv.card.id === selectedCard)
 
@@ -69,6 +108,9 @@ export default function InvoicesPage() {
 
     if (confirm(`Deseja pagar o restante da fatura de ${formatCurrency(selectedInvoice.totalPending)}?`)) {
       selectedInvoice.pendingTransactions.forEach((transaction) => {
+        // Nota: Isso marcará a transação 'pai' como paga no banco de dados. 
+        // Em sistemas simples sem tabela de parcelas separada, pagar uma parcela geralmente paga o registro todo.
+        // Se precisar de controle individual, o storage precisa suportar 'paidInstallments: []'
         markTransactionAsPaid(transaction.id, selectedCard || undefined)
       })
       setTransactions(getTransactions())
@@ -243,7 +285,6 @@ export default function InvoicesPage() {
 
                   <div className="space-y-3">
                     <h3 className="text-lg font-semibold text-foreground capitalize">
-                      {/* Título seguro */}
                       Transações de {getFormattedMonthTitle(selectedMonth)}
                     </h3>
 
@@ -277,7 +318,7 @@ export default function InvoicesPage() {
                                   <p className="font-semibold text-foreground truncate">{transaction.description}</p>
                                   <p className="text-sm text-muted-foreground">{category?.name}</p>
                                   <div className="flex items-center gap-2 mt-1">
-                                    <p className="text-xs text-muted-foreground">{formatDate(transaction.date)}</p>
+                                    <p className="text-xs text-muted-foreground">{formatDate(transaction.originalDate || transaction.date)}</p>
                                     {isPaid && (
                                         <span className="text-xs px-2 py-0.5 rounded-full bg-income/20 text-income font-medium flex items-center gap-1">
                                             <CheckCircle size={10} weight="fill"/> Pago
@@ -287,6 +328,7 @@ export default function InvoicesPage() {
                                   
                                   {transaction.installments && transaction.installments > 1 && (
                                     <p className="text-xs text-primary font-medium mt-1">
+                                      {/* Mostra a parcela calculada para este mês */}
                                       Parcela {transaction.currentInstallment}/{transaction.installments}
                                     </p>
                                   )}
@@ -294,6 +336,7 @@ export default function InvoicesPage() {
                               </div>
                               <div className="text-right">
                                 <p className={cn("font-bold text-lg", isPaid ? "text-muted-foreground" : "text-expense")}>
+                                    {/* Exibe o valor da parcela, não o total */}
                                     -{formatCurrency(transaction.amount)}
                                 </p>
                                 {!isPaid && (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { CaretLeftIcon, CaretRightIcon, CircleNotchIcon, TrendUpIcon } from "@phosphor-icons/react"
 import { getCategories, getSettings, getTransactions } from "@/lib/storage"
 import type { Transaction, Category } from "@/lib/types"
@@ -37,6 +37,12 @@ export function StackedBarChart({
   const [isEditingThreshold, setIsEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState("")
 
+  // Estado do Tooltip ativo (para Mobile/Click)
+  const [activeSegment, setActiveSegment] = useState<{ month: string, categoryId: string } | null>(null)
+  
+  // Ref para detectar cliques fora do componente
+  const chartRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const settings = getSettings();
     const categories = getCategories();
@@ -47,6 +53,22 @@ export function StackedBarChart({
     const initialThreshold = customThreshold ?? settings.spendingGoal;
     setThresholdInput(initialThreshold.toString());
   }, [customThreshold]);
+
+  // --- CORREÇÃO: Lógica robusta de clique fora ---
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Se o gráfico existir e o clique NÃO foi dentro dele, fecha o tooltip
+      if (chartRef.current && !chartRef.current.contains(event.target as Node)) {
+        setActiveSegment(null)
+      }
+    }
+
+    // Usa 'mousedown' para ser mais responsivo que 'click' no mobile
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   const monthsToShow = useMemo(() => {
     const prev1 = getPreviousMonth(currentMonth)
@@ -67,26 +89,49 @@ export function StackedBarChart({
   const { settings, categories, allTransactions } = data;
   const threshold = customThreshold ?? settings.spendingGoal
 
-  const getMonthData = (month: string) => {
-    const monthTransactions = allTransactions.filter((t) => t.date.startsWith(month))
+  const getMonthData = (targetMonthStr: string) => {
     const result: CategoryData[] = []
+    const [targetYear, targetMonth] = targetMonthStr.split('-').map(Number)
 
-    monthTransactions.forEach((transaction) => {
-      const category = categories.find((c) => c.id === transaction.categoryId)
-      if (category?.type !== "expense") return
+    allTransactions.forEach((transaction) => {
+      if (transaction.type !== 'expense') return
 
-      const existing = result.find((d) => d.categoryId === category.id)
-      if (existing) {
-        existing.amount += transaction.amount
+      const transDate = new Date(transaction.date)
+      const transYear = transDate.getFullYear()
+      const transMonth = transDate.getMonth() + 1
+
+      const installments = transaction.installments && transaction.installments > 1 ? transaction.installments : 1
+      let amountToAdd = 0
+
+      if (installments === 1) {
+        if (transaction.date.startsWith(targetMonthStr)) {
+          amountToAdd = transaction.amount
+        }
       } else {
-        result.push({
-          categoryId: category.id,
-          name: category.name,
-          color: category.color,
-          amount: transaction.amount,
-        })
+        const monthDiff = (targetYear - transYear) * 12 + (targetMonth - transMonth)
+        if (monthDiff >= 0 && monthDiff < installments) {
+           amountToAdd = transaction.amount / installments
+        }
+      }
+
+      if (amountToAdd > 0) {
+        const category = categories.find((c) => c.id === transaction.categoryId)
+        if (!category) return
+
+        const existing = result.find((d) => d.categoryId === category.id)
+        if (existing) {
+          existing.amount += amountToAdd
+        } else {
+          result.push({
+            categoryId: category.id,
+            name: category.name,
+            color: category.color,
+            amount: amountToAdd,
+          })
+        }
       }
     })
+
     return result.sort((a, b) => b.amount - a.amount)
   }
 
@@ -116,17 +161,17 @@ export function StackedBarChart({
   const thresholdPercentage = (threshold / maxValue) * 100
 
   const renderColumn = (monthData: typeof chartData[0]) => {
+    const isColumnActive = activeSegment?.month === monthData.month
+
     return (
       <div key={monthData.month} className="flex-1 flex flex-col items-center group/column">
         
-        {/* Container da Coluna */}
         <div className="w-full h-64 relative flex items-end justify-center">
           
-          {/* Barra Stacked (Container dos segmentos) */}
           <div className={cn(
             "w-12 sm:w-14 h-full flex flex-col-reverse justify-start relative z-10 transition-transform duration-300 group-hover/column:scale-[1.02]",
-            // --- CORREÇÃO AQUI: Eleva o z-index da coluna inteira no hover ---
-            "group-hover/column:z-[100]"
+            // Eleva a coluna se estiver ativa (clicada) ou hover
+            isColumnActive ? "z-[50]" : "group-hover/column:z-[50]"
           )}>
             
             {monthData.categories.length === 0 ? (
@@ -137,15 +182,27 @@ export function StackedBarChart({
                 const isTop = index === monthData.categories.length - 1
                 const isBottom = index === 0
 
+                // Verifica se este segmento específico está ativo
+                const isSegmentActive = isColumnActive && activeSegment?.categoryId === cat.categoryId
+
                 if (heightPercentage <= 0) return null;
 
                 return (
                   <div
                     key={cat.categoryId}
+                    // --- MUDANÇA: Lógica de clique simplificada ---
+                    onClick={(e) => {
+                        // Se já estiver ativo, fecha (null). Se não, ativa este.
+                        if (isSegmentActive) {
+                            setActiveSegment(null)
+                        } else {
+                            setActiveSegment({ month: monthData.month, categoryId: cat.categoryId })
+                        }
+                    }}
                     className={cn(
-                        "relative w-full transition-all duration-300 hover:brightness-110 group/segment",
-                        // Eleva o segmento atual sobre os outros da mesma barra
+                        "relative w-full transition-all duration-300 hover:brightness-110 group/segment cursor-pointer",
                         "hover:z-20", 
+                        isSegmentActive && "z-30 brightness-110",
                         isTop ? "rounded-t-[6px]" : "",
                         isBottom ? "rounded-b-[6px]" : "",
                         !isBottom ? "border-b-[2px] border-card" : ""
@@ -157,8 +214,15 @@ export function StackedBarChart({
                     }}
                   >
                     {/* Tooltip */}
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[110%] opacity-0 group-hover/segment:opacity-100 transition-all duration-200 pointer-events-none z-50 transform group-hover/segment:translate-y-0 translate-y-2">
-                        <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-4 py-3 shadow-2xl min-w-[140px]">
+                    <div className={cn(
+                        "absolute left-1/2 -translate-x-1/2 bottom-[110%] transition-all duration-200 pointer-events-none min-w-[140px]",
+                        // Garante que o tooltip fique MUITO acima de tudo
+                        "z-[100]",
+                        isSegmentActive 
+                            ? "opacity-100 translate-y-0" 
+                            : "opacity-0 translate-y-2 group-hover/segment:opacity-100 group-hover/segment:translate-y-0"
+                    )}>
+                        <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
                             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
                                 <p className="text-xs font-medium text-gray-300 truncate max-w-[100px]">{cat.name}</p>
@@ -204,8 +268,8 @@ export function StackedBarChart({
   }
 
   return (
-    // Container principal com overflow-visible para o tooltip não ser cortado
-    <div className="rounded-[24px] bg-card p-6 sm:p-8 shadow-sm border border-border/50 relative overflow-visible">
+    // ADICIONADO: ref={chartRef} para detectar cliques dentro/fora
+    <div ref={chartRef} className="rounded-[24px] bg-card p-6 sm:p-8 shadow-sm border border-border/50 relative overflow-visible">
       
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
