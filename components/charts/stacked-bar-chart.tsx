@@ -37,10 +37,8 @@ export function StackedBarChart({
   const [isEditingThreshold, setIsEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState("")
 
-  // Estado do Tooltip ativo (para Mobile/Click)
   const [activeSegment, setActiveSegment] = useState<{ month: string, categoryId: string } | null>(null)
   
-  // Ref para detectar cliques fora do componente
   const chartRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -54,16 +52,12 @@ export function StackedBarChart({
     setThresholdInput(initialThreshold.toString());
   }, [customThreshold]);
 
-  // --- CORREÇÃO: Lógica robusta de clique fora ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Se o gráfico existir e o clique NÃO foi dentro dele, fecha o tooltip
       if (chartRef.current && !chartRef.current.contains(event.target as Node)) {
         setActiveSegment(null)
       }
     }
-
-    // Usa 'mousedown' para ser mais responsivo que 'click' no mobile
     document.addEventListener("mousedown", handleClickOutside)
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
@@ -170,7 +164,7 @@ export function StackedBarChart({
           
           <div className={cn(
             "w-12 sm:w-14 h-full flex flex-col-reverse justify-start relative z-10 transition-transform duration-300 group-hover/column:scale-[1.02]",
-            // Eleva a coluna se estiver ativa (clicada) ou hover
+            // Se a coluna estiver ativa, ela ganha Z-Index máximo (50) para ficar sobre as outras
             isColumnActive ? "z-[50]" : "group-hover/column:z-[50]"
           )}>
             
@@ -182,7 +176,6 @@ export function StackedBarChart({
                 const isTop = index === monthData.categories.length - 1
                 const isBottom = index === 0
 
-                // Verifica se este segmento específico está ativo
                 const isSegmentActive = isColumnActive && activeSegment?.categoryId === cat.categoryId
 
                 if (heightPercentage <= 0) return null;
@@ -190,9 +183,8 @@ export function StackedBarChart({
                 return (
                   <div
                     key={cat.categoryId}
-                    // --- MUDANÇA: Lógica de clique simplificada ---
                     onClick={(e) => {
-                        // Se já estiver ativo, fecha (null). Se não, ativa este.
+                        e.stopPropagation() // Importante: parar propagação
                         if (isSegmentActive) {
                             setActiveSegment(null)
                         } else {
@@ -216,13 +208,12 @@ export function StackedBarChart({
                     {/* Tooltip */}
                     <div className={cn(
                         "absolute left-1/2 -translate-x-1/2 bottom-[110%] transition-all duration-200 pointer-events-none min-w-[140px]",
-                        // Garante que o tooltip fique MUITO acima de tudo
-                        "z-[100]",
+                        "z-[100]", // Z-Index máximo para o tooltip
                         isSegmentActive 
-                            ? "opacity-100 translate-y-0" 
-                            : "opacity-0 translate-y-2 group-hover/segment:opacity-100 group-hover/segment:translate-y-0"
+                            ? "opacity-100 translate-y-0 scale-100" 
+                            : "opacity-0 translate-y-2 scale-95 group-hover/segment:opacity-100 group-hover/segment:translate-y-0 group-hover/segment:scale-100"
                     )}>
-                        <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
+                        <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-4 py-3 shadow-2xl relative">
                             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
                                 <p className="text-xs font-medium text-gray-300 truncate max-w-[100px]">{cat.name}</p>
@@ -237,6 +228,7 @@ export function StackedBarChart({
                                     <p className="text-xs font-semibold text-gray-300">{((cat.amount / monthData.total) * 100).toFixed(0)}%</p>
                                 </div>
                             </div>
+                            {/* Seta do Tooltip */}
                             <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#1a1a1a]/95"></div>
                         </div>
                     </div>
@@ -248,7 +240,7 @@ export function StackedBarChart({
         </div>
 
         {/* Labels e Totais */}
-        <div className="mt-4 text-center space-y-1">
+        <div className="mt-4 text-center space-y-1 relative z-10">
           <p className={cn(
               "text-xs font-bold uppercase tracking-wider transition-colors", 
               monthData.isCurrent ? "text-primary" : "text-muted-foreground/60"
@@ -268,11 +260,10 @@ export function StackedBarChart({
   }
 
   return (
-    // ADICIONADO: ref={chartRef} para detectar cliques dentro/fora
     <div ref={chartRef} className="rounded-[24px] bg-card p-6 sm:p-8 shadow-sm border border-border/50 relative overflow-visible">
       
       {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 relative z-20">
         <div>
           <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
             Fluxo de Gastos
@@ -312,7 +303,7 @@ export function StackedBarChart({
       </div>
 
       {/* Gráfico */}
-      <div className="relative mt-4">
+      <div className="relative mt-4 z-10">
         {/* Linha de Meta (Threshold) */}
         <div
           className="absolute left-0 right-0 z-0 pointer-events-none transition-all duration-500 ease-out"
@@ -333,16 +324,16 @@ export function StackedBarChart({
 
       {/* Navegação */}
       {onMonthChange && (
-        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 flex justify-between px-2 pointer-events-none">
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 flex justify-between px-2 pointer-events-none z-30">
              <button 
                 onClick={() => onMonthChange(getPreviousMonth(currentMonth))} 
-                className="pointer-events-auto p-2 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-lg text-muted-foreground hover:text-foreground hover:scale-110 transition-all opacity-0 md:opacity-100 z-50"
+                className="pointer-events-auto p-2 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-lg text-muted-foreground hover:text-foreground hover:scale-110 transition-all opacity-0 md:opacity-100"
              >
                 <CaretLeftIcon size={20} weight="bold" />
              </button>
              <button 
                 onClick={() => onMonthChange(getNextMonth(currentMonth))} 
-                className="pointer-events-auto p-2 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-lg text-muted-foreground hover:text-foreground hover:scale-110 transition-all opacity-0 md:opacity-100 z-50"
+                className="pointer-events-auto p-2 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-lg text-muted-foreground hover:text-foreground hover:scale-110 transition-all opacity-0 md:opacity-100"
              >
                 <CaretRightIcon size={20} weight="bold" />
              </button>
@@ -351,7 +342,7 @@ export function StackedBarChart({
 
       {/* Navegação Mobile */}
       {onMonthChange && (
-         <div className="flex md:hidden items-center justify-center gap-6 mt-8 pt-4 border-t border-border/50">
+         <div className="flex md:hidden items-center justify-center gap-6 mt-8 pt-4 border-t border-border/50 relative z-20">
             <button onClick={() => onMonthChange(getPreviousMonth(currentMonth))} className="p-3 rounded-xl bg-muted/50 hover:bg-muted text-foreground transition-colors">
                 <CaretLeftIcon size={20} />
             </button>

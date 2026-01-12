@@ -1,13 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Moon, Sun, Warning } from "@phosphor-icons/react"
-// Importação necessária para os ícones dinâmicos
+import { Moon, Sun, Warning, Trash } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react" 
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { useTheme } from "@/hooks/use-theme"
-import { getSettings, setSettings as saveSettings, getCategories, getTransactions } from "@/lib/storage"
+import { 
+  getSettings, 
+  setSettings as saveSettings, 
+  getCategories, 
+  getTransactions,
+  setTransactions // Importe necessário para limpar
+} from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/date-utils"
 
@@ -34,8 +39,17 @@ export default function SettingsPage() {
     alert("Configurações salvas com sucesso!")
   }
 
+  // --- NOVA FUNÇÃO PARA LIMPAR TUDO ---
+  const handleClearAllData = () => {
+    if (confirm("TEM CERTEZA? Isso apagará TODAS as suas transações e o histórico dos cartões permanentemente. Essa ação não pode ser desfeita.")) {
+        setTransactions([]) // Zera o array de transações no storage
+        alert("Todos os dados foram apagados com sucesso.")
+        // Opcional: Recarregar a página para atualizar os dados visuais se necessário
+        window.location.reload()
+    }
+  }
+
   const handlePercentageChange = (categoryId: string, value: number) => {
-    // Filtra removendo o antigo e adiciona o novo se > 0
     const updated = categoryGoals.filter((g) => g.categoryId !== categoryId)
     if (value > 0) {
       updated.push({ categoryId, percentage: value })
@@ -69,7 +83,7 @@ export default function SettingsPage() {
     <AppLayout>
       <PageHeader title="Configurações" subtitle="Personalize seu aplicativo" />
 
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-6 pb-10">
         {/* Theme Toggle */}
         <div className="rounded-[20px] bg-card p-6 border border-border/50">
           <h3 className="text-lg font-semibold text-foreground mb-4">Aparência</h3>
@@ -164,7 +178,6 @@ export default function SettingsPage() {
               const goal = categoryGoals.find((g) => g.categoryId === category.id)
               const percentage = goal?.percentage || 0
               
-              // Lógica para recuperar o ícone correto
               const IconComponent = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
 
               return (
@@ -173,7 +186,7 @@ export default function SettingsPage() {
                     className="w-10 h-10 rounded-lg flex items-center justify-center bg-background"
                     style={{ color: category.color }}
                   >
-                     {/* @ts-ignore */}
+                    {/* @ts-ignore */}
                     <IconComponent size={20} weight="fill" />
                   </div>
                   <div className="flex-1">
@@ -220,6 +233,27 @@ export default function SettingsPage() {
         >
           Salvar Configurações
         </button>
+
+        {/* --- NOVO CARD: ZONA DE PERIGO --- */}
+        <div className="rounded-[20px] bg-card p-6 border border-expense/30 mt-8">
+            <div className="flex items-center gap-2 mb-4 text-expense">
+                <Warning size={24} weight="fill" />
+                <h3 className="text-lg font-semibold">Zona de Perigo</h3>
+            </div>
+            
+            <p className="text-sm text-muted-foreground mb-6">
+                Ações aqui são irreversíveis. Tenha certeza antes de prosseguir.
+            </p>
+
+            <button
+                onClick={handleClearAllData}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-transparent border-2 border-expense text-expense rounded-[1vw] font-semibold hover:bg-expense hover:text-white transition-all"
+            >
+                <Trash size={20} weight="bold" />
+                Apagar Todas as Transações
+            </button>
+        </div>
+
       </div>
     </AppLayout>
   )
