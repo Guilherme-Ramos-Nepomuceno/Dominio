@@ -25,6 +25,7 @@ export interface Transaction {
   recurrence: RecurrenceType
   installments?: number
   currentInstallment?: number
+  paidInstallments?: number 
   parentId?: string // For installment transactions
   status?: TransactionStatus
   cardId?: string // Added cardId to Transaction interface
