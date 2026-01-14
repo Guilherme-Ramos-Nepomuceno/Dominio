@@ -218,7 +218,7 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
             </button>
             <button
               onClick={handleSubmit}
-              className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
+              className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors"
             >
               Criar Reserva
             </button>

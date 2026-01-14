@@ -12,10 +12,8 @@ interface CircularBalanceProps {
 }
 
 export function CircularBalance({ balance, income, expense, checkingBalance, totalSavings }: CircularBalanceProps) {
-  // 1. Estado para verificar se o componente já montou no cliente
   const [isMounted, setIsMounted] = useState(false)
 
-  // 2. useEffect roda apenas no cliente após o primeiro render
   useEffect(() => {
     setIsMounted(true)
   }, [])
@@ -23,8 +21,6 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
   const totalBalance = checkingBalance + totalSavings
   const isNegative = totalBalance < 0
 
-  // 3. Se não estiver montado, retorna um esqueleto ou null para evitar o erro de Hydration
-  // Isso evita que o servidor renderize o texto que causa o conflito
   if (!isMounted) {
     return (
       <div className="relative flex flex-col items-center justify-center py-8">
@@ -33,14 +29,15 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
     )
   }
 
-  if (isNegative) {
-    const radius = 90
-    const circumference = Math.PI * radius
+  // Configurações comuns do SVG
+  const radius = 90
+  const circumference = Math.PI * radius
 
+  if (isNegative) {
     return (
       <div className="relative flex flex-col items-center justify-center py-8">
-        {/* SVG Arc - Full red when negative */}
-        <svg className="w-64 h-32" viewBox="0 0 200 100">
+        {/* SVG Arc */}
+        <svg className="w-64 h-32 overflow-visible" viewBox="0 0 200 100">
           <path
             d="M 10,100 A 90,90 0 0,1 190,100"
             fill="none"
@@ -51,13 +48,20 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
           />
         </svg>
 
-        {/* Balance Display */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/4 text-center">
-          <p className="text-xs text-muted-foreground mb-1">Conta Corrente</p>
-          <p className="text-3xl font-bold text-expense">{formatCurrency(checkingBalance)}</p>
-          <p className="text-xs text-expense mt-1">Saldo negativo</p>
+        {/* AJUSTE AQUI:
+           1. Mudei de top-1/2 para bottom-0 (parte mais larga do arco)
+           2. w-full e px-2 para ocupar a largura disponível
+           3. tracking-tight para apertar os números
+        */}
+        <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center justify-end text-center px-4">
+            <p className="text-xs text-muted-foreground mb-0.5 font-medium uppercase tracking-wider">Conta Corrente</p>
+            
+            <p className="text-2xl sm:text-3xl font-bold text-expense tracking-tight truncate max-w-full">
+                {formatCurrency(checkingBalance)}
+            </p>
+            
+            <p className="text-xs text-expense font-medium mt-0.5">Saldo negativo</p>
         </div>
-
       </div>
     )
   }
@@ -65,29 +69,26 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
   const diff = income - expense
   const diffPercent = income > 0 ? (totalBalance / income) * 100 : 0
 
-  let arcColor = "var(--expense)" // red
+  let arcColor = "var(--expense)"
   if (diffPercent < 0) {
-    arcColor = "var(--expense)" // red
+    arcColor = "var(--expense)"
   } else if (diffPercent <= 15) {
-    arcColor = "#f97316" // orange
+    arcColor = "#f97316"
   } else if (diffPercent <= 40) {
-    arcColor = "#eab308" // yellow
+    arcColor = "#eab308"
   } else if (diffPercent <= 70) {
-    arcColor = "#3b82f6" // blue
+    arcColor = "#3b82f6"
   } else {
-    arcColor = "var(--income)" // green
+    arcColor = "var(--income)"
   }
 
   const progressPercent = income > 0 ? Math.min(Math.abs(diffPercent), 100) : 0
-  const radius = 90
-  const circumference = Math.PI * radius // half circle
   const strokeDashoffset = circumference - (progressPercent / 100) * circumference
 
   return (
     <div className="relative flex flex-col items-center justify-center py-8">
-      {/* SVG Arc */}
-      <svg className="w-64 h-32" viewBox="0 0 200 100">
-        {/* Background arc */}
+        {/* Adicionei overflow-visible no SVG para garantir que o stroke não corte nas bordas */}
+      <svg className="w-64 h-32 overflow-visible" viewBox="0 0 200 100">
         <path
           d="M 10,100 A 90,90 0 0,1 190,100"
           fill="none"
@@ -107,12 +108,20 @@ export function CircularBalance({ balance, income, expense, checkingBalance, tot
           className="transition-all duration-500"
         />
       </svg>
+      
 
-      {/* Balance Display - Show Total Balance (checking + savings) */}
-      <div className="absolute top-2/3 left-1/2 -translate-x-1/2 -translate-y-1/4 text-center">
-        <p className="text-xs text-muted-foreground mb-1">Saldo Total</p>
-        <p className="text-3xl font-bold text-foreground">{formatCurrency(checkingBalance)}</p>
-        <p className="text-xs text-muted-foreground mt-1">
+      {/* AJUSTE PRINCIPAL:
+          O container de texto agora fica alinhado na base (bottom-6), onde o arco é mais aberto.
+      */}
+      <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center justify-end text-center px-4">
+        <p className="text-xs text-muted-foreground mb-0.5 font-medium uppercase tracking-wider">Saldo Total</p>
+        
+        {/* Fonte responsiva e tracking-tight ajudam números grandes */}
+        <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight truncate max-w-full">
+            {formatCurrency(checkingBalance)}
+        </p>
+        
+        <p className="text-xs text-muted-foreground font-medium mt-0.5">
           {progressPercent.toFixed(0)}% {diffPercent >= 0 ? "disponível" : "negativo"}
         </p>
       </div>

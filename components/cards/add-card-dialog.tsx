@@ -208,7 +208,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
 
           <button
             type="submit"
-            className="w-full py-3 rounded-[1vw] bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
+            className="w-full py-3 rounded-[1vw] bg-primary text-background font-semibold hover:opacity-90 transition-opacity"
           >
             Adicionar Cartão
           </button>
