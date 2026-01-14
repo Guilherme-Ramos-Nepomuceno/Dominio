@@ -36,7 +36,6 @@ export function StackedBarChart({
 
   const [isEditingThreshold, setIsEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState("")
-
   const [activeSegment, setActiveSegment] = useState<{ month: string, categoryId: string } | null>(null)
   
   const chartRef = useRef<HTMLDivElement>(null)
@@ -141,6 +140,7 @@ export function StackedBarChart({
     }
   })
 
+  // Garante que o gráfico nunca ultrapasse o topo (respiro de 20%)
   const maxTotal = Math.max(...chartData.map(d => d.total), threshold)
   const maxValue = maxTotal > 0 ? maxTotal * 1.2 : 100
 
@@ -152,19 +152,30 @@ export function StackedBarChart({
     setIsEditingThreshold(false)
   }
 
-  const thresholdPercentage = (threshold / maxValue) * 100
+  const thresholdPercentage = Math.min((threshold / maxValue) * 100, 100)
 
-  const renderColumn = (monthData: typeof chartData[0]) => {
+  const renderColumn = (monthData: typeof chartData[0], index: number) => {
     const isColumnActive = activeSegment?.month === monthData.month
+    
+    // CORREÇÃO 1: Em telas pequenas (mobile), escondemos o primeiro (0) e o último (4) mês.
+    // Isso libera espaço para os textos de valores altos não quebrarem o layout.
+    const isHiddenOnMobile = index === 0 || index === 4
 
     return (
-      <div key={monthData.month} className="flex-1 flex flex-col items-center group/column">
+      <div 
+        key={monthData.month} 
+        className={cn(
+            "flex-1 flex-col items-center group/column relative z-10",
+            // Se for mobile, esconde os extremos. Se for tablet/desk (sm), mostra flex
+            isHiddenOnMobile ? "hidden sm:flex" : "flex"
+        )}
+      >
         
+        {/* Container da Barra - Altura Fixa */}
         <div className="w-full h-64 relative flex items-end justify-center">
           
           <div className={cn(
-            "w-12 sm:w-14 h-full flex flex-col-reverse justify-start relative z-10 transition-transform duration-300 group-hover/column:scale-[1.02]",
-            // Se a coluna estiver ativa, ela ganha Z-Index máximo (50) para ficar sobre as outras
+            "w-12 sm:w-14 h-full flex flex-col-reverse justify-start relative transition-transform duration-300 group-hover/column:scale-[1.02]",
             isColumnActive ? "z-[50]" : "group-hover/column:z-[50]"
           )}>
             
@@ -184,7 +195,7 @@ export function StackedBarChart({
                   <div
                     key={cat.categoryId}
                     onClick={(e) => {
-                        e.stopPropagation() // Importante: parar propagação
+                        e.stopPropagation()
                         if (isSegmentActive) {
                             setActiveSegment(null)
                         } else {
@@ -208,7 +219,7 @@ export function StackedBarChart({
                     {/* Tooltip */}
                     <div className={cn(
                         "absolute left-1/2 -translate-x-1/2 bottom-[110%] transition-all duration-200 pointer-events-none min-w-[140px]",
-                        "z-[100]", // Z-Index máximo para o tooltip
+                        "z-[100]",
                         isSegmentActive 
                             ? "opacity-100 translate-y-0 scale-100" 
                             : "opacity-0 translate-y-2 scale-95 group-hover/segment:opacity-100 group-hover/segment:translate-y-0 group-hover/segment:scale-100"
@@ -228,7 +239,6 @@ export function StackedBarChart({
                                     <p className="text-xs font-semibold text-gray-300">{((cat.amount / monthData.total) * 100).toFixed(0)}%</p>
                                 </div>
                             </div>
-                            {/* Seta do Tooltip */}
                             <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#1a1a1a]/95"></div>
                         </div>
                     </div>
@@ -240,15 +250,17 @@ export function StackedBarChart({
         </div>
 
         {/* Labels e Totais */}
-        <div className="mt-4 text-center space-y-1 relative z-10">
+        <div className="mt-4 text-center space-y-1 relative z-10 w-full">
           <p className={cn(
               "text-xs font-bold uppercase tracking-wider transition-colors", 
               monthData.isCurrent ? "text-primary" : "text-muted-foreground/60"
             )}>
             {monthData.label}
           </p>
+          {/* CORREÇÃO 2: Fonte menor no mobile e 'truncate' para garantir que não empurre a largura */}
           <p className={cn(
-              "text-sm font-bold transition-all",
+              "font-bold transition-all truncate px-1",
+              "text-xs sm:text-sm", // Fonte um pouco menor no mobile
               monthData.total > threshold ? "text-red-500" : "text-foreground",
               monthData.isCurrent ? "opacity-100" : "opacity-50"
           )}>
@@ -260,7 +272,8 @@ export function StackedBarChart({
   }
 
   return (
-    <div ref={chartRef} className="rounded-[24px] bg-card p-6 sm:p-8 shadow-sm border border-border/50 relative overflow-visible">
+    // Adicionado overflow-hidden para garantir que nada vaze do card
+    <div ref={chartRef} className="rounded-[24px] bg-card p-6 sm:p-8 shadow-sm border border-border/50 relative overflow-hidden">
       
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 relative z-20">
@@ -268,7 +281,11 @@ export function StackedBarChart({
           <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
             Fluxo de Gastos
           </h3>
-          <p className="text-sm text-muted-foreground mt-1">Comparativo de despesas (5 Meses)</p>
+          <p className="text-sm text-muted-foreground mt-1">
+             {/* Texto adaptativo para indicar quantos meses estão visíveis */}
+             <span className="sm:hidden">Trimestral (3 Meses)</span>
+             <span className="hidden sm:inline">Comparativo (5 Meses)</span>
+          </p>
         </div>
 
         {/* Editor de Meta */}
@@ -304,21 +321,23 @@ export function StackedBarChart({
 
       {/* Gráfico */}
       <div className="relative mt-4 z-10">
-        {/* Linha de Meta (Threshold) */}
-        <div
-          className="absolute left-0 right-0 z-0 pointer-events-none transition-all duration-500 ease-out"
-          style={{ bottom: `calc(${thresholdPercentage}% + 3.5rem)` }}
-        >
-          <div className="border-t-2 border-dashed border-red-400/50 w-full relative">
-             <div className="absolute right-0 -top-3 bg-red-400/10 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
-                Meta
-             </div>
-          </div>
+        
+        {/* Layer de Fundo e Meta */}
+        <div className="absolute top-0 left-0 right-0 h-64 pointer-events-none z-0">
+             {/* Linha de Meta (Threshold) */}
+            <div
+                className="absolute left-0 right-0 border-t-2 border-dashed border-red-400/50 transition-all duration-500 ease-out"
+                style={{ bottom: `${thresholdPercentage}%` }}
+            >
+                <div className="absolute right-0 -top-3 bg-red-400/10 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
+                    Meta
+                </div>
+            </div>
         </div>
 
         {/* Colunas */}
         <div className="flex gap-2 sm:gap-6 items-end justify-between min-h-[300px]">
-          {chartData.map(data => renderColumn(data))}
+          {chartData.map((data, index) => renderColumn(data, index))}
         </div>
       </div>
 

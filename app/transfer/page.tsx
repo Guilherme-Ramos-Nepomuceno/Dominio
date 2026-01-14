@@ -109,7 +109,7 @@ export default function TransferPage() {
 
           <Button 
             onClick={() => router.push("/cards")} 
-            className="w-full max-w-xs h-12 rounded-[1vw] font-semibold gap-2"
+            className="w-full max-w-xs h-12 rounded-[1vw] font-semibold gap-2 text-background" 
           >
             <CreditCard size={20} weight="bold" />
             Gerenciar Cartões

@@ -17,20 +17,18 @@ interface CardItemProps {
 export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete }: CardItemProps) {
   const [showNumber, setShowNumber] = useState(false)
   const BankIcon = getBankIcon(card.bankName)
-  console.log(card)
+  
   const availableBalance = card.type === "credit" && card.limit ? card.limit - spent : balance
-
   const pendingDebt = card.type === "credit" ? spent : 0
-
   const totalSavings = savingsGoals.reduce((sum, goal) => sum + goal.currentAmount, 0)
 
   return (
     <div
-      className="relative rounded-2xl p-5 shadow-md overflow-hidden min-h-45 flex flex-col justify-between"
+      className="relative rounded-2xl p-5 shadow-md overflow-hidden min-h-45 flex flex-col justify-between transition-transform hover:scale-[1.02] duration-300"
       style={{ backgroundColor: card.color }}
     >
       {/* Background pattern */}
-      <div className="absolute inset-0 opacity-10">
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
         <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white -translate-y-16 translate-x-16" />
         <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-white translate-y-12 -translate-x-12" />
       </div>
@@ -42,11 +40,17 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
             <BankIcon weight="fill" size={28} className="text-white" />
             <span className="text-white font-semibold text-sm">{card.type === "credit" ? "Crédito" : "Débito"}</span>
           </div>
+          
+          {/* BOTÃO DE DELETAR CORRIGIDO */}
           <button
-            onClick={() => onDelete(card.id)}
-            className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+            onClick={(e) => {
+                e.stopPropagation();
+                onDelete(card.id);
+            }}
+            className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 hover:text-red-200 transition-colors z-20 cursor-pointer"
+            title="Excluir cartão"
           >
-            <TrashIcon size={16} className="text-white" weight="bold" />
+            <TrashIcon size={16} className="text-white hover:text-red-100" weight="bold" />
           </button>
         </div>
 

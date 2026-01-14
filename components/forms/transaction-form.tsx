@@ -196,7 +196,7 @@ export function TransactionForm() {
           <Button 
             type="button"
             onClick={() => router.push("/cards")} 
-            className="w-full max-w-xs h-12 rounded-[1vw] font-semibold gap-2"
+            className="w-full max-w-xs h-12 rounded-[1vw] font-semibold text-background gap-2"
           >
             <PlusCircle size={20} weight="bold" />
             Cadastrar Conta
