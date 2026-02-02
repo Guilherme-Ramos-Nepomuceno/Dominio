@@ -15,7 +15,7 @@ interface AddCardDialogProps {
   onSuccess: () => void
 }
 
-const QUICK_AMOUNTS = [1000, 2000, 5000, ]
+const QUICK_AMOUNTS = [1000, 2000, 5000,]
 
 export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps) {
   const [name, setName] = useState("")
@@ -115,10 +115,10 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
                   style={
                     bankName === bank
                       ? {
-                          borderColor: bankColors[bank],
-                          backgroundColor: bankColors[bank] + "20",
-                          color: bankColors[bank],
-                        }
+                        borderColor: bankColors[bank],
+                        backgroundColor: bankColors[bank] + "20",
+                        color: bankColors[bank],
+                      }
                       : {}
                   }
                 >
@@ -184,7 +184,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
                       onClick={() => handleQuickAmount(value)}
                       className="px-3 py-3 rounded-[1vw] bg-primary text-secondary text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
-                     {formatCurrency(value)}
+                      {formatCurrency(value)}
                     </button>
                   ))}
                 </div>

@@ -4,16 +4,16 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { 
-  ArrowUpIcon, 
-  ArrowDownIcon, 
-  CalendarIcon, 
-  CreditCardIcon, 
-  TagIcon, 
-  WalletIcon, 
+import {
+  ArrowUpIcon,
+  ArrowDownIcon,
+  CalendarIcon,
+  CreditCardIcon,
+  TagIcon,
+  WalletIcon,
   RepeatIcon,
-  WarningCircle, 
-  PlusCircle 
+  WarningCircle,
+  PlusCircle
 } from "@phosphor-icons/react"
 import { addTransaction, getCategories, getCards, getTransactions } from "@/lib/storage"
 import type { TransactionType, RecurrenceType } from "@/lib/types"
@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
 import { formatCurrency, parseCurrencyInput, formatCurrencyInput } from "@/lib/date-utils"
+
+import { useToast } from "@/hooks/use-toast"
 
 const recurrenceOptions: { value: RecurrenceType; label: string }[] = [
   { value: "none", label: "Única" },
@@ -36,6 +38,7 @@ export function TransactionForm() {
   const router = useRouter()
   const categories = getCategories()
   const cards = getCards()
+  const { toast } = useToast()
 
   const hasDebitCard = cards.some((c) => c.type === "debit")
 
@@ -78,12 +81,20 @@ export function TransactionForm() {
     e.preventDefault()
 
     if (type === "income" && !hasDebitCard) {
-      alert("Você precisa cadastrar uma conta/cartão de débito para receber valores.")
+      toast({
+        title: "Erro",
+        description: "Você precisa cadastrar uma conta/cartão de débito para receber valores.",
+        variant: "destructive"
+      })
       return
     }
 
     if (!description || !amount || !categoryId) {
-      alert("Preencha todos os campos obrigatórios")
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos obrigatórios.",
+        variant: "destructive"
+      })
       return
     }
 
@@ -91,7 +102,11 @@ export function TransactionForm() {
     const numInstallments = Number.parseInt(installments)
 
     if (isNaN(numAmount) || numAmount <= 0) {
-      alert("Valor inválido")
+      toast({
+        title: "Erro",
+        description: "Valor inválido.",
+        variant: "destructive"
+      })
       return
     }
 
@@ -106,17 +121,23 @@ export function TransactionForm() {
       const availableLimit = selectedCard.limit - usedAmount
 
       if (numAmount > availableLimit) {
-        alert(
-          `Limite insuficiente no cartão ${selectedCard.name}.\n` +
+        toast({
+          title: "Erro",
+          description: `Limite insuficiente no cartão ${selectedCard.name}.\n` +
             `Limite disponível: ${formatCurrency(availableLimit)}\n` +
             `Valor da transação: ${formatCurrency(numAmount)}`,
-        )
+          variant: "destructive"
+        })
         return
       }
     }
 
     if (!isFutureTransaction && !isCreditCard && !cardId && cards.length > 0 && type === "expense") {
-      alert("Selecione um cartão para despesas atuais")
+      toast({
+        title: "Erro",
+        description: "Selecione um cartão para despesas atuais.",
+        variant: "destructive"
+      })
       return
     }
 
@@ -137,9 +158,13 @@ export function TransactionForm() {
       recurrence,
       installments: recurrence === "none" && numInstallments > 1 ? numInstallments : undefined,
       cardId: cardId || undefined,
-      status: status, 
+      status: status,
     })
-
+    toast({
+      title: "Transação adicionada!",
+      description: "Sua transação foi adicionada com sucesso.",
+      variant: "success"
+    })
     router.push("/")
   }
 
@@ -183,9 +208,9 @@ export function TransactionForm() {
         <div className="flex flex-col items-center justify-center py-8 px-4 text-center space-y-6 bg-card border border-border rounded-[20px]">
           <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center">
             <WarningCircle size={32} className="text-warning" weight="duotone" />
-              
+
           </div>
-          
+
           <div className="space-y-2 max-w-sm">
             <h3 className="text-lg font-semibold text-foreground">Conta necessária</h3>
             <p className="text-muted-foreground text-sm">
@@ -193,15 +218,15 @@ export function TransactionForm() {
             </p>
           </div>
 
-          <Button 
+          <Button
             type="button"
-            onClick={() => router.push("/cards")} 
+            onClick={() => router.push("/cards")}
             className="w-full max-w-xs h-12 rounded-[1vw] font-semibold text-background gap-2"
           >
             <PlusCircle size={20} weight="bold" />
             Cadastrar Conta
           </Button>
-          
+
           <Button
             type="button"
             variant="ghost"
@@ -254,7 +279,7 @@ export function TransactionForm() {
                   onClick={() => handleQuickAmount(value)}
                   className="px-3 py-3 rounded-[1vw] bg-primary text-secondary text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
-                {formatCurrency(value)}
+                  {formatCurrency(value)}
                 </button>
               ))}
             </div>
@@ -301,34 +326,34 @@ export function TransactionForm() {
                   // Se for Despesa, mostramos todos
                   .filter(c => type === 'expense' || c.type === 'debit')
                   .map((card) => {
-                  const BankIcon = getBankIcon(card.bankName)
-                  return (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => setCardId(cardId === card.id ? "" : card.id)}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
-                        cardId === card.id
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "border-border bg-card hover:bg-muted",
-                      )}
-                    >
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: card.color + "20" }}
+                    const BankIcon = getBankIcon(card.bankName)
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => setCardId(cardId === card.id ? "" : card.id)}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
+                          cardId === card.id
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-card hover:bg-muted",
+                        )}
                       >
-                        <BankIcon size={24} color={card.color} weight="fill" />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className="text-sm font-medium text-foreground">{card.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          •••• {card.lastDigits} {card.type === "credit" && " • Crédito"}
-                        </p>
-                      </div>
-                    </button>
-                  )
-                })}
+                        <div
+                          className="w-10 h-10 rounded-lg flex items-center justify-center"
+                          style={{ backgroundColor: card.color + "20" }}
+                        >
+                          <BankIcon size={24} color={card.color} weight="fill" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <p className="text-sm font-medium text-foreground">{card.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            •••• {card.lastDigits} {card.type === "credit" && " • Crédito"}
+                          </p>
+                        </div>
+                      </button>
+                    )
+                  })}
               </div>
             </div>
           )}
@@ -356,7 +381,13 @@ export function TransactionForm() {
             </label>
             <select
               value={recurrence}
-              onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
+              onChange={(e) => {
+                const val = e.target.value as RecurrenceType;
+                setRecurrence(val)
+                if (val !== 'none') {
+                  setInstallments("1") // Reseta parcelas se for recorrente
+                }
+              }}
               className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {recurrenceOptions.map((option) => (
@@ -379,7 +410,13 @@ export function TransactionForm() {
                 min="1"
                 max="60"
                 value={installments}
-                onChange={(e) => setInstallments(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInstallments(val)
+                  if (Number(val) > 1) {
+                    setRecurrence("none") // Redundante pois o campo some, mas for safety
+                  }
+                }}
                 className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
               {Number.parseInt(installments) > 1 && (
@@ -404,8 +441,11 @@ export function TransactionForm() {
           <div className="flex gap-3 pt-4">
             <Button
               type="button"
-              className="flex-1 h-12 rounded-[1vw] bg-background hover:bg-background/70"
-              onClick={() => router.push("/")}
+              className="flex-1 h-12 rounded-[1vw] bg-background text-foreground hover:bg-background/70"
+              onClick={() => {
+                toast({ title: "Operação cancelada", description: "O lançamento não foi salvo.", variant: "default" })
+                router.push("/")
+              }}
             >
               Cancelar
             </Button>

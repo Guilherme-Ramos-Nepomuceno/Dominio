@@ -1,11 +1,16 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { AuthGuard } from "@/components/auth/auth-guard"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const fontSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-sans",
+})
 
 export const metadata: Metadata = {
   title: "Dominio - Controle Financeiro Pessoal",
@@ -36,9 +41,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body className="font-sans antialiased">
-        {children}
+    <html lang="pt-BR">
+      <body className={`${fontSans.className} ${fontSans.variable} antialiased`}>
+        <AuthGuard>{children}</AuthGuard>
+        <Toaster />
         <Analytics />
       </body>
     </html>

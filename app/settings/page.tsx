@@ -2,19 +2,32 @@
 
 import { useState, useEffect } from "react"
 import { Moon, Sun, Warning, Trash } from "@phosphor-icons/react"
-import * as PhosphorIcons from "@phosphor-icons/react" 
+import * as PhosphorIcons from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { useTheme } from "@/hooks/use-theme"
-import { 
-  getSettings, 
-  setSettings as saveSettings, 
-  getCategories, 
+import {
+  getSettings,
+  setSettings as saveSettings,
+  getCategories,
   getTransactions,
-  setTransactions // Importe necessário para limpar
+  setTransactions
 } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/date-utils"
+import { getCurrentUser, updateCurrentUser, type User } from "@/lib/auth"
+import { User as UserIcon, Envelope } from "@phosphor-icons/react"
+import { toast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
@@ -22,6 +35,21 @@ export default function SettingsPage() {
   const [currency, setCurrency] = useState("BRL")
   const [categoryGoals, setCategoryGoals] = useState<any[]>([])
   const categories = getCategories().filter((c) => c.type === "expense")
+  const [showClearDialog, setShowClearDialog] = useState(false)
+
+  const [user, setUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    setUser(getCurrentUser())
+  }, [])
+
+  const handleUpdateProfile = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (user) {
+      updateCurrentUser(user)
+      toast({ title: "Perfil atualizado!", description: "Seus dados foram atualizados com sucesso.", variant: "success" })
+    }
+  }
 
   useEffect(() => {
     const settings = getSettings()
@@ -36,17 +64,14 @@ export default function SettingsPage() {
       currency,
       categoryGoals,
     })
-    alert("Configurações salvas com sucesso!")
+    toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
   }
 
-  // --- NOVA FUNÇÃO PARA LIMPAR TUDO ---
-  const handleClearAllData = () => {
-    if (confirm("TEM CERTEZA? Isso apagará TODAS as suas transações e o histórico dos cartões permanentemente. Essa ação não pode ser desfeita.")) {
-        setTransactions([]) // Zera o array de transações no storage
-        alert("Todos os dados foram apagados com sucesso.")
-        // Opcional: Recarregar a página para atualizar os dados visuais se necessário
-        window.location.reload()
-    }
+  const confirmClearData = () => {
+    setTransactions([]) // Zera o array de transações no storage
+    toast({ title: "Dados apagados!", description: "Todos os dados foram apagados com sucesso.", variant: "destructive" })
+    setShowClearDialog(false)
+    window.location.reload()
   }
 
   const handlePercentageChange = (categoryId: string, value: number) => {
@@ -84,6 +109,47 @@ export default function SettingsPage() {
       <PageHeader title="Configurações" subtitle="Personalize seu aplicativo" />
 
       <div className="max-w-2xl mx-auto space-y-6 pb-10">
+
+        {/* Personal Data */}
+        <div className="rounded-[20px] bg-card p-6 border border-border/50">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Dados Pessoais</h3>
+          {user ? (
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <input
+                    type="text"
+                    value={user.name}
+                    onChange={(e) => setUser({ ...user, name: e.target.value })}
+                    className="w-full pl-10 px-4 py-2 rounded-xl bg-background border border-border"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+                <div className="relative">
+                  <Envelope className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <input
+                    type="email"
+                    value={user.email}
+                    onChange={(e) => setUser({ ...user, email: e.target.value })}
+                    className="w-full pl-10 px-4 py-2 rounded-xl bg-background border border-border"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button type="submit" className="px-4 py-2 bg-primary text-background rounded-lg text-sm font-bold hover:opacity-90">
+                  Salvar Perfil
+                </button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-muted-foreground">Usuário não identificado.</p>
+          )}
+        </div>
+
         {/* Theme Toggle */}
         <div className="rounded-[20px] bg-card p-6 border border-border/50">
           <h3 className="text-lg font-semibold text-foreground mb-4">Aparência</h3>
@@ -177,7 +243,7 @@ export default function SettingsPage() {
             {categories.map((category) => {
               const goal = categoryGoals.find((g) => g.categoryId === category.id)
               const percentage = goal?.percentage || 0
-              
+
               const IconComponent = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
 
               return (
@@ -236,25 +302,41 @@ export default function SettingsPage() {
 
         {/* --- NOVO CARD: ZONA DE PERIGO --- */}
         <div className="rounded-[20px] bg-card p-6 border border-expense/30 mt-8">
-            <div className="flex items-center gap-2 mb-4 text-expense">
-                <Warning size={24} weight="fill" />
-                <h3 className="text-lg font-semibold">Zona de Perigo</h3>
-            </div>
-            
-            <p className="text-sm text-muted-foreground mb-6">
-                Ações aqui são irreversíveis. Tenha certeza antes de prosseguir.
-            </p>
+          <div className="flex items-center gap-2 mb-4 text-expense">
+            <Warning size={24} weight="fill" />
+            <h3 className="text-lg font-semibold">Zona de Perigo</h3>
+          </div>
 
-            <button
-                onClick={handleClearAllData}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-transparent border-2 border-expense text-expense rounded-[1vw] font-semibold hover:bg-expense hover:text-white transition-all"
-            >
-                <Trash size={20} weight="bold" />
-                Apagar Todas as Transações
-            </button>
+          <p className="text-sm text-muted-foreground mb-6">
+            Ações aqui são irreversíveis. Tenha certeza antes de prosseguir.
+          </p>
+
+          <button
+            onClick={() => setShowClearDialog(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-transparent border-2 border-expense text-expense rounded-[1vw] font-semibold hover:bg-expense hover:text-white transition-all"
+          >
+            <Trash size={20} weight="bold" />
+            Apagar Todas as Transações
+          </button>
         </div>
-
       </div>
+
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja realmente prosseguir?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação apagará <strong>TODAS</strong> as suas transações e dados permanentemente. Isso não pode ser desfeito.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClearData} className="bg-destructive hover:bg-destructive/90 text-white">
+              Sim, apagar tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }

@@ -55,8 +55,8 @@ export default function RecurringPage() {
         installmentMap.set(groupKey, t)
       }
     })
-    
-  const installmentList = Array.from(installmentMap.values()).sort((a, b) => 
+
+  const installmentList = Array.from(installmentMap.values()).sort((a, b) =>
     new Date(a.date).getTime() - new Date(b.date).getTime()
   )
 
@@ -127,8 +127,8 @@ export default function RecurringPage() {
                 const totalInstallments = transaction.installments || 1;
                 const currentInstallment = transaction.currentInstallment || 1;
 
-                // 1. Descobre o valor da parcela individual (Total / Qtd Parcelas)
-                const installmentValue = totalAmount / totalInstallments;
+                // 1. O valor salvo JÁ É o da parcela individual (Devido à mudança no storage)
+                const installmentValue = transaction.amount;
 
                 // 2. Quantas parcelas faltam (Total - Atual + 1 para incluir a atual pendente)
                 const installmentsLeft = totalInstallments - currentInstallment + 1;
@@ -145,19 +145,19 @@ export default function RecurringPage() {
                       <h3 className="text-lg font-semibold text-foreground">{transaction.description}</h3>
                       <div className="flex flex-col gap-1 mt-1">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                                Parcela {currentInstallment}/{totalInstallments}
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                                Vence: {formatDate(transaction.date)}
-                            </span>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                            Parcela {currentInstallment}/{totalInstallments}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Vence: {formatDate(transaction.date)}
+                          </span>
                         </div>
                         {/* Barra de progresso */}
                         <div className="w-32 h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
-                            <div 
-                                className="h-full bg-primary" 
-                                style={{ width: `${(currentInstallment / totalInstallments) * 100}%` }}
-                            />
+                          <div
+                            className="h-full bg-primary"
+                            style={{ width: `${(currentInstallment / totalInstallments) * 100}%` }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -165,9 +165,9 @@ export default function RecurringPage() {
                       {/* Exibe o valor da PARCELA, não o total */}
                       <p className={cn("text-xl font-bold text-text-primary")}>
                         {transaction.type === "expense" ? "-" : "+"}
-                        {formatCurrency(installmentValue)} 
+                        {formatCurrency(installmentValue)}
                       </p>
-                      
+
                       {/* Exibe o total restante calculado corretamente */}
                       <p className="text-xs text-muted-foreground mt-1">
                         Resta: {formatCurrency(remainingDebt)}
