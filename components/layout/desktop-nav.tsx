@@ -18,6 +18,8 @@ import {
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
+import { UserProfileBox } from "@/components/profile/user-profile-box"
+import { NotificationCenter } from "@/components/notifications/notification-center"
 
 const navItems = [
   { href: "/", icon: HouseIcon, label: "Home" },
@@ -43,13 +45,16 @@ export function DesktopNav() {
         {/* Logo / Brand */}
         <div className="flex items-center justify-between h-20 px-6 border-b border-border">
           <h1 className="text-2xl font-bold text-foreground">Dominio</h1>
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-muted transition-colors"
-            aria-label="Toggle theme"
-          >
-            {theme === "dark" ? <SunIcon weight="bold" size={20} /> : <MoonIcon weight="bold" size={20} />}
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationCenter />
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <SunIcon weight="bold" size={20} /> : <MoonIcon weight="bold" size={20} />}
+            </button>
+          </div>
         </div>
 
         {/* Navigation Links */}
@@ -77,7 +82,7 @@ export function DesktopNav() {
         </nav>
 
         {/* Quick Action Button */}
-        <div className="p-4 border-t border-border">
+        <div className="px-4 py-2">
           <Link
             href="/new"
             className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-background rounded-xl font-semibold hover:bg-primary/90 transition-colors"
@@ -86,6 +91,9 @@ export function DesktopNav() {
             Nova Transação
           </Link>
         </div>
+
+        {/* User Profile */}
+        <UserProfileBox />
       </div>
     </aside>
   )

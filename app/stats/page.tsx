@@ -12,17 +12,31 @@ import { cn } from "@/lib/utils"
 import { CategoryAlert } from "../types/category"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { CreditCard, Wallet, Circle, CheckCircle } from "@phosphor-icons/react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { useToast } from "@/hooks/use-toast"
 
 export default function StatsPage() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
   const [filterType, setFilterType] = useState<"all" | "credit">("all")
-  
+  const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
+
+  const { toast } = useToast()
+
   const monthData = useMonthData(selectedMonth)
   const settings = getSettings()
   const categories = getCategories()
   const cards = getCards()
   // Precisamos de TODAS as transações para calcular parcelas antigas que caem neste mês
-  const allTransactions = getTransactions() 
+  const allTransactions = getTransactions()
 
   const handleThresholdChange = (newThreshold: number) => {
     setSettings({ spendingGoal: newThreshold })
@@ -39,7 +53,7 @@ export default function StatsPage() {
     if (filterType === "credit") {
       // --- LÓGICA DE PROJEÇÃO DE PARCELAS (Igual à Fatura) ---
       const creditTransactions: any[] = []
-      
+
       // 1. Pega APENAS cartões de crédito
       const creditCards = cards.filter(c => c.type === "credit")
       const creditCardIds = creditCards.map(c => c.id)
@@ -60,8 +74,8 @@ export default function StatsPage() {
         if (installments === 1) {
           // À vista: Só mostra se for exatamente no mês selecionado
           if (t.date.startsWith(selectedMonth)) {
-             // Só queremos pendentes
-             if (t.status !== 'paid') creditTransactions.push(t)
+            // Só queremos pendentes
+            if (t.status !== 'paid') creditTransactions.push(t)
           }
         } else {
           // Parcelado: Verifica se a parcela cai neste mês
@@ -87,7 +101,7 @@ export default function StatsPage() {
 
       return creditTransactions
     }
-    
+
     return []
   }
 
@@ -104,7 +118,7 @@ export default function StatsPage() {
     // Se for crédito projetado, usamos a data ajustada, senão a original
     const tDate = new Date(transaction.date)
     const dateKey = getLocalDateKey(tDate)
-    
+
     if (!groups[dateKey]) groups[dateKey] = []
     groups[dateKey].push(transaction)
     return groups
@@ -112,73 +126,149 @@ export default function StatsPage() {
 
   const sortedDates = Object.keys(groupedTransactions).sort((a, b) => b.localeCompare(a))
 
-  // --- COMPONENTE ITEM ---
+  const confirmCancelTransaction = () => {
+    if (transactionToCancel) {
+      import("@/lib/storage").then(({ cancelTransaction }) => {
+        cancelTransaction(transactionToCancel)
+        toast({
+          title: "Lançamento desfeito",
+          description: "O lançamento foi revertido com sucesso.",
+          variant: "success",
+        })
+        setTransactionToCancel(null)
+        window.location.reload() // Recarrega para atualizar
+      })
+    }
+  }
+
+  // --- COMPONENTE ITEM COM SWIPE ---
   const TransactionItem = ({ transaction }: { transaction: any }) => {
     // Se tiver originalDate (crédito projetado), usa ela para mostrar "quando foi comprado"
     const displayDateObj = new Date(transaction.originalDate || transaction.date)
-    const timeString = displayDateObj.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-    
+
     const category = categories.find(c => c.id === transaction.categoryId)
-    const IconComponent = category?.icon && (PhosphorIcons as any)[category.icon] 
-      ? (PhosphorIcons as any)[category.icon] 
+    const IconComponent = category?.icon && (PhosphorIcons as any)[category.icon]
+      ? (PhosphorIcons as any)[category.icon]
       : PhosphorIcons.Question
-    
+
     const card = cards.find(c => c.id === transaction.cardId)
 
-    return (
-      <div className="flex items-center justify-between p-4 rounded-[1vw] bg-card border border-border/50 hover:border-border transition-colors group">
-        <div className="flex items-center gap-4 flex-1">
-          <div 
-            className="w-10 h-10 rounded-[0.8rem] flex items-center justify-center bg-background border border-border group-hover:bg-muted transition-colors"
-            style={{ color: category?.color || "#888" }}
-          >
-            <IconComponent size={20} weight="duotone" />
-          </div>
+    // SWIPE LOGIC
+    const [startX, setStartX] = useState<number | null>(null)
+    const [swipeOffset, setSwipeOffset] = useState(0)
+    const SWIPE_THRESHOLD = -80 // Pixels to swipe left to reveal button
 
-          <div>
-            <p className="font-semibold text-foreground">{transaction.description}</p>
-            <div className="flex items-center gap-2 flex-wrap">
+    const onTouchStart = (e: React.TouchEvent) => {
+      setStartX(e.targetTouches[0].clientX)
+    }
+
+    const onTouchMove = (e: React.TouchEvent) => {
+      if (startX === null) return
+      const currentX = e.targetTouches[0].clientX
+      const diff = currentX - startX
+      // Only allow swipe left (negative diff)
+      if (diff < 0) {
+        // Limit swipe to -100px
+        setSwipeOffset(Math.max(diff, -100))
+      }
+    }
+
+    const onTouchEnd = () => {
+      if (swipeOffset < SWIPE_THRESHOLD) {
+        setSwipeOffset(-80) // Keep open
+      } else {
+        setSwipeOffset(0) // Close
+      }
+      setStartX(null)
+    }
+
+    return (
+      <div className="relative overflow-hidden rounded-[1vw] group">
+        {/* BACKGROUND DELETE BUTTON (Mobile Reveal) */}
+        <div className="absolute inset-y-0 right-0 w-[80px] bg-red-500 flex items-center justify-center rounded-r-[1vw]">
+          <button
+            onClick={() => setTransactionToCancel(transaction.id)}
+            className="text-white w-full h-full flex items-center justify-center"
+          >
+            <PhosphorIcons.Trash size={24} weight="bold" />
+          </button>
+        </div>
+
+        {/* FOREGROUND CONTENT */}
+        <div
+          className="relative bg-card border border-border/50 hover:border-border transition-colors p-4 flex items-center justify-between z-10"
+          style={{ transform: `translateX(${swipeOffset}px)`, transition: startX === null ? 'transform 0.2s ease-out' : 'none' }}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <div className="flex items-center gap-4 flex-1">
+            <div
+              className="w-10 h-10 rounded-[0.8rem] flex items-center justify-center bg-background border border-border group-hover:bg-muted transition-colors relative"
+              style={{ color: category?.color || "#888" }}
+            >
+              <IconComponent size={20} weight="duotone" />
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground">{transaction.description}</p>
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">
-                    {category?.name || "Geral"}
+                  {category?.name || "Geral"}
                 </span>
-                
+
                 {/* Se for crédito projetado, mostra a data original da compra */}
                 {transaction.originalDate && (
-                   <span className="text-[10px] text-muted-foreground">
-                      Comprou em: {displayDateObj.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
-                   </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Comprou em: {displayDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                  </span>
                 )}
 
                 {transaction.installments && transaction.installments > 1 && (
-                    <span className="text-[10px] text-foreground font-bold bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
-                       <CreditCard size={10} weight="fill" />
-                       {transaction.currentInstallment}/{transaction.installments}
-                    </span>
+                  <span className="text-[10px] text-foreground font-bold bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
+                    <CreditCard size={10} weight="fill" />
+                    {transaction.currentInstallment}/{transaction.installments}
+                  </span>
                 )}
-                
+
                 {card && filterType === 'credit' && (
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        • {card.name}
-                    </span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    • {card.name}
+                  </span>
                 )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="text-right">
-             <p className="text-lg font-bold text-foreground tabular-nums">
-            {transaction.type === "expense" ? "-" : "+"}
-            {formatCurrency(transaction.amount)}
-            </p>
-            
-            {filterType === 'credit' && (
+          <div className="text-right flex items-center gap-4">
+            <div>
+              <p className="text-lg font-bold text-foreground tabular-nums">
+                {transaction.type === "expense" ? "-" : "+"}
+                {formatCurrency(transaction.amount)}
+              </p>
+
+              {filterType === 'credit' && (
                 <div className="flex justify-end mt-1">
-                    <span className="text-[10px] text-amber-500 flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
-                        <Circle size={8} weight="fill" />
-                        Fatura Aberta
-                    </span>
+                  <span className="text-[10px] text-amber-500 flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                    <Circle size={8} weight="fill" />
+                    Fatura Aberta
+                  </span>
                 </div>
-            )}
+              )}
+            </div>
+
+            {/* DESKTOP DELETE BUTTON (Hidden on mobile via CSS usually, strictly visible on group hover) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setTransactionToCancel(transaction.id);
+              }}
+              className="hidden md:flex opacity-0 group-hover:opacity-100 items-center justify-center w-8 h-8 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all"
+              title="Desfazer/Cancelar"
+            >
+              <PhosphorIcons.Trash size={16} weight="bold" />
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -189,18 +279,18 @@ export default function StatsPage() {
   const categorySpending = monthData.transactions
     .filter((t) => t.type === "expense")
     .reduce((acc, t) => {
-        acc[t.categoryId] = (acc[t.categoryId] || 0) + t.amount
-        return acc
+      acc[t.categoryId] = (acc[t.categoryId] || 0) + t.amount
+      return acc
     }, {} as Record<string, number>)
   const totalExpenses = Object.values(categorySpending).reduce((sum, val) => sum + val, 0)
-  
+
   const categoryAlerts = categoryGoals.map((goal) => {
-      const spent = categorySpending[goal.categoryId] || 0
-      const targetAmount = (totalExpenses * goal.percentage) / 100
-      const category = categories.find((c) => c.id === goal.categoryId)
-      if (spent > targetAmount) return { categoryName: category?.name, percentage: goal.percentage, spent, target: targetAmount, excess: spent - targetAmount }
-      return null
-    }).filter(Boolean) as CategoryAlert[]
+    const spent = categorySpending[goal.categoryId] || 0
+    const targetAmount = (totalExpenses * goal.percentage) / 100
+    const category = categories.find((c) => c.id === goal.categoryId)
+    if (spent > targetAmount) return { categoryName: category?.name, percentage: goal.percentage, spent, target: targetAmount, excess: spent - targetAmount }
+    return null
+  }).filter(Boolean) as CategoryAlert[]
 
   return (
     <AppLayout>
@@ -208,7 +298,7 @@ export default function StatsPage() {
       <PageHeader title={formatMonth(selectedMonth)} subtitle="Análise detalhada dos seus gastos" />
 
       {/* Botões de Filtro */}
- 
+
 
       {categoryAlerts.length > 0 && filterType === 'all' && (
         <div className="mb-6 space-y-2">
@@ -220,36 +310,36 @@ export default function StatsPage() {
         </div>
       )}
 
-          <div className="mb-6">
-            <StackedBarChart
-              currentMonth={selectedMonth}
-              onThresholdChange={handleThresholdChange}
-              onMonthChange={setSelectedMonth}
-            />
-          </div>
+      <div className="mb-6">
+        <StackedBarChart
+          currentMonth={selectedMonth}
+          onThresholdChange={handleThresholdChange}
+          onMonthChange={setSelectedMonth}
+        />
+      </div>
 
-               <div className="flex justify-center mb-6">
+      <div className="flex justify-center mb-6">
         <div className="bg-card p-1 rounded-xl border border-border inline-flex shadow-sm">
-            <button
-                onClick={() => setFilterType("all")}
-                className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                    filterType === "all" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-            >
-                <Wallet size={16} weight={filterType === "all" ? "fill" : "regular"}/>
-                Geral
-            </button>
-            <button
-                onClick={() => setFilterType("credit")}
-                className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                    filterType === "credit" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-            >
-                <CreditCard size={16} weight={filterType === "credit" ? "fill" : "regular"}/>
-                Fatura Pendente
-            </button>
+          <button
+            onClick={() => setFilterType("all")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+              filterType === "all" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <Wallet size={16} weight={filterType === "all" ? "fill" : "regular"} />
+            Geral
+          </button>
+          <button
+            onClick={() => setFilterType("credit")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+              filterType === "credit" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <CreditCard size={16} weight={filterType === "credit" ? "fill" : "regular"} />
+            Fatura Pendente
+          </button>
         </div>
       </div>
 
@@ -261,7 +351,7 @@ export default function StatsPage() {
             const isYesterday = date === yesterdayKey
             const transactionsForDate = groupedTransactions[date]
             let groupTitle = ""
-            
+
             // Se for modo Crédito, o agrupamento é virtual (para mostrar na lista), então usamos a data da fatura
             const dateObjForTitle = new Date(date + "T12:00:00")
 
@@ -277,11 +367,11 @@ export default function StatsPage() {
             return (
               <div key={date}>
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3 capitalize px-1 flex items-center justify-between">
-                    {groupTitle}
-                    {/* Soma do dia */}
-                    <span className="text-xs font-normal opacity-70">
-                       {formatCurrency(transactionsForDate.reduce((acc: any, t: { amount: any }) => acc + t.amount, 0))}
-                    </span>
+                  {groupTitle}
+                  {/* Soma do dia */}
+                  <span className="text-xs font-normal opacity-70">
+                    {formatCurrency(transactionsForDate.reduce((acc: any, t: { amount: any }) => acc + t.amount, 0))}
+                  </span>
                 </h3>
                 <div className="space-y-3">
                   {transactionsForDate.map((t: any) => (
@@ -294,16 +384,33 @@ export default function StatsPage() {
         ) : (
           <div className="rounded-2xl bg-card p-12 text-center border border-border/50 flex flex-col items-center justify-center gap-4">
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                {filterType === 'credit' ? <CreditCard size={32} className="text-muted-foreground"/> : <Wallet size={32} className="text-muted-foreground"/>}
+              {filterType === 'credit' ? <CreditCard size={32} className="text-muted-foreground" /> : <Wallet size={32} className="text-muted-foreground" />}
             </div>
             <p className="text-muted-foreground font-medium">
-                {filterType === 'credit' 
-                    ? "Nenhuma despesa pendente na fatura deste mês." 
-                    : "Nenhuma transação neste período."}
+              {filterType === 'credit'
+                ? "Nenhuma despesa pendente na fatura deste mês."
+                : "Nenhuma transação neste período."}
             </p>
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!transactionToCancel} onOpenChange={() => setTransactionToCancel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desfazer Lançamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja desfazer este lançamento? Ele voltará para pendente (se for parcela) ou será excluído.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCancelTransaction} className="bg-destructive text-white hover:bg-destructive/90">
+              Desfazer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }

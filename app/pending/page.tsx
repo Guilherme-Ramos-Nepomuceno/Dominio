@@ -18,25 +18,22 @@ import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
-import type { Category, Card } from "@/lib/types"
-
-interface Transaction {
-  id: string
-  description: string
-  amount: number
-  date: string
-  categoryId: string
-  type: "income" | "expense"
-  recurrence?: string
-  recurrenceId?: string
-  installments?: number
-  paidInstallments?: number 
-  cardId?: string
-  status?: string
-}
+import type { Category, Card, Transaction } from "@/lib/types"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { useToast } from "@/hooks/use-toast"
 
 export default function PendingTransactionsPage() {
   const router = useRouter()
+  const { toast } = useToast()
 
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -46,6 +43,7 @@ export default function PendingTransactionsPage() {
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null)
   const [selectedCard, setSelectedCard] = useState<string>("")
   const [confirmDate, setConfirmDate] = useState<string>("")
+  const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
 
   useEffect(() => {
     setPendingTransactions(getPendingTransactions())
@@ -59,8 +57,8 @@ export default function PendingTransactionsPage() {
     // 1. Filtra primeiro (remove crédito, etc)
     const filtered = pendingTransactions.filter((t) => {
       if (t.cardId) {
-          const card = cards.find((c) => c.id === t.cardId)
-          if (card?.type === "credit") return false 
+        const card = cards.find((c) => c.id === t.cardId)
+        if (card?.type === "credit") return false
       }
       return true
     })
@@ -82,8 +80,8 @@ export default function PendingTransactionsPage() {
 
       // Chave única para agrupar: ID de recorrência > ID Pai > Descrição
       // Isso garante que "Netflix" (mensal) ou "TV" (parcelado) só apareça uma vez na lista
-      const groupId = t.recurrenceId || t.description 
-      
+      const groupId = t.parentId || t.description
+
       const existing = grouped.get(groupId)
 
       // Lógica do "Rei da Colina": Se não tem ninguém no grupo, entra.
@@ -98,17 +96,17 @@ export default function PendingTransactionsPage() {
     return [...singles, ...Array.from(grouped.values())].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     )
-  }, [pendingTransactions, cards]) 
+  }, [pendingTransactions, cards])
 
   const handleMarkAsPaid = (transactionId: string) => {
     const transaction = pendingTransactions.find((t) => t.id === transactionId)
-    
+
     if (transaction) {
-        if (transaction.cardId) setSelectedCard(transaction.cardId)
-        else setSelectedCard("")
-        setConfirmDate(transaction.date.split('T')[0])
+      if (transaction.cardId) setSelectedCard(transaction.cardId)
+      else setSelectedCard("")
+      setConfirmDate(transaction.date.split('T')[0])
     }
-    
+
     setSelectedTransaction(transactionId)
   }
 
@@ -118,74 +116,57 @@ export default function PendingTransactionsPage() {
     if (!transaction) return
 
     if (cards.length > 0 && !selectedCard) {
-      alert("Selecione uma conta/cartão para confirmar onde o dinheiro saiu/entrou")
+      toast({
+        title: "Selecione uma conta",
+        description: "É necessário informar de onde saiu/entrou o dinheiro.",
+        variant: "warning"
+      })
       return
     }
 
-    const totalInstallments = transaction.installments || 1
-    const paidCount = transaction.paidInstallments || 0
-    const currentInstallment = paidCount + 1
-    const isInstallmentPayment = totalInstallments > 1 && transaction.recurrence === 'none'
+    markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
 
-    if (isInstallmentPayment) {
-        const installmentAmount = transaction.amount / totalInstallments
+    toast({
+      title: transaction.type === 'expense' ? "Pago com sucesso!" : "Recebido com sucesso!",
+      description: "A transação foi confirmada.",
+      variant: "success"
+    })
 
-        addTransaction({
-            description: `${transaction.description} (${currentInstallment}/${totalInstallments})`,
-            amount: installmentAmount,
-            type: transaction.type,
-            categoryId: transaction.categoryId,
-            date: new Date(confirmDate).toISOString(),
-            cardId: selectedCard || undefined,
-            status: 'paid',
-            recurrence: 'none',
-        })
-
-        if (currentInstallment >= totalInstallments) {
-            markTransactionAsPaid(transaction.id, undefined, confirmDate)
-        } else {
-            const nextMonthDate = new Date(transaction.date)
-            nextMonthDate.setMonth(nextMonthDate.getMonth() + 1)
-
-            updateTransaction(transaction.id, {
-                paidInstallments: currentInstallment,
-                date: nextMonthDate.toISOString()
-            })
-        }
-
-    } else {
-        markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
-    }
-    
     setPendingTransactions(getPendingTransactions())
     setSelectedTransaction(null)
     setSelectedCard("")
     setConfirmDate("")
   }
 
-  const handleCancel = (transactionId: string) => {
-    if (confirm("Tem certeza que deseja cancelar esta transação?")) {
-      cancelTransaction(transactionId)
+  const confirmCancel = () => {
+    if (transactionToCancel) {
+      cancelTransaction(transactionToCancel)
       setPendingTransactions(getPendingTransactions())
+      toast({
+        title: "Transação cancelada",
+        description: "A transação foi removida das pendências.",
+        variant: "default"
+      })
+      setTransactionToCancel(null)
     }
   }
 
   if (!isLoaded) {
-      return (
-        <AppLayout>
-            <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        </AppLayout>
-      )
+    return (
+      <AppLayout>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </AppLayout>
+    )
   }
 
   return (
     <AppLayout>
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
-          <PageHeader 
-            title="Contas a Pagar/Receber" 
+          <PageHeader
+            title="Contas a Pagar/Receber"
             subtitle="Gerencie suas pendências"
           />
 
@@ -203,16 +184,15 @@ export default function PendingTransactionsPage() {
 
                 const totalInst = transaction.installments || 1
                 const paidInst = transaction.paidInstallments || 0
-                const currentInst = paidInst + 1
+                // Use the stored currentInstallment if available, otherwise fallback to paidInst + 1 (legacy)
+                const currentInst = transaction.currentInstallment || (paidInst + 1)
                 const isInstallment = totalInst > 1 && transaction.recurrence === 'none'
 
                 const installmentLabel = isInstallment
                   ? `${currentInst}/${totalInst}`
                   : transaction.recurrence === "monthly" ? "Mensal" : null
 
-                const displayAmount = isInstallment 
-                    ? transaction.amount / totalInst 
-                    : transaction.amount;
+                const displayAmount = transaction.amount;
 
                 return (
                   <div
@@ -238,12 +218,12 @@ export default function PendingTransactionsPage() {
                                 {installmentLabel}
                               </span>
                             )}
-                            
+
                             {linkedCard && (
-                                <span className="text-[10px] flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                                   <Wallet size={10} weight="fill" />
-                                   {linkedCard.name}
-                                </span>
+                              <span className="text-[10px] flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                <Wallet size={10} weight="fill" />
+                                {linkedCard.name}
+                              </span>
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1 capitalize">
@@ -251,7 +231,7 @@ export default function PendingTransactionsPage() {
                           </p>
                         </div>
                       </div>
-                      
+
                       <p className={cn("font-bold text-lg text-text-primary")}>
                         {isExpense ? "-" : "+"}
                         {formatCurrency(displayAmount)}
@@ -260,64 +240,64 @@ export default function PendingTransactionsPage() {
 
                     {selectedTransaction === transaction.id ? (
                       <div className="space-y-4 mt-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-2">
-                        
+
                         {isInstallment && (
-                            <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-[1vw] text-blue-500 text-xs">
-                                <Warning size={16} weight="bold" />
-                                <p>Isso registrará o pagamento da parcela <b>{currentInst}</b> de <b>{totalInst}</b> e a próxima ficará para o mês seguinte.</p>
-                            </div>
+                          <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-[1vw] text-blue-500 text-xs">
+                            <Warning size={16} weight="bold" />
+                            <p>Isso registrará o pagamento da parcela <b>{currentInst}</b> de <b>{totalInst}</b> e a próxima ficará para o mês seguinte.</p>
+                          </div>
                         )}
 
                         <div>
-                            <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
-                                <CalendarCheck size={16} />
-                                Data da baixa (Efetivação)
-                            </label>
-                            <input 
-                                type="date"
-                                value={confirmDate}
-                                onChange={(e) => setConfirmDate(e.target.value)}
-                                className="w-full px-4 py-2 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
+                          <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
+                            <CalendarCheck size={16} />
+                            Data da baixa (Efetivação)
+                          </label>
+                          <input
+                            type="date"
+                            value={confirmDate}
+                            onChange={(e) => setConfirmDate(e.target.value)}
+                            className="w-full px-4 py-2 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
                         </div>
 
                         {cards.length > 0 && (
-                            <div>
-                                <p className="text-sm font-medium text-foreground mb-2">
-                                    {isExpense ? "Debitar de qual conta?" : "Receber em qual conta?"}
-                                </p>
-                                <div className="grid grid-cols-1 gap-2">
-                                {cards.map((card) => {
-                                    const BankIcon = getBankIcon(card.bankName)
-                                    return (
-                                    <button
-                                        key={card.id}
-                                        type="button"
-                                        onClick={() => setSelectedCard(card.id)}
-                                        className={cn(
-                                        "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
-                                        selectedCard === card.id
-                                            ? "border-primary bg-primary/5 shadow-sm"
-                                            : "border-border bg-background hover:bg-muted",
-                                        )}
+                          <div>
+                            <p className="text-sm font-medium text-foreground mb-2">
+                              {isExpense ? "Debitar de qual conta?" : "Receber em qual conta?"}
+                            </p>
+                            <div className="grid grid-cols-1 gap-2">
+                              {cards.map((card) => {
+                                const BankIcon = getBankIcon(card.bankName)
+                                return (
+                                  <button
+                                    key={card.id}
+                                    type="button"
+                                    onClick={() => setSelectedCard(card.id)}
+                                    className={cn(
+                                      "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
+                                      selectedCard === card.id
+                                        ? "border-primary bg-primary/5 shadow-sm"
+                                        : "border-border bg-background hover:bg-muted",
+                                    )}
+                                  >
+                                    <div
+                                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                      style={{ backgroundColor: card.color + "20" }}
                                     >
-                                        <div
-                                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                        style={{ backgroundColor: card.color + "20" }}
-                                        >
-                                        <BankIcon size={24} color={card.color} weight="fill" />
-                                        </div>
-                                        <div className="flex-1 text-left">
-                                        <p className="text-sm font-medium text-foreground">{card.name}</p>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] bg-muted px-1 rounded">{card.type === 'credit' ? 'Crédito' : 'Débito'}</span>
-                                        </div>
-                                        </div>
-                                    </button>
-                                    )
-                                })}
-                                </div>
+                                      <BankIcon size={24} color={card.color} weight="fill" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                      <p className="text-sm font-medium text-foreground">{card.name}</p>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] bg-muted px-1 rounded">{card.type === 'credit' ? 'Crédito' : 'Débito'}</span>
+                                      </div>
+                                    </div>
+                                  </button>
+                                )
+                              })}
                             </div>
+                          </div>
                         )}
 
                         <div className="flex gap-2 pt-2">
@@ -348,7 +328,7 @@ export default function PendingTransactionsPage() {
                           {isExpense ? "Pagar" : "Receber"}
                         </Button>
                         <Button
-                          onClick={() => handleCancel(transaction.id)}
+                          onClick={() => setTransactionToCancel(transaction.id)}
                           variant="outline"
                           className="flex-1 border-expense text-expense hover:bg-expense/10"
                         >
@@ -364,6 +344,23 @@ export default function PendingTransactionsPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={!!transactionToCancel} onOpenChange={() => setTransactionToCancel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar Transação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja cancelar esta transação? Ela será removida das contas a pagar/receber.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCancel} className="bg-destructive text-white hover:bg-destructive/90">
+              Confirmar Cancelamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }

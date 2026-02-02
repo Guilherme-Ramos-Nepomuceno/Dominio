@@ -21,6 +21,16 @@ export function useTransactions(selectedMonth?: string) {
 
   useEffect(() => {
     loadTransactions()
+
+    // Listen for storage updates (same window)
+    const handleStorageUpdate = () => {
+      loadTransactions()
+    }
+    window.addEventListener("storage-update", handleStorageUpdate)
+
+    return () => {
+      window.removeEventListener("storage-update", handleStorageUpdate)
+    }
   }, [loadTransactions])
 
   const refresh = () => {

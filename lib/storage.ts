@@ -48,6 +48,8 @@ function setItem<T>(key: string, value: T): void {
 
   try {
     localStorage.setItem(key, JSON.stringify(value))
+    // Dispatch event for same-window updates
+    window.dispatchEvent(new Event("storage-update"))
   } catch (error) {
     console.error(`Error writing ${key} to localStorage:`, error)
   }
@@ -71,10 +73,10 @@ export const addTransaction = (transaction: Omit<Transaction, "id" | "createdAt"
   // Normaliza as datas para comparação (zera as horas)
   const transactionDate = new Date(transaction.date)
   transactionDate.setHours(0, 0, 0, 0)
-  
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  
+
   // Verifica se a DATA ORIGINAL é futura
   const isOriginalFuture = transactionDate > today
 
@@ -93,24 +95,71 @@ export const addTransaction = (transaction: Omit<Transaction, "id" | "createdAt"
     updatedAt: now,
   }
 
-  // --- LÓGICA DE PARCELAMENTO (Mantém igual) ---
+  // --- LÓGICA DE PARCELAMENTO ---
   if (transaction.installments && transaction.installments > 1) {
-     // ... (seu código de parcelas existente)
-     // Parcelas geralmente seguem a regra do cartão de crédito, então manter status da pai costuma funcionar,
-     // mas para segurança, parcelas de cartão são sempre 'pending' até pagar a fatura.
+    const installmentTransactions: Transaction[] = []
+    const totalAmount = transaction.amount
+    const count = transaction.installments
+
+    // Calcula valor base da parcela e o resto (centavos que sobram)
+    // Ex: 100 / 3 = 33.33 -> Resto 0.01 -> Parc 1: 33.34, Parc 2,3: 33.33
+    const installmentValue = Math.floor((totalAmount / count) * 100) / 100
+    const remainder = Number((totalAmount - (installmentValue * count)).toFixed(2))
+
+    // Base date for calculation
+    const baseDate = new Date(transaction.date)
+
+    // ID do grupo de parcelas (para relacioná-las se precisar no futuro)
+    const parentId = `installment_group_${Date.now()}`
+
+    for (let i = 0; i < count; i++) {
+      const currentDate = new Date(baseDate)
+      currentDate.setMonth(currentDate.getMonth() + i)
+
+      // Ajuste para manter o dia correto (ex: 31 de Jan -> 28/29 Fev)
+      // O setMonth do JS já lida com overflow, mas às vezes queremos travar no dia.
+      // Por simplificação e padrão bancário, deixar o JS resolver (31 Jan + 1 mes = 3 Mar ou 28 Fev dependendo da impl)
+      // Mas a abordagem mais simples aqui é aceitar o comportamento do Date (que empurra pro proximo mes se dia n existe)
+
+      // Valor da parcela atual
+      const currentAmount = i === 0 ? Number((installmentValue + remainder).toFixed(2)) : installmentValue
+
+      // Define status
+      // Regra:
+      // 1. Cartão de Crédito -> Sempre Pending (fatura)
+      // 2. Débito/Outros:
+      //    - Parcela 1 (i=0): Se data <= Hoje -> Paid. Se Futuro -> Pending.
+      //    - Parcelas Futuras (i>0): Sempre Pending (agendamento)
+
+      const isInstallmentFuture = currentDate > today
+      let status: TransactionStatus = "pending"
+
+      // Regra Fixa: Se é parcelado, TODAS as parcelas nascem como PENDENTES.
+      // Isso vale para Débito e Crédito.
+      // A primeira parcela só será debitada quando o usuário confirmar o pagamento no 'Pendente'.
+
+      installmentTransactions.push({
+        ...newTransaction, // Copia dados base
+        id: i === 0 ? newTransaction.id : `txn_${Date.now()}_inst_${i}_${Math.random().toString(36).substr(2, 5)}`, // ID único
+        amount: currentAmount,
+        date: currentDate.toISOString(),
+        parentId: parentId, // Identificador do grupo
+        installments: count,
+        currentInstallment: i + 1,
+        status: status
+      })
+    }
+
+    setTransactions([...transactions, ...installmentTransactions])
+    return installmentTransactions[0]
   }
 
-  // --- LÓGICA DE RECORRÊNCIA (AQUI ESTÁ A CORREÇÃO) ---
+  // --- LÓGICA DE RECORRÊNCIA (MANTIDA) ---
   if (transaction.recurrence !== "none") {
     const recurringTransactions: Transaction[] = []
     const baseDate = new Date(transaction.date)
 
-    // Loop começa em 0 ou 1 dependendo se você quer incluir a data original no loop ou tratar separado.
-    // Sua lógica original criava 12 NOVAS além da original? Ou a original era a primeira?
-    // Assumindo que a newTransaction já é a primeira, o loop gera as próximas 11 (ou 12 se for infinito).
-    // Vou manter sua lógica de gerar 12 meses para frente.
-
-    for (let i = 1; i <= 12; i++) { // Começando do 1 para ser o próximo mês/dia
+    for (let i = 1; i <= 12; i++) {
       const recurringDate = new Date(baseDate)
 
       switch (transaction.recurrence) {
@@ -128,32 +177,24 @@ export const addTransaction = (transaction: Omit<Transaction, "id" | "createdAt"
           break
       }
 
-      // 1. Verifica se ESSA ocorrência específica é futura
-      // Precisamos zerar a hora da recurringDate também para comparação justa
-      recurringDate.setHours(0,0,0,0)
+      recurringDate.setHours(0, 0, 0, 0)
       const isOccurrenceFuture = recurringDate > today
-
-      // 2. Define o status DESTA ocorrência
-      // Se for Cartão de Crédito -> Sempre Pending
-      // Se for Data Futura -> Sempre Pending
-      // Se for Débito/Dinheiro HOJE ou PASSADO -> Paid
       const occurrenceStatus = (isCreditCard || isOccurrenceFuture) ? "pending" : "paid"
 
       recurringTransactions.push({
         ...newTransaction,
         id: `${newTransaction.id}_rec_${i}`,
-        date: recurringDate.toISOString(), // Salva a data calculada
+        date: recurringDate.toISOString(),
         parentId: newTransaction.id,
-        status: occurrenceStatus, // <--- AQUI O SEGREDO: Sobrescreve o status
+        status: occurrenceStatus,
       })
     }
 
-    // Salva a original + as recorrentes geradas
     setTransactions([...transactions, newTransaction, ...recurringTransactions])
     return newTransaction
   }
 
-  // Caso não seja recorrente nem parcelado
+  // Caso não seja recorrente nem parcelado (Single)
   setTransactions([...transactions, newTransaction])
   return newTransaction
 }
@@ -177,14 +218,14 @@ export const markTransactionAsPaid = (id: string, cardId?: string, paidAt?: stri
   const updatedTransactions = transactions.map((t) =>
     t.id === id
       ? {
-          ...t,
-          status: "paid" as TransactionStatus,
-          cardId: cardId || t.cardId,
-          // SE uma data for passada, usa ela. SE NÃO, mantém a data original da transação.
-          // Removemos o "new Date()" forçado para não alterar para "hoje" automaticamente se não quiser.
-          date: paidAt || t.date, 
-          updatedAt: new Date().toISOString(),
-        }
+        ...t,
+        status: "paid" as TransactionStatus,
+        cardId: cardId || t.cardId,
+        // SE uma data for passada, usa ela. SE NÃO, mantém a data original da transação.
+        // Removemos o "new Date()" forçado para não alterar para "hoje" automaticamente se não quiser.
+        date: paidAt || t.date,
+        updatedAt: new Date().toISOString(),
+      }
       : t,
   )
   setTransactions(updatedTransactions)
@@ -195,10 +236,10 @@ export const cancelTransaction = (id: string): void => {
   const updatedTransactions = transactions.map((t) =>
     t.id === id
       ? {
-          ...t,
-          status: "cancelled" as TransactionStatus,
-          updatedAt: new Date().toISOString(),
-        }
+        ...t,
+        status: "cancelled" as TransactionStatus,
+        updatedAt: new Date().toISOString(),
+      }
       : t,
   )
   setTransactions(updatedTransactions)
@@ -346,20 +387,20 @@ export const deleteSavingsGoal = (id: string): void => {
 }
 export const addFundsToSavingsGoal = (goalId: string, amount: number, cardId?: string): void => {
   const goals = getSavingsGoals()
-  
+
   // 1. Encontra a meta para pegar o cartão vinculado caso o argumento cardId venha vazio
   const targetGoal = goals.find((g) => g.id === goalId)
-  
+
   // AQUI ESTAVA O ERRO: Resolvemos qual cartão usar (o do argumento OU o salvo na meta)
   const finalCardId = cardId || targetGoal?.cardId
-  
+
   const updatedGoals = goals.map((g) => {
     if (g.id === goalId) {
       return {
         ...g,
         currentAmount: g.currentAmount + amount,
         // Se veio um novo cardId, atualizamos a meta. Se não, mantemos o antigo.
-        cardId: finalCardId, 
+        cardId: finalCardId,
         updatedAt: new Date().toISOString(),
       }
     }
@@ -423,10 +464,10 @@ export const removeFundsFromSavingsGoal = (goalId: string, amount: number, cardI
 }
 export const getAccountBalance = (cardId: string): number => {
   const transactions = getTransactions()
-  
+
   return transactions
     // O pulo do gato: Só soma se status for estritamente "paid"
-    .filter((t) => t.cardId === cardId && t.status === "paid") 
+    .filter((t) => t.cardId === cardId && t.status === "paid")
     .reduce((acc, t) => {
       if (t.type === "income") return acc + t.amount
       return acc - t.amount
