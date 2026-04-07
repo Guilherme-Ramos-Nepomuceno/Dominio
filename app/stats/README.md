@@ -8,6 +8,12 @@ Oferece gráficos (`StackedBarChart`) e listas detalhadas de transações para a
 
 ## Especificações Técnicas
 
+Este módulo utiliza o padrão **MVVM**:
+
+- **View**: `StatsView` (`components/stats-view.tsx`)
+- **ViewModel**: `useStatsViewModel` (`hooks/use-stats-view-model.ts`)
+- **UI Components**: `StackedBarChart` (local), `PeriodSelector` (shared)
+
 ### Modos de Visualização (`filterType`)
 
 1. **Geral (`all`)**: Mostra fluxo de caixa real (entradas e saídas efetivadas/pendentes do mês).

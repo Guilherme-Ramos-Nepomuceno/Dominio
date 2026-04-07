@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { fetchApi } from './api';
 
 export interface User {
     id: string;
@@ -28,46 +29,48 @@ function saveUserToDB(user: User) {
 
 // --- Auth Actions ---
 
-export function registerUser(name: string, email: string, password: string): { success: boolean; message?: string } {
-    // In a real app, password should be hashed. Here we just simulate.
-    const users = getUsersDB();
+export async function registerUser(name: string, email: string, password: string): Promise<{ success: boolean; message?: string }> {
+    try {
+        const response = await fetchApi('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({ name, email, password })
+        });
 
-    if (users.find(u => u.email === email)) {
-        return { success: false, message: "Email já cadastrado." };
+        // If login returns token on register directly:
+        if (response?.token) {
+            localStorage.setItem('finance-token', response.token);
+            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(response.user || { id: uuidv4(), name, email, createdAt: new Date().toISOString() }));
+            return { success: true };
+        }
+
+        // Assume we need to login after register if no token returned
+        return await loginUser(email, password);
+    } catch (e: any) {
+        return { success: false, message: e.message || "Erro ao cadastrar." };
     }
-
-    const newUser: User = {
-        id: uuidv4(),
-        name,
-        email,
-        createdAt: new Date().toISOString(),
-    };
-
-    saveUserToDB(newUser);
-
-    // Auto login after register
-    localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(newUser));
-    return { success: true };
 }
 
-export function loginUser(email: string, password: string): { success: boolean; message?: string } {
-    // Simulate checking password (accepts any password for existing email in this mock)
-    const users = getUsersDB();
-    const user = users.find(u => u.email === email);
+export async function loginUser(email: string, password: string): Promise<{ success: boolean; message?: string }> {
+    try {
+        const response = await fetchApi('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password })
+        });
 
-    if (!user) {
-        return { success: false, message: "Usuário não encontrado." };
+        if (response?.token) {
+            localStorage.setItem('finance-token', response.token);
+            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(response.user || { email }));
+            return { success: true };
+        }
+        return { success: false, message: "Token inválido ou não retornado." };
+    } catch (e: any) {
+        return { success: false, message: e.message || "Erro ao entrar." };
     }
-
-    // In a real app, check password hash here.
-    // For this mock, we trust the email.
-
-    localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(user));
-    return { success: true };
 }
 
 export function logoutUser() {
     localStorage.removeItem(AUTH_KEYS.USER_SESSION);
+    localStorage.removeItem('finance-token');
     // Dispath auth-change event
     window.dispatchEvent(new Event("auth-change"));
 }
@@ -82,19 +85,32 @@ export function isAuthenticated(): boolean {
     return !!getCurrentUser();
 }
 
-export function updateCurrentUser(updates: Partial<User>) {
+export async function updateCurrentUser(updates: Partial<User>) {
     const current = getCurrentUser();
     if (!current) return;
 
     const updated = { ...current, ...updates };
     localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(updated));
 
-    // Update in DB too
+    // Update in DB too (Local mockup db)
     const users = getUsersDB();
     const dbIndex = users.findIndex(u => u.id === current.id);
     if (dbIndex >= 0) {
         users[dbIndex] = updated;
         localStorage.setItem(AUTH_KEYS.USERS_DB, JSON.stringify(users));
+    }
+
+    // Call Backend
+    try {
+        await fetchApi('/users/me', {
+            method: 'PUT',
+            body: JSON.stringify({
+                name: updates.name,
+                email: updates.email
+            })
+        });
+    } catch (error) {
+        console.error("Failed to update user in backend:", error);
     }
 
     window.dispatchEvent(new Event("auth-change"));

@@ -1,6 +1,7 @@
 // LocalStorage utilities for offline-first data persistence
 
 import type { Transaction, Category, Goal, AppSettings, Card, TransactionStatus } from "./types"
+import { addToSyncQueue, SyncEntity, SyncAction } from "./sync"
 
 const STORAGE_KEYS = {
   TRANSACTIONS: "finance-transactions",
@@ -151,6 +152,10 @@ export const addTransaction = (transaction: Omit<Transaction, "id" | "createdAt"
     }
 
     setTransactions([...transactions, ...installmentTransactions])
+
+    // Add to sync queue for each installment
+    installmentTransactions.forEach(inst => addToSyncQueue("transaction", "create", inst))
+
     return installmentTransactions[0]
   }
 
@@ -191,11 +196,19 @@ export const addTransaction = (transaction: Omit<Transaction, "id" | "createdAt"
     }
 
     setTransactions([...transactions, newTransaction, ...recurringTransactions])
+
+    // Add to sync queue
+    addToSyncQueue("transaction", "create", newTransaction)
+    recurringTransactions.forEach(rec => addToSyncQueue("transaction", "create", rec))
+
     return newTransaction
   }
 
   // Caso não seja recorrente nem parcelado (Single)
   setTransactions([...transactions, newTransaction])
+
+  addToSyncQueue("transaction", "create", newTransaction)
+
   return newTransaction
 }
 
@@ -205,12 +218,16 @@ export const updateTransaction = (id: string, updates: Partial<Transaction>): vo
     t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t,
   )
   setTransactions(updatedTransactions)
+
+  addToSyncQueue("transaction", "update", { id, ...updates })
 }
 
 export const deleteTransaction = (id: string): void => {
   const transactions = getTransactions()
   const filtered = transactions.filter((t) => t.id !== id && t.parentId !== id)
   setTransactions(filtered)
+
+  addToSyncQueue("transaction", "delete", { id })
 }
 
 export const markTransactionAsPaid = (id: string, cardId?: string, paidAt?: string): void => {
@@ -229,6 +246,7 @@ export const markTransactionAsPaid = (id: string, cardId?: string, paidAt?: stri
       : t,
   )
   setTransactions(updatedTransactions)
+  addToSyncQueue("transaction", "update", { id, status: "paid", cardId, date: paidAt })
 }
 
 export const cancelTransaction = (id: string): void => {
@@ -243,6 +261,7 @@ export const cancelTransaction = (id: string): void => {
       : t,
   )
   setTransactions(updatedTransactions)
+  addToSyncQueue("transaction", "update", { id, status: "cancelled" })
 }
 
 export const getPendingTransactions = (): Transaction[] => {
@@ -268,12 +287,14 @@ export const addCategory = (category: Omit<Category, "id">): Category => {
     id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   }
   setCategories([...categories, newCategory])
+  addToSyncQueue("category", "create", newCategory)
   return newCategory
 }
 
 export const deleteCategory = (id: string): void => {
   const categories = getCategories()
   setCategories(categories.filter((c) => c.id !== id))
+  addToSyncQueue("category", "delete", { id })
 }
 
 // Goals
@@ -293,6 +314,7 @@ export const addGoal = (goal: Omit<Goal, "id" | "createdAt">): Goal => {
     createdAt: new Date().toISOString(),
   }
   setGoals([...goals, newGoal])
+  addToSyncQueue("goal", "create", newGoal)
   return newGoal
 }
 
@@ -300,6 +322,7 @@ export const updateGoal = (id: string, updates: Partial<Goal>): void => {
   const goals = getGoals()
   const updatedGoals = goals.map((g) => (g.id === id ? { ...g, ...updates } : g))
   setGoals(updatedGoals)
+  addToSyncQueue("goal", "update", { id, ...updates })
 }
 
 // Settings
@@ -309,7 +332,9 @@ export const getSettings = (): AppSettings => {
 
 export const setSettings = (settings: Partial<AppSettings>): void => {
   const current = getSettings()
-  setItem(STORAGE_KEYS.SETTINGS, { ...current, ...settings })
+  const newSettings = { ...current, ...settings }
+  setItem(STORAGE_KEYS.SETTINGS, newSettings)
+  addToSyncQueue("setting", "update", newSettings)
 }
 
 // Cards
@@ -329,6 +354,7 @@ export const addCard = (card: Omit<Card, "id" | "createdAt">): Card => {
     createdAt: new Date().toISOString(),
   }
   setCards([...cards, newCard])
+  addToSyncQueue("card", "create", newCard)
   return newCard
 }
 
@@ -336,11 +362,13 @@ export const updateCard = (id: string, updates: Partial<Card>): void => {
   const cards = getCards()
   const updatedCards = cards.map((c) => (c.id === id ? { ...c, ...updates } : c))
   setCards(updatedCards)
+  addToSyncQueue("card", "update", { id, ...updates })
 }
 
 export const deleteCard = (id: string): void => {
   const cards = getCards()
   setCards(cards.filter((c) => c.id !== id))
+  addToSyncQueue("card", "delete", { id })
 }
 
 // Savings Goals
@@ -363,6 +391,7 @@ export const addSavingsGoal = (goal: any): any => {
     updatedAt: now,
   }
   setSavingsGoals([...goals, newGoal])
+  addToSyncQueue("savingsGoal", "create", newGoal)
   return newGoal
 }
 
@@ -379,11 +408,13 @@ export const updateSavingsGoal = (id: string, updates: any): void => {
     return g
   })
   setSavingsGoals(updatedGoals)
+  addToSyncQueue("savingsGoal", "update", { id, ...updates })
 }
 
 export const deleteSavingsGoal = (id: string): void => {
   const goals = getSavingsGoals()
   setSavingsGoals(goals.filter((g) => g.id !== id))
+  addToSyncQueue("savingsGoal", "delete", { id })
 }
 export const addFundsToSavingsGoal = (goalId: string, amount: number, cardId?: string): void => {
   const goals = getSavingsGoals()
@@ -407,6 +438,7 @@ export const addFundsToSavingsGoal = (goalId: string, amount: number, cardId?: s
     return g
   })
   setSavingsGoals(updatedGoals)
+  addToSyncQueue("savingsGoal", "update", { id: goalId, currentAmount: targetGoal?.currentAmount ? targetGoal.currentAmount + amount : amount, cardId: finalCardId })
 
   // 2. Cria a transação usando o ID do cartão resolvido (finalCardId)
   if (finalCardId) {
@@ -447,6 +479,7 @@ export const removeFundsFromSavingsGoal = (goalId: string, amount: number, cardI
     return g
   })
   setSavingsGoals(updatedGoals)
+  addToSyncQueue("savingsGoal", "update", { id: goalId, currentAmount: goal.currentAmount - amount })
 
   // Cria a transação de entrada (Devolução para a conta)
   if (finalCardId) {
