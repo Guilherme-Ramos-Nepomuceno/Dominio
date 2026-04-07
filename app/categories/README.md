@@ -8,15 +8,16 @@ Fundamental para a organização financeira, o módulo permite criar, visualizar
 
 ## Especificações Técnicas
 
-### Controlador
+Este módulo utiliza o padrão **MVVM**:
 
-- `CategoriesPage`: Gerencia o estado local das categorias e calcula estatísticas em tempo real (`loadCategories`).
+- **View**: `CategoriesView` (`components/categories-view.tsx`)
+- **ViewModel**: `useCategoriesViewModel` (`hooks/use-categories-view-model.ts`)
+- **UI Components**: `CategoryItem`, `AddCategoryDialog`
 
 ### Componentes
 
 - `CategoryItem`: Exibe ícone, nome e dados financeiros da categoria.
 - `AddCategoryDialog`: Modal para criação.
-- `FilterTabs`: Componente visual personalizado para alternar entre "Todas", "Receitas" e "Despesas".
 
 ### Lógica de Estatísticas
 

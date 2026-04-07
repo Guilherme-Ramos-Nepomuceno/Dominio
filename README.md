@@ -22,36 +22,22 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 ## 🏗 Architecture Graph
 
-A arquitetura segue o padrão **Next.js App Router** com uma camada de dados abstraída em `lib/storage`.
+A arquitetura segue o padrão **MVVM (Model-View-ViewModel)** adaptado para o Next.js App Router, garantindo separação de responsabilidades e alta manutenibilidade.
 
 ```mermaid
 graph TD
     User[Usuário] --> App[App Router /app]
-    App --> Components[UI Components /components]
-    App --> Hooks[Custom Hooks /hooks]
-    Components --> Lib[Data Layer /lib]
-    Lib --> LocalStorage[(LocalStorage)]
-    
-    subgraph Core Modules
-        App --> Cards[Cards]
-        App --> Invoices[Invoices]
-        App --> Stats[Stats & Dashboard]
-    end
-    
-    subgraph Transaction Management
-        App --> New[New Transaction]
-        App --> Pending[Pending Payments]
-        App --> Recurring[Recurring / Installments]
-        App --> Transfer[Transfers]
-    end
-    
-    subgraph Taxonomy & Settings
-        App --> Categories[Categories]
-        App --> Goals[Goals]
-        App --> Savings[Savings / Reserves]
-        App --> Settings[Settings]
-    end
+    App --> View[View /app/module/components]
+    View --> ViewModel[ViewModel /app/module/hooks]
+    ViewModel --> Model[Model /lib/storage]
+    Shared[Shared UI /components] --> View
+    Model --> LocalStorage[(LocalStorage)]
 ```
+
+- **Model**: Abstração de persistência em `lib/storage.ts`.
+- **View**: Componentes React em cada módulo (`app/[module]/components`).
+- **ViewModel**: Hooks customizados que encapsulam lógica de negócio (`app/[module]/hooks`).
+- **Shared UI**: Componentes atômicos e globais em `/components`.
 
 ---
 

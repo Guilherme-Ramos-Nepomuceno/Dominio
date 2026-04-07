@@ -8,11 +8,11 @@ Permite ao usuário manter múltiplos cartões, visualizando o saldo (conta corr
 
 ## Especificações Técnicas
 
-### Componentes Principais
+Este módulo utiliza o padrão **MVVM**:
 
-- `CardsPage` (`page.tsx`): Controller principal da view.
-- `CardItem`: Componente de UI para renderizar o cartão visualmente.
-- `AddCardDialog`: Modal de criação de novos cartões.
+- **View**: `CardsView` (`components/cards-view.tsx`)
+- **ViewModel**: `useCardsViewModel` (`hooks/use-cards-view-model.ts`)
+- **UI Components**: `CardItem`, `AddCardDialog` (localizados em `components/`)
 
 ### Data Layer
 

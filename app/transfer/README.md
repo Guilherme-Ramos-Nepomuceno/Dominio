@@ -8,6 +8,11 @@ Realiza a transferência de fundos criando um par contábil de transações (Sa�
 
 ## Especificações Técnicas
 
+Este módulo utiliza o padrão **MVVM**:
+
+- **View**: `TransferView` (`components/transfer-view.tsx`)
+- **ViewModel**: `useTransferViewModel` (`hooks/use-transfer-view-model.ts`)
+
 ### Validações (`Guard Clauses`)
 
 - Exige no mínimo **2 cartões de débito** cadastrados.
