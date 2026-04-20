@@ -46,12 +46,28 @@ export async function registerUser(name: string, email: string, password: string
         // Assume we need to login after register if no token returned
         return await loginUser(email, password);
     } catch (e: any) {
+        if (e instanceof TypeError || e.message?.includes('Failed to fetch') || e.message?.includes('fetch failed')) {
+            // Offline fallback
+            const newUser: User = { id: uuidv4(), name, email, createdAt: new Date().toISOString() };
+            saveUserToDB(newUser);
+            
+            localStorage.setItem('finance-token', `local-token-${newUser.id}`);
+            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(newUser));
+            
+            const syncQueue = JSON.parse(localStorage.getItem('finance-sync-users') || '[]');
+            syncQueue.push({ name, email, password });
+            localStorage.setItem('finance-sync-users', JSON.stringify(syncQueue));
+            
+            return { success: true };
+        }
         return { success: false, message: e.message || "Erro ao cadastrar." };
     }
 }
 
 export async function loginUser(email: string, password: string): Promise<{ success: boolean; message?: string }> {
     try {
+        await syncOfflineUsers();
+
         const response = await fetchApi('/auth/login', {
             method: 'POST',
             body: JSON.stringify({ email, password })
@@ -64,7 +80,42 @@ export async function loginUser(email: string, password: string): Promise<{ succ
         }
         return { success: false, message: "Token inválido ou não retornado." };
     } catch (e: any) {
+        if (e instanceof TypeError || e.message?.includes('Failed to fetch') || e.message?.includes('fetch failed')) {
+            const users = getUsersDB();
+            const localUser = users.find(u => u.email === email);
+            if (localUser) {
+                 localStorage.setItem('finance-token', `local-token-${localUser.id}`);
+                 localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(localUser));
+                 return { success: true };
+            }
+            return { success: false, message: "Modo offline: Usuário local não encontrado." };
+        }
         return { success: false, message: e.message || "Erro ao entrar." };
+    }
+}
+
+export async function syncOfflineUsers() {
+    if (typeof window === "undefined") return;
+    try {
+        const syncQueue = JSON.parse(localStorage.getItem('finance-sync-users') || '[]');
+        if (syncQueue.length === 0) return;
+        
+        const remainingQueue = [];
+        for (const user of syncQueue) {
+            try {
+                await fetchApi('/auth/register', {
+                    method: 'POST',
+                    body: JSON.stringify(user)
+                });
+            } catch (err: any) {
+                if (err instanceof TypeError || err.message?.includes('Failed to fetch') || err.message?.includes('fetch failed')) {
+                    remainingQueue.push(user);
+                }
+            }
+        }
+        localStorage.setItem('finance-sync-users', JSON.stringify(remainingQueue));
+    } catch (error) {
+        console.error("Failed to sync offline users:", error);
     }
 }
 
