@@ -15,6 +15,16 @@ export function useLoginViewModel() {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
 
+    const redirectAfterAuth = () => {
+        const pendingInvite = sessionStorage.getItem("finance-post-login-redirect")
+        if (pendingInvite) {
+            sessionStorage.removeItem("finance-post-login-redirect")
+            router.push(pendingInvite)
+            return
+        }
+        router.push("/")
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setError("")
@@ -26,7 +36,7 @@ export function useLoginViewModel() {
         if (isLogin) {
             const result = await loginUser(email, password)
             if (result.success) {
-                router.push("/")
+                redirectAfterAuth()
             } else {
                 setError(result.message || "Erro ao entrar")
                 setLoading(false)
@@ -39,7 +49,7 @@ export function useLoginViewModel() {
             }
             const result = await registerUser(name, email, password)
             if (result.success) {
-                router.push("/")
+                redirectAfterAuth()
             } else {
                 setError(result.message || "Erro ao cadastrar")
                 setLoading(false)

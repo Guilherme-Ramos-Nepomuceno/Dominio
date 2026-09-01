@@ -1,34 +1,44 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useTheme } from "@/hooks/use-theme"
 import {
     getSettings,
     setSettings as saveSettings,
     getCategories,
     getTransactions,
-    setTransactions
+    deleteAllTransactions,
 } from "@/lib/storage"
+import type { Category, Transaction } from "@/lib/types"
 import { getCurrentUser, updateCurrentUser, type User } from "@/lib/auth"
 import { toast } from "@/hooks/use-toast"
+import { useAccount } from "@/components/account/account-context"
+import { createFamilyInvite, createCoupleAccount as createCoupleAccountApi } from "@/lib/family"
 
 export function useSettingsViewModel() {
     const { theme, toggleTheme } = useTheme()
+    const { family, refreshFamily } = useAccount()
     const [spendingGoal, setSpendingGoal] = useState("")
     const [currency, setCurrency] = useState("BRL")
     const [categoryGoals, setCategoryGoals] = useState<any[]>([])
     const [showClearDialog, setShowClearDialog] = useState(false)
     const [user, setUser] = useState<User | null>(null)
-
-    const categories = useMemo(() => getCategories().filter((c) => c.type === "expense"), [])
-    const transactions = useMemo(() => getTransactions(), [])
+    const [categories, setCategories] = useState<Category[]>([])
+    const [transactions, setTransactions] = useState<Transaction[]>([])
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         setUser(getCurrentUser())
-        const settings = getSettings()
-        setSpendingGoal(settings.spendingGoal.toString())
-        setCurrency(settings.currency)
-        setCategoryGoals(settings.categoryGoals || [])
+
+        Promise.all([getSettings(), getCategories(), getTransactions()])
+            .then(([settings, allCategories, allTransactions]) => {
+                setSpendingGoal(settings.spendingGoal.toString())
+                setCurrency(settings.currency)
+                setCategoryGoals(settings.categoryGoals || [])
+                setCategories(allCategories.filter((c) => c.type === "expense"))
+                setTransactions(allTransactions)
+            })
+            .finally(() => setLoading(false))
     }, [])
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -39,8 +49,8 @@ export function useSettingsViewModel() {
         }
     }
 
-    const handleSave = () => {
-        saveSettings({
+    const handleSave = async () => {
+        await saveSettings({
             spendingGoal: Number.parseFloat(spendingGoal),
             currency,
             categoryGoals,
@@ -48,8 +58,8 @@ export function useSettingsViewModel() {
         toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
     }
 
-    const confirmClearData = () => {
-        setTransactions([])
+    const confirmClearData = async () => {
+        await deleteAllTransactions()
         toast({ title: "Dados apagados!", description: "Todos os dados foram apagados com sucesso.", variant: "destructive" })
         setShowClearDialog(false)
         window.location.reload()
@@ -87,41 +97,65 @@ export function useSettingsViewModel() {
         return warns
     }, [transactions, categoryGoals, categories])
 
-    const [syncing, setSyncing] = useState(false)
+    const [invitingFamily, setInvitingFamily] = useState(false)
+    const [inviteLink, setInviteLink] = useState("")
+    const [creatingCoupleAccount, setCreatingCoupleAccount] = useState(false)
 
-    const handleFullSync = async () => {
-        const { syncFullLocalStorageToBackend } = await import("@/lib/sync")
-
-        setSyncing(true)
+    const handleCreateInvite = async () => {
+        setInvitingFamily(true)
         try {
-            const result = await syncFullLocalStorageToBackend()
-            if (result.success) {
-                toast({
-                    title: "Sincronização concluída!",
-                    description: `${result.count} itens foram enviados para o servidor.`,
-                    variant: "success"
-                })
-            } else {
-                toast({
-                    title: "Nada para sincronizar",
-                    description: result.message || "Seus dados já parecem estar em dia.",
-                    variant: "default"
-                })
-            }
+            const invite = await createFamilyInvite()
+            const link = `${window.location.origin}/join/${invite.token}`
+            setInviteLink(link)
+            await navigator.clipboard.writeText(link).catch(() => { })
+            toast({
+                title: "Link de convite criado!",
+                description: "O link foi copiado para a área de transferência.",
+                variant: "success",
+            })
+            await refreshFamily()
         } catch (error: any) {
             toast({
-                title: "Falha na sincronização",
-                description: error.message || "Ocorreu um erro ao enviar os dados.",
-                variant: "destructive"
+                title: "Não foi possível criar o convite",
+                description: error.message || "Tente novamente em instantes.",
+                variant: "destructive",
             })
         } finally {
-            setSyncing(false)
+            setInvitingFamily(false)
+        }
+    }
+
+    const handleCreateCoupleAccount = async () => {
+        setCreatingCoupleAccount(true)
+        try {
+            await createCoupleAccountApi()
+            toast({
+                title: "Conta do casal criada!",
+                description: "Agora vocês podem trocar para ela pelo seletor de contas.",
+                variant: "success",
+            })
+            await refreshFamily()
+        } catch (error: any) {
+            toast({
+                title: "Não foi possível criar a conta do casal",
+                description: error.message || "Tente novamente em instantes.",
+                variant: "destructive",
+            })
+        } finally {
+            setCreatingCoupleAccount(false)
         }
     }
 
     return {
         theme,
         toggleTheme,
+        family,
+        invitingFamily,
+        inviteLink,
+        handleCreateInvite,
+        creatingCoupleAccount,
+        handleCreateCoupleAccount,
+        loading,
         spendingGoal,
         setSpendingGoal,
         currency,
@@ -138,8 +172,5 @@ export function useSettingsViewModel() {
         handlePercentageChange,
         totalPercentage,
         warnings,
-        handleFullSync,
-        syncing
     }
 }
-

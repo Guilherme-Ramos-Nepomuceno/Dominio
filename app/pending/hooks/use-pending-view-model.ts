@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import {
     getPendingTransactions,
     getCategories,
@@ -24,16 +24,21 @@ export function usePendingViewModel() {
     const [confirmDate, setConfirmDate] = useState<string>("")
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
 
-    const loadData = () => {
-        setPendingTransactions(getPendingTransactions())
-        setCategories(getCategories())
-        setCards(getCards())
+    const loadData = useCallback(async () => {
+        const [allPending, allCategories, allCards] = await Promise.all([
+            getPendingTransactions(),
+            getCategories(),
+            getCards(),
+        ])
+        setPendingTransactions(allPending)
+        setCategories(allCategories)
+        setCards(allCards)
         setIsLoaded(true)
-    }
+    }, [])
 
     useEffect(() => {
         loadData()
-    }, [])
+    }, [loadData])
 
     const visibleTransactions = useMemo(() => {
         const filtered = pendingTransactions.filter((t) => {
@@ -79,7 +84,7 @@ export function usePendingViewModel() {
         setSelectedTransaction(transactionId)
     }
 
-    const confirmPayment = () => {
+    const confirmPayment = async () => {
         if (!selectedTransaction) return
         const transaction = pendingTransactions.find(t => t.id === selectedTransaction)
         if (!transaction) return
@@ -93,7 +98,7 @@ export function usePendingViewModel() {
             return
         }
 
-        markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
+        await markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
 
         toast({
             title: transaction.type === 'expense' ? "Pago com sucesso!" : "Recebido com sucesso!",
@@ -101,16 +106,16 @@ export function usePendingViewModel() {
             variant: "success"
         })
 
-        loadData()
+        await loadData()
         setSelectedTransaction(null)
         setSelectedCard("")
         setConfirmDate("")
     }
 
-    const confirmCancel = () => {
+    const confirmCancel = async () => {
         if (transactionToCancel) {
-            cancelTransaction(transactionToCancel)
-            loadData()
+            await cancelTransaction(transactionToCancel)
+            await loadData()
             toast({
                 title: "Transação cancelada",
                 description: "A transação foi removida das pendências.",

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import type { Transaction, MonthData } from "@/lib/types"
+import type { Transaction, Category, MonthData } from "@/lib/types"
 import { getTransactions, getCategories, getSavingsGoals } from "@/lib/storage"
 import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
 
@@ -11,9 +11,9 @@ export function useTransactions(selectedMonth?: string) {
 
   const month = selectedMonth || getCurrentMonth()
 
-  const loadTransactions = useCallback(() => {
+  const loadTransactions = useCallback(async () => {
     setLoading(true)
-    const allTransactions = getTransactions()
+    const allTransactions = await getTransactions()
     const monthTransactions = allTransactions.filter((t) => isSameMonth(t.date, month + "-01"))
     setTransactions(monthTransactions)
     setLoading(false)
@@ -42,7 +42,11 @@ export function useTransactions(selectedMonth?: string) {
 
 export function useMonthData(month: string): MonthData {
   const { transactions } = useTransactions(month)
-  const categories = getCategories()
+  const [categories, setCategories] = useState<Category[]>([])
+
+  useEffect(() => {
+    getCategories().then(setCategories)
+  }, [])
 
   const paidTransactions = transactions.filter((t) => t.status !== "pending" && t.status !== "cancelled")
 
@@ -73,11 +77,16 @@ export function useMonthData(month: string): MonthData {
 
 export function useTotalBalance(month: string) {
   const monthData = useMonthData(month)
-  const savingsGoals = typeof window !== "undefined" ? getSavingsGoals() : []
+  const [savingsGoals, setSavingsGoals] = useState<any[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+
+  useEffect(() => {
+    getSavingsGoals().then(setSavingsGoals)
+    getCategories().then(setCategories)
+  }, [])
 
   const totalSavings = savingsGoals.reduce((sum: number, goal: any) => sum + (goal.currentAmount || 0), 0)
 
-  const categories = getCategories()
   const transferCategoryId = categories.find((c) => c.name === "Transferência")?.id
 
   const paidTransactions = monthData.transactions.filter((t) => t.status !== "pending" && t.status !== "cancelled")

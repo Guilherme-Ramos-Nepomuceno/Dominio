@@ -15,6 +15,7 @@ export function CategoriesView() {
         filter,
         setFilter,
         categoryStats,
+        categoryGoals,
         loadCategories,
         handleDelete,
         filteredCategories,
@@ -28,7 +29,7 @@ export function CategoriesView() {
 
             {/* Filter Tabs */}
             <div className="flex justify-center mb-6">
-                <div className="relative grid grid-cols-3 bg-card p-1 rounded-lg border border-white/5 w-full max-w-[300px]">
+                <div className="relative grid grid-cols-3 bg-card p-1 rounded-lg border border-white/5 w-full max-w-75">
 
                     {/* Sliding Background (Pill) */}
                     <div
@@ -36,7 +37,7 @@ export function CategoriesView() {
                             "absolute top-1 bottom-1 left-1 bg-foreground rounded-md shadow-sm transition-transform duration-300 ease-in-out",
                             "w-[calc((100%-8px)/3)]",
                             filter === "all" && "translate-x-0",
-                            filter === "income" && "translate-x-[100%]",
+                            filter === "income" && "translate-x-full",
                             filter === "expense" && "translate-x-[200%]"
                         )}
                     />
@@ -86,6 +87,7 @@ export function CategoriesView() {
                                     totalAmount={categoryStats[category.id]?.total || 0}
                                     transactionCount={categoryStats[category.id]?.count || 0}
                                     percentage={categoryStats[category.id]?.percentage || 0}
+                                    categoryGoals={categoryGoals}
                                     onDelete={handleDelete}
                                 />
                             ))}
@@ -105,6 +107,7 @@ export function CategoriesView() {
                                     totalAmount={categoryStats[category.id]?.total || 0}
                                     transactionCount={categoryStats[category.id]?.count || 0}
                                     percentage={categoryStats[category.id]?.percentage || 0}
+                                    categoryGoals={categoryGoals}
                                     onDelete={handleDelete}
                                 />
                             ))}

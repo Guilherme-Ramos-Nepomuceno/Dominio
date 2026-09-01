@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useMonthData } from "@/hooks/use-transactions"
 import { getCurrentMonth } from "@/lib/date-utils"
 import { setSettings, getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 import type { CategoryAlert } from "@/app/types/category"
+import type { AppSettings, Category, Card, Transaction } from "@/lib/types"
 
 export function useStatsViewModel() {
     const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
@@ -15,13 +16,28 @@ export function useStatsViewModel() {
     const { toast } = useToast()
 
     const monthData = useMonthData(selectedMonth)
-    const settings = getSettings()
-    const categories = getCategories()
-    const cards = getCards()
-    const allTransactions = getTransactions()
+    const [settings, setSettingsState] = useState<AppSettings>({ spendingGoal: 0, currency: "BRL", firstDayOfWeek: 0, categoryGoals: [] })
+    const [categories, setCategories] = useState<Category[]>([])
+    const [cards, setCards] = useState<Card[]>([])
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
 
-    const handleThresholdChange = (newThreshold: number) => {
-        setSettings({ spendingGoal: newThreshold })
+    const loadData = useCallback(async () => {
+        const [settingsData, categoriesData, cardsData, transactionsData] = await Promise.all([
+            getSettings(),
+            getCategories(),
+            getCards(),
+            getTransactions(),
+        ])
+        setSettingsState(settingsData)
+        setCategories(categoriesData)
+        setCards(cardsData)
+        setAllTransactions(transactionsData)
+    }, [])
+
+    useEffect(() => { loadData() }, [loadData])
+
+    const handleThresholdChange = async (newThreshold: number) => {
+        await setSettings({ spendingGoal: newThreshold })
         window.location.reload()
     }
 
@@ -81,9 +97,9 @@ export function useStatsViewModel() {
         Object.keys(groupedTransactions).sort((a, b) => b.localeCompare(a)),
         [groupedTransactions])
 
-    const confirmCancelTransaction = () => {
+    const confirmCancelTransaction = async () => {
         if (transactionToCancel) {
-            cancelTransaction(transactionToCancel)
+            await cancelTransaction(transactionToCancel)
             toast({
                 title: "Lançamento desfeito",
                 description: "O lançamento foi revertido com sucesso.",

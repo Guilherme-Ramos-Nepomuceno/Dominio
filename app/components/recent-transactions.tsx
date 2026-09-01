@@ -1,8 +1,9 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { formatCurrency } from "@/lib/date-utils"
 import { getCategories } from "@/lib/storage"
-import type { Transaction } from "@/lib/types"
+import type { Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
 
@@ -12,7 +13,13 @@ interface RecentTransactionsProps {
 }
 
 export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransactionsProps) {
-  const categories = getCategories()
+  const [categories, setCategories] = useState<Category[]>([])
+
+  useEffect(() => {
+    (async () => {
+      setCategories(await getCategories())
+    })()
+  }, [])
 
   const sortedTransactions = [...transactions]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -49,7 +56,7 @@ export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransac
               className="flex items-center gap-4 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors"
             >
               <div
-                className="w-10 h-10 rounded-[1vw] flex items-center justify-center flex-shrink-0 bg-background"
+                className="w-10 h-10 rounded-[1vw] flex items-center justify-center shrink-0 bg-background"
                 style={{ color: category?.color }}
               >
                 {/* @ts-ignore - Dynamic icon component */}

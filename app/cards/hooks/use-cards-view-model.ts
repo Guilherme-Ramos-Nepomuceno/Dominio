@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { getCards, getTransactions, getSavingsGoals, getAccountBalance, deleteCard } from "@/lib/storage"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { getCards, getTransactions, getSavingsGoals, deleteCard } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 
 export function useCardsViewModel() {
@@ -13,23 +13,28 @@ export function useCardsViewModel() {
 
     const { toast } = useToast()
 
-    const loadData = () => {
-        setCards(getCards())
-        setTransactions(getTransactions())
-        setSavingsGoals(getSavingsGoals())
-    }
+    const loadData = useCallback(async () => {
+        const [cardsData, transactionsData, savingsGoalsData] = await Promise.all([
+            getCards(),
+            getTransactions(),
+            getSavingsGoals(),
+        ])
+        setCards(cardsData)
+        setTransactions(transactionsData)
+        setSavingsGoals(savingsGoalsData)
+    }, [])
 
     useEffect(() => {
         loadData()
-    }, [])
+    }, [loadData])
 
     const currentMonth = useMemo(() => new Date().toISOString().slice(0, 7), [])
 
-    const confirmDeleteCard = () => {
+    const confirmDeleteCard = async () => {
         if (cardToDelete) {
-            deleteCard(cardToDelete)
-            setCards((prevCards) => prevCards.filter((card) => card.id !== cardToDelete))
+            await deleteCard(cardToDelete)
             setCardToDelete(null)
+            await loadData()
             toast({
                 title: "Cartão removido",
                 description: "O cartão foi excluído com sucesso.",
@@ -38,8 +43,8 @@ export function useCardsViewModel() {
         }
     }
 
-    const handleCreateSuccess = () => {
-        loadData()
+    const handleCreateSuccess = async () => {
+        await loadData()
         setIsDialogOpen(false)
         toast({
             title: "Cartão adicionado!",
@@ -62,7 +67,7 @@ export function useCardsViewModel() {
                 )
                 spentAmount = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0)
             } else {
-                calculatedBalance = getAccountBalance(card.id)
+                calculatedBalance = card.calculatedBalance ?? 0
                 spentAmount = transactions
                     .filter((t) => t.cardId === card.id && t.date.startsWith(currentMonth) && t.type === "expense")
                     .reduce((sum, t) => sum + t.amount, 0)

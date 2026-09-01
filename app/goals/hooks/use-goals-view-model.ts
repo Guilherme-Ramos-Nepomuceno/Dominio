@@ -1,48 +1,48 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { getGoals, addGoal, updateGoal, setGoals } from "@/lib/storage"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { getGoals, addGoal, updateGoal, deleteGoal } from "@/lib/storage"
 import type { Goal } from "@/lib/types"
 
 export function useGoalsViewModel() {
     const [goals, setGoalsState] = useState<Goal[]>([])
+    const [loading, setLoading] = useState(true)
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [isFundsOpen, setIsFundsOpen] = useState(false)
     const [editingGoal, setEditingGoal] = useState<Goal | undefined>()
     const [selectedGoal, setSelectedGoal] = useState<Goal | undefined>()
 
-    const loadGoals = () => {
-        setGoalsState(getGoals())
-    }
-
-    useEffect(() => {
-        loadGoals()
+    const loadGoals = useCallback(async () => {
+        setGoalsState(await getGoals())
     }, [])
 
-    const handleSaveGoal = (goalData: Omit<Goal, "id" | "createdAt">) => {
+    useEffect(() => {
+        loadGoals().finally(() => setLoading(false))
+    }, [loadGoals])
+
+    const handleSaveGoal = async (goalData: Omit<Goal, "id" | "createdAt">) => {
         if (editingGoal) {
-            updateGoal(editingGoal.id, goalData)
+            await updateGoal(editingGoal.id, goalData)
         } else {
-            addGoal(goalData)
+            await addGoal(goalData)
         }
-        loadGoals()
+        await loadGoals()
         setIsFormOpen(false)
         setEditingGoal(undefined)
     }
 
-    const handleDeleteGoal = (goalId: string) => {
+    const handleDeleteGoal = async (goalId: string) => {
         if (confirm("Deseja realmente excluir este objetivo?")) {
-            const filtered = goals.filter((g) => g.id !== goalId)
-            setGoals(filtered)
-            setGoalsState(filtered)
+            await deleteGoal(goalId)
+            await loadGoals()
         }
     }
 
-    const handleAddFunds = (amount: number) => {
+    const handleAddFunds = async (amount: number) => {
         if (selectedGoal) {
             const newAmount = Math.max(0, selectedGoal.currentAmount + amount)
-            updateGoal(selectedGoal.id, { currentAmount: newAmount })
-            loadGoals()
+            await updateGoal(selectedGoal.id, { currentAmount: newAmount })
+            await loadGoals()
             setIsFundsOpen(false)
             setSelectedGoal(undefined)
         }
@@ -56,6 +56,7 @@ export function useGoalsViewModel() {
 
     return {
         goals,
+        loading,
         isFormOpen,
         setIsFormOpen,
         isFundsOpen,

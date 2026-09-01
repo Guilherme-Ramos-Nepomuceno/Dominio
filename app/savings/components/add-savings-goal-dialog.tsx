@@ -43,8 +43,7 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
 
   useEffect(() => {
     if (isOpen) {
-      const allCards = getCards()
-      setCards(allCards)
+      getCards().then((allCards) => setCards(allCards))
     }
   }, [isOpen])
 

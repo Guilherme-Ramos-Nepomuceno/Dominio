@@ -1,16 +1,23 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { getCards, addTransaction } from "@/lib/storage"
+import { getCards, addTransaction, ensureSystemCategory } from "@/lib/storage"
 import { parseCurrencyInput, formatCurrencyInput } from "@/lib/date-utils"
+import type { Card } from "@/lib/types"
 
 export const QUICK_AMOUNTS = [2, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000]
 
 export function useTransferViewModel() {
     const router = useRouter()
-    const cards = useMemo(() => getCards(), [])
+    const [cards, setCards] = useState<Card[]>([])
     const debitCards = useMemo(() => cards.filter((c) => c.type === "debit"), [cards])
+
+    const loadCards = useCallback(async () => {
+        setCards(await getCards())
+    }, [])
+
+    useEffect(() => { loadCards() }, [loadCards])
 
     const [fromCardId, setFromCardId] = useState("")
     const [toCardId, setToCardId] = useState("")
@@ -29,7 +36,7 @@ export function useTransferViewModel() {
         setAmount(formatCurrencyInput(onlyNumbers))
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
         if (!fromCardId || !toCardId || !amount) {
@@ -53,22 +60,24 @@ export function useTransferViewModel() {
         const toCard = cards.find((c) => c.id === toCardId)
 
         // Create expense transaction (money leaving from card)
-        addTransaction({
+        const expenseCategoryId = await ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp")
+        await addTransaction({
             description: description || `Transferência para ${toCard?.name}`,
             amount: numAmount,
             type: "expense",
-            categoryId: "transfer_income",
+            categoryId: expenseCategoryId,
             date: new Date().toISOString(),
             recurrence: "none",
             cardId: fromCardId,
         })
 
         // Create income transaction (money entering to card)
-        addTransaction({
+        const incomeCategoryId = await ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown")
+        await addTransaction({
             description: description || `Transferência de ${fromCard?.name}`,
             amount: numAmount,
             type: "income",
-            categoryId: "transfer_expense",
+            categoryId: incomeCategoryId,
             date: new Date().toISOString(),
             recurrence: "none",
             cardId: toCardId,

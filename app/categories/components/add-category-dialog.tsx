@@ -40,7 +40,7 @@ export function AddCategoryDialog({ isOpen, onClose, onSuccess }: AddCategoryDia
 
   if (!isOpen) return null
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!name.trim()) {
@@ -48,7 +48,7 @@ export function AddCategoryDialog({ isOpen, onClose, onSuccess }: AddCategoryDia
       return
     }
 
-    addCategory({
+    await addCategory({
       name: name.trim(),
       type,
       color,

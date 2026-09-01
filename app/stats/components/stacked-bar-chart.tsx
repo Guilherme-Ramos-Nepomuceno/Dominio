@@ -41,14 +41,28 @@ export function StackedBarChart({
   const chartRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const settings = getSettings();
-    const categories = getCategories();
-    const allTransactions = getTransactions();
+    let cancelled = false
 
-    setData({ settings, categories, allTransactions });
+    async function loadData() {
+      const [settings, categories, allTransactions] = await Promise.all([
+        getSettings(),
+        getCategories(),
+        getTransactions(),
+      ])
 
-    const initialThreshold = customThreshold ?? settings.spendingGoal;
-    setThresholdInput(initialThreshold.toString());
+      if (cancelled) return
+
+      setData({ settings, categories, allTransactions });
+
+      const initialThreshold = customThreshold ?? settings.spendingGoal;
+      setThresholdInput(initialThreshold.toString());
+    }
+
+    loadData()
+
+    return () => {
+      cancelled = true
+    }
   }, [customThreshold]);
 
   useEffect(() => {
@@ -73,7 +87,7 @@ export function StackedBarChart({
 
   if (!data) {
     return (
-        <div className="rounded-[24px] bg-card p-8 shadow-sm border border-border/40 h-[450px] flex items-center justify-center">
+        <div className="rounded-3xl bg-card p-8 shadow-sm border border-border/40 h-112.5 flex items-center justify-center">
             <CircleNotchIcon className="animate-spin text-muted-foreground" size={32} />
         </div>
     );
@@ -176,11 +190,11 @@ export function StackedBarChart({
           
           <div className={cn(
             "w-12 sm:w-14 h-full flex flex-col-reverse justify-start relative transition-transform duration-300 group-hover/column:scale-[1.02]",
-            isColumnActive ? "z-[50]" : "group-hover/column:z-[50]"
+            isColumnActive ? "z-50" : "group-hover/column:z-50"
           )}>
             
             {monthData.categories.length === 0 ? (
-               <div className="h-[4px] w-full bg-border/50 rounded-full mb-0" />
+               <div className="h-1 w-full bg-border/50 rounded-full mb-0" />
             ) : (
                 monthData.categories.map((cat, index) => {
                 const heightPercentage = (cat.amount / maxValue) * 100
@@ -208,7 +222,7 @@ export function StackedBarChart({
                         isSegmentActive && "z-30 brightness-110",
                         isTop ? "rounded-t-[6px]" : "",
                         isBottom ? "rounded-b-[6px]" : "",
-                        !isBottom ? "border-b-[2px] border-card" : ""
+                        !isBottom ? "border-b-2 border-card" : ""
                     )}
                     style={{
                       backgroundColor: cat.color,
@@ -218,8 +232,8 @@ export function StackedBarChart({
                   >
                     {/* Tooltip */}
                     <div className={cn(
-                        "absolute left-1/2 -translate-x-1/2 bottom-[110%] transition-all duration-200 pointer-events-none min-w-[140px]",
-                        "z-[100]",
+                        "absolute left-1/2 -translate-x-1/2 bottom-[110%] transition-all duration-200 pointer-events-none min-w-35",
+                        "z-100",
                         isSegmentActive 
                             ? "opacity-100 translate-y-0 scale-100" 
                             : "opacity-0 translate-y-2 scale-95 group-hover/segment:opacity-100 group-hover/segment:translate-y-0 group-hover/segment:scale-100"
@@ -227,7 +241,7 @@ export function StackedBarChart({
                         <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-4 py-3 shadow-2xl relative">
                             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                                <p className="text-xs font-medium text-gray-300 truncate max-w-[100px]">{cat.name}</p>
+                                <p className="text-xs font-medium text-gray-300 truncate max-w-25">{cat.name}</p>
                             </div>
                             <div className="flex justify-between items-end gap-4">
                                 <div>
@@ -273,7 +287,7 @@ export function StackedBarChart({
 
   return (
     // Adicionado overflow-hidden para garantir que nada vaze do card
-    <div ref={chartRef} className="rounded-[24px] bg-card p-6 sm:p-8 shadow-sm border border-border/50 relative overflow-hidden">
+    <div ref={chartRef} className="rounded-3xl bg-card p-6 sm:p-8 shadow-sm border border-border/50 relative overflow-hidden">
       
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 relative z-20">
@@ -336,7 +350,7 @@ export function StackedBarChart({
         </div>
 
         {/* Colunas */}
-        <div className="flex gap-2 sm:gap-6 items-end justify-between min-h-[300px]">
+        <div className="flex gap-2 sm:gap-6 items-end justify-between min-h-75">
           {chartData.map((data, index) => renderColumn(data, index))}
         </div>
       </div>

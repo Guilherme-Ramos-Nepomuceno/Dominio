@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
     getSavingsGoals,
     addSavingsGoal,
@@ -16,17 +16,17 @@ export function useSavingsViewModel() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
     const [editingGoal, setEditingGoal] = useState<any>(null)
 
-    const loadGoals = () => {
-        setGoals(getSavingsGoals())
-    }
+    const loadGoals = useCallback(async () => {
+        setGoals(await getSavingsGoals())
+    }, [])
 
     useEffect(() => {
         loadGoals()
-    }, [])
+    }, [loadGoals])
 
-    const handleAddGoal = (goalData: any) => {
-        const newGoal = addSavingsGoal(goalData)
-        setGoals([...goals, newGoal])
+    const handleAddGoal = async (goalData: any) => {
+        await addSavingsGoal(goalData)
+        await loadGoals()
     }
 
     const handleEdit = (goal: any) => {
@@ -34,32 +34,32 @@ export function useSavingsViewModel() {
         setIsEditDialogOpen(true)
     }
 
-    const handleSaveEdit = (id: string, updates: any) => {
-        updateSavingsGoal(id, updates)
-        loadGoals()
+    const handleSaveEdit = async (id: string, updates: any) => {
+        await updateSavingsGoal(id, updates)
+        await loadGoals()
         setIsEditDialogOpen(false)
         setEditingGoal(null)
     }
 
-    const handleAddFunds = (id: string, amount: number, cardId?: string) => {
-        addFundsToSavingsGoal(id, amount, cardId)
-        loadGoals()
+    const handleAddFunds = async (id: string, amount: number, cardId?: string) => {
+        await addFundsToSavingsGoal(id, amount, cardId)
+        await loadGoals()
     }
 
-    const handleRemoveFunds = (id: string, amount: number, cardId?: string) => {
-        removeFundsFromSavingsGoal(id, amount, cardId)
-        loadGoals()
+    const handleRemoveFunds = async (id: string, amount: number, cardId?: string) => {
+        await removeFundsFromSavingsGoal(id, amount, cardId)
+        await loadGoals()
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         const goal = goals.find((g) => g.id === id)
         if (goal && goal.currentAmount > 0) {
             if (!confirm("Esta reserva possui fundos. Ao excluir, o valor será perdido. Deseja continuar?")) {
                 return
             }
         }
-        deleteSavingsGoal(id)
-        setGoals(goals.filter((g) => g.id !== id))
+        await deleteSavingsGoal(id)
+        await loadGoals()
     }
 
     const totalSaved = goals.reduce((sum, goal) => sum + goal.currentAmount, 0)

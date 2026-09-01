@@ -1,5 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
-import { fetchApi } from './api';
+import { fetchApi, ApiError } from './api';
+
+const CONNECTION_ERROR_MESSAGE = "Não foi possível conectar ao servidor. Tente novamente.";
 
 export interface User {
     id: string;
@@ -11,21 +12,7 @@ export interface User {
 
 const AUTH_KEYS = {
     USER_SESSION: "finance-user-session",
-    USERS_DB: "finance-users-db", // Simulates a database of users
 } as const;
-
-// --- Simulated Database Helpers ---
-function getUsersDB(): User[] {
-    if (typeof window === "undefined") return [];
-    const db = localStorage.getItem(AUTH_KEYS.USERS_DB);
-    return db ? JSON.parse(db) : [];
-}
-
-function saveUserToDB(user: User) {
-    const users = getUsersDB();
-    users.push(user);
-    localStorage.setItem(AUTH_KEYS.USERS_DB, JSON.stringify(users));
-}
 
 // --- Auth Actions ---
 
@@ -36,38 +23,24 @@ export async function registerUser(name: string, email: string, password: string
             body: JSON.stringify({ name, email, password })
         });
 
-        // If login returns token on register directly:
         if (response?.token) {
             localStorage.setItem('finance-token', response.token);
-            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(response.user || { id: uuidv4(), name, email, createdAt: new Date().toISOString() }));
+            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(response.user));
             return { success: true };
         }
 
-        // Assume we need to login after register if no token returned
-        return await loginUser(email, password);
+        return { success: false, message: "Não foi possível criar sua conta. Tente novamente." };
     } catch (e: any) {
-        if (e instanceof TypeError || e.message?.includes('Failed to fetch') || e.message?.includes('fetch failed')) {
-            // Offline fallback
-            const newUser: User = { id: uuidv4(), name, email, createdAt: new Date().toISOString() };
-            saveUserToDB(newUser);
-            
-            localStorage.setItem('finance-token', `local-token-${newUser.id}`);
-            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(newUser));
-            
-            const syncQueue = JSON.parse(localStorage.getItem('finance-sync-users') || '[]');
-            syncQueue.push({ name, email, password });
-            localStorage.setItem('finance-sync-users', JSON.stringify(syncQueue));
-            
-            return { success: true };
+        if (e instanceof ApiError) {
+            const message = e.status === 409 ? "Este e-mail já está cadastrado." : "Não foi possível criar sua conta. Tente novamente."
+            return { success: false, message };
         }
-        return { success: false, message: e.message || "Erro ao cadastrar." };
+        return { success: false, message: CONNECTION_ERROR_MESSAGE };
     }
 }
 
 export async function loginUser(email: string, password: string): Promise<{ success: boolean; message?: string }> {
     try {
-        await syncOfflineUsers();
-
         const response = await fetchApi('/auth/login', {
             method: 'POST',
             body: JSON.stringify({ email, password })
@@ -75,54 +48,22 @@ export async function loginUser(email: string, password: string): Promise<{ succ
 
         if (response?.token) {
             localStorage.setItem('finance-token', response.token);
-            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(response.user || { email }));
+            localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(response.user));
             return { success: true };
         }
-        return { success: false, message: "Token inválido ou não retornado." };
+        return { success: false, message: "E-mail ou senha incorretos." };
     } catch (e: any) {
-        if (e instanceof TypeError || e.message?.includes('Failed to fetch') || e.message?.includes('fetch failed')) {
-            const users = getUsersDB();
-            const localUser = users.find(u => u.email === email);
-            if (localUser) {
-                 localStorage.setItem('finance-token', `local-token-${localUser.id}`);
-                 localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(localUser));
-                 return { success: true };
-            }
-            return { success: false, message: "Modo offline: Usuário local não encontrado." };
+        if (e instanceof ApiError) {
+            return { success: false, message: "E-mail ou senha incorretos." };
         }
-        return { success: false, message: e.message || "Erro ao entrar." };
-    }
-}
-
-export async function syncOfflineUsers() {
-    if (typeof window === "undefined") return;
-    try {
-        const syncQueue = JSON.parse(localStorage.getItem('finance-sync-users') || '[]');
-        if (syncQueue.length === 0) return;
-        
-        const remainingQueue = [];
-        for (const user of syncQueue) {
-            try {
-                await fetchApi('/auth/register', {
-                    method: 'POST',
-                    body: JSON.stringify(user)
-                });
-            } catch (err: any) {
-                if (err instanceof TypeError || err.message?.includes('Failed to fetch') || err.message?.includes('fetch failed')) {
-                    remainingQueue.push(user);
-                }
-            }
-        }
-        localStorage.setItem('finance-sync-users', JSON.stringify(remainingQueue));
-    } catch (error) {
-        console.error("Failed to sync offline users:", error);
+        return { success: false, message: CONNECTION_ERROR_MESSAGE };
     }
 }
 
 export function logoutUser() {
     localStorage.removeItem(AUTH_KEYS.USER_SESSION);
     localStorage.removeItem('finance-token');
-    // Dispath auth-change event
+    localStorage.removeItem('finance-active-account');
     window.dispatchEvent(new Event("auth-change"));
 }
 
@@ -140,29 +81,14 @@ export async function updateCurrentUser(updates: Partial<User>) {
     const current = getCurrentUser();
     if (!current) return;
 
-    const updated = { ...current, ...updates };
-    localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify(updated));
+    const updated = await fetchApi('/users/me', {
+        method: 'PUT',
+        body: JSON.stringify({
+            name: updates.name,
+            email: updates.email
+        })
+    });
 
-    // Update in DB too (Local mockup db)
-    const users = getUsersDB();
-    const dbIndex = users.findIndex(u => u.id === current.id);
-    if (dbIndex >= 0) {
-        users[dbIndex] = updated;
-        localStorage.setItem(AUTH_KEYS.USERS_DB, JSON.stringify(users));
-    }
-
-    // Call Backend
-    try {
-        await fetchApi('/users/me', {
-            method: 'PUT',
-            body: JSON.stringify({
-                name: updates.name,
-                email: updates.email
-            })
-        });
-    } catch (error) {
-        console.error("Failed to update user in backend:", error);
-    }
-
+    localStorage.setItem(AUTH_KEYS.USER_SESSION, JSON.stringify({ ...current, ...updated }));
     window.dispatchEvent(new Event("auth-change"));
 }

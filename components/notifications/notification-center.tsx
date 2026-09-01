@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Bell, CalendarCheck, Warning, X } from "@phosphor-icons/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getTransactions, getCards } from "@/lib/storage"
@@ -21,9 +21,9 @@ export function NotificationCenter() {
     const [hasUnread, setHasUnread] = useState(false)
     const [isOpen, setIsOpen] = useState(false)
 
-    const checkNotifications = () => {
-        const allTransactions = getTransactions()
-        const cards = getCards()
+    const checkNotifications = useCallback(async () => {
+        const allTransactions = await getTransactions()
+        const cards = await getCards()
         const today = new Date()
         const nextWeek = new Date()
         nextWeek.setDate(today.getDate() + 7) // Look ahead 7 days
@@ -59,14 +59,14 @@ export function NotificationCenter() {
 
         setNotifications(newNotifications.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
         if (newNotifications.length > 0) setHasUnread(true)
-    }
+    }, [])
 
     useEffect(() => {
         checkNotifications()
         // Poll every minute
         const interval = setInterval(checkNotifications, 60000)
         return () => clearInterval(interval)
-    }, [])
+    }, [checkNotifications])
 
     const handleNotificationClick = () => {
         setIsOpen(false)

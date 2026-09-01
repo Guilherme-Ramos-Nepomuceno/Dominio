@@ -159,7 +159,7 @@ export function LoginView() {
                 </motion.div>
 
                 <p className="text-center text-muted-foreground text-xs mt-8">
-                    © 2026 Dominio Finance. Seus dados são salvos localmente.
+                    © 2026 Dominio Finance.
                 </p>
             </div>
         </div>

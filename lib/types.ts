@@ -70,6 +70,8 @@ export interface Card {
   limit?: number
   dueDate?: number // Day of month (1-31)
   createdAt: string
+  spentAmount?: number // Calculado pelo backend (cartões de crédito, mês atual)
+  calculatedBalance?: number // Calculado pelo backend (contas de débito)
 }
 
 export interface MonthData {

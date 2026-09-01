@@ -3,25 +3,23 @@
 import { TrashIcon, TrendUp, TrendDown } from "@phosphor-icons/react"
 // Adicionamos esta importação para poder buscar o ícone pelo nome (string)
 import * as PhosphorIcons from "@phosphor-icons/react" 
-import type { Category } from "@/lib/types"
+import type { Category, CategoryGoal } from "@/lib/types"
 import { formatCurrency } from "@/lib/date-utils"
-import { getSettings } from "@/lib/storage"
 
 interface CategoryItemProps {
   category: Category
   totalAmount: number
   transactionCount: number
   percentage: number
+  categoryGoals: CategoryGoal[]
   icon?: React.ReactNode
   onDelete: (id: string) => void
 }
 
-export function CategoryItem({ category, totalAmount, transactionCount, percentage, icon, onDelete }: CategoryItemProps) {
+export function CategoryItem({ category, totalAmount, transactionCount, percentage, categoryGoals, icon, onDelete }: CategoryItemProps) {
   const Icon = category.type === "income" ? TrendUp : TrendDown
-  const settings = getSettings()
-  const categoryGoals = settings.categoryGoals || []
 
-  const goalData = categoryGoals.find((g: any) => g.categoryId === category.id)
+  const goalData = categoryGoals.find((g) => g.categoryId === category.id)
   const goalPercentage = goalData?.percentage || 0
 
   // Lógica para pegar o ícone dinâmico baseado no nome salvo na categoria
