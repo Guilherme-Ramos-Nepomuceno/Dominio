@@ -7,8 +7,11 @@ export function useRecurringViewModel() {
     const [transactions, setTransactions] = useState<any[]>([])
 
     useEffect(() => {
-        const pending = getPendingTransactions()
-        setTransactions(pending)
+        const loadData = async () => {
+            const pending = await getPendingTransactions()
+            setTransactions(pending)
+        }
+        loadData()
     }, [])
 
     const recurringList = useMemo(() => {

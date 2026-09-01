@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Minus, Trash, PiggyBank, Target, Wallet, Pencil } from "@phosphor-icons/react"
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import { getCards } from "@/lib/storage"
+import type { Card } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 
 interface SavingsGoalCardProps {
@@ -28,7 +29,11 @@ export function SavingsGoalCard({ goal, onAddFunds, onRemoveFunds, onDelete, onE
   const [amount, setAmount] = useState("")
   const [mode, setMode] = useState<"add" | "remove">("add")
   const [selectedCardId, setSelectedCardId] = useState<string>("")
-  const cards = getCards()
+  const [cards, setCards] = useState<Card[]>([])
+
+  useEffect(() => {
+    getCards().then(setCards)
+  }, [])
 
   const progress = (goal.currentAmount / goal.targetAmount) * 100
   const Icon = GOAL_ICONS[goal.icon as keyof typeof GOAL_ICONS] || PiggyBank

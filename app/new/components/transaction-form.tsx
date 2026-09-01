@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowUpIcon,
@@ -16,7 +16,7 @@ import {
   PlusCircle
 } from "@phosphor-icons/react"
 import { addTransaction, getCategories, getCards, getTransactions } from "@/lib/storage"
-import type { TransactionType, RecurrenceType } from "@/lib/types"
+import type { Category, Card, TransactionType, RecurrenceType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
@@ -36,9 +36,14 @@ const QUICK_AMOUNTS = [2, 5, 10, 20, 50, 100]
 
 export function TransactionForm() {
   const router = useRouter()
-  const categories = getCategories()
-  const cards = getCards()
+  const [categories, setCategories] = useState<Category[]>([])
+  const [cards, setCards] = useState<Card[]>([])
   const { toast } = useToast()
+
+  useEffect(() => {
+    getCategories().then(setCategories)
+    getCards().then(setCards)
+  }, [])
 
   const hasDebitCard = cards.some((c) => c.type === "debit")
 
@@ -77,7 +82,7 @@ export function TransactionForm() {
     setAmount(formatCurrencyInput(onlyNumbers))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (type === "income" && !hasDebitCard) {
@@ -114,7 +119,8 @@ export function TransactionForm() {
     const isCreditCard = selectedCard?.type === "credit"
 
     if (isCreditCard && selectedCard?.limit) {
-      const transactions = getTransactions().filter(
+      const allTransactions = await getTransactions()
+      const transactions = allTransactions.filter(
         (t) => t.cardId === cardId && (t.status === "paid" || t.status === "pending") && t.type === "expense",
       )
       const usedAmount = transactions.reduce((sum, t) => sum + t.amount, 0)
@@ -149,23 +155,31 @@ export function TransactionForm() {
     const [year, month, day] = date.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day, 12, 0, 0);
 
-    addTransaction({
-      description,
-      amount: numAmount,
-      type,
-      categoryId,
-      date: dateObj.toISOString(), // Salva como ISO string segura
-      recurrence,
-      installments: recurrence === "none" && numInstallments > 1 ? numInstallments : undefined,
-      cardId: cardId || undefined,
-      status: status,
-    })
-    toast({
-      title: "Transação adicionada!",
-      description: "Sua transação foi adicionada com sucesso.",
-      variant: "success"
-    })
-    router.push("/")
+    try {
+      await addTransaction({
+        description,
+        amount: numAmount,
+        type,
+        categoryId,
+        date: dateObj.toISOString(), // Salva como ISO string segura
+        recurrence,
+        installments: recurrence === "none" && numInstallments > 1 ? numInstallments : undefined,
+        cardId: cardId || undefined,
+        status: status,
+      })
+      toast({
+        title: "Transação adicionada!",
+        description: "Sua transação foi adicionada com sucesso.",
+        variant: "success"
+      })
+      router.push("/")
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar",
+        description: error.message || "Não foi possível salvar a transação.",
+        variant: "destructive"
+      })
+    }
   }
 
   const showIncomeWarning = type === "income" && !hasDebitCard;

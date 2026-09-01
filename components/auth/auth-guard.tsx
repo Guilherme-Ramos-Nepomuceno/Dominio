@@ -27,6 +27,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         }
 
         if (!isAuth) {
+            // Preserva o convite de família para retomar após o login/cadastro
+            if (pathname.startsWith("/join/")) {
+                sessionStorage.setItem("finance-post-login-redirect", pathname)
+            }
             router.push("/login")
             setAuthorized(false)
         } else {

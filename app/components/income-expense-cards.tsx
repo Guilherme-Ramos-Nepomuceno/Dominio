@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { MiniBarChart, type ChartDataPoint } from "./mini-bar-chart"
 import { formatCurrency } from "@/lib/date-utils"
-import type { PeriodType } from "@/lib/types"
+import type { PeriodType, Card, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { CreditCard, Wallet, Circle } from "@phosphor-icons/react"
 import { getTransactions, getCards } from "@/lib/storage"
@@ -25,8 +25,15 @@ export function IncomeExpenseCards({
 }: IncomeExpenseCardsProps) {
   const [expenseView, setExpenseView] = useState<"all" | "credit">("all")
 
-  const allHistory = getTransactions()
-  const cards = getCards()
+  const [allHistory, setAllHistory] = useState<Transaction[]>([])
+  const [cards, setCards] = useState<Card[]>([])
+
+  useEffect(() => {
+    (async () => {
+      setAllHistory(await getTransactions())
+      setCards(await getCards())
+    })()
+  }, [])
 
   // 1. Lógica Inteligente de Processamento (MANTIDA IGUAL)
   const { displayedExpenseValue, processedExpenseTransactions } = useMemo(() => {
@@ -96,7 +103,7 @@ export function IncomeExpenseCards({
         processedExpenseTransactions: finalFiltered
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, expense, expenseView, period]) 
+  }, [transactions, expense, expenseView, period, allHistory, cards])
 
 
   // 2. Geração dos Gráficos (MANTIDA IGUAL)
@@ -156,7 +163,7 @@ export function IncomeExpenseCards({
     <div className="space-y-4 mt-4">
       {/* Seletor Deslizante (Semana/Mês) */}
       <div className="flex justify-center">
-        <div className="relative grid grid-cols-2 bg-card p-1 rounded-lg border border-white/5 w-[200px]">
+        <div className="relative grid grid-cols-2 bg-card p-1 rounded-lg border border-white/5 w-50">
             <div 
               className={cn(
                 "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-foreground rounded-md shadow-sm transition-transform duration-300 ease-in-out",
@@ -197,12 +204,12 @@ export function IncomeExpenseCards({
                 <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Receitas</p>
               </div>
               {/* Espaço vazio onde estariam os botões no outro card, mantendo a altura */}
-              <div className="h-[26px]"></div>
+              <div className="h-6.5"></div>
            </div>
 
            <div className="flex items-end justify-between relative z-10 gap-4">
               {/* Ajustado h-[100px] para h-[60px] e justify-between para justify-end */}
-              <div className="flex flex-col justify-end h-[60px]">
+              <div className="flex flex-col justify-end h-15">
                   <div>
                     <p className="text-3xl font-bold text-text-primary tracking-tight">
                       {formatCurrency(income)}
@@ -253,7 +260,7 @@ export function IncomeExpenseCards({
           </div>
 
           <div className="flex items-end justify-between relative z-10 gap-4">
-              <div className="flex flex-col justify-end h-[60px]">
+              <div className="flex flex-col justify-end h-15">
                   <div>
                     <p className="text-3xl font-bold text-text-primary tracking-tight transition-all key={expenseView}">
                       {formatCurrency(displayedExpenseValue)}

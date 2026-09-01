@@ -2,11 +2,12 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, PiggyBank, Target, Wallet } from "@phosphor-icons/react"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import { getCards } from "@/lib/storage"
+import type { Card } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 
 interface EditSavingsDialogProps {
@@ -26,7 +27,11 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
   const [selectedIcon, setSelectedIcon] = useState(goal.icon)
   const [selectedColor, setSelectedColor] = useState(goal.color)
   const [selectedCardId, setSelectedCardId] = useState(goal.cardId || "")
-  const cards = getCards()
+  const [cards, setCards] = useState<Card[]>([])
+
+  useEffect(() => {
+    getCards().then(setCards)
+  }, [])
 
   const icons = { PiggyBank, Target, Wallet }
 

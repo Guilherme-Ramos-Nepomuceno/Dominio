@@ -1,25 +1,29 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { getCategories, getTransactions, setCategories, getSettings } from "@/lib/storage"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { getCategories, getTransactions, deleteCategory, getSettings } from "@/lib/storage"
 import type { Category } from "@/lib/types"
 
 export function useCategoriesViewModel() {
     const [categories, setLocalCategories] = useState<Category[]>([])
+    const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [filter, setFilter] = useState<"all" | "income" | "expense">("all")
     const [categoryStats, setCategoryStats] = useState<
         Record<string, { total: number; count: number; percentage: number }>
     >({})
+    const [categoryGoals, setCategoryGoals] = useState<any[]>([])
 
-    const loadCategories = () => {
-        const allCategories = getCategories()
+    const loadCategories = useCallback(async () => {
+        const [allCategories, transactions, settings] = await Promise.all([
+            getCategories(),
+            getTransactions(),
+            getSettings(),
+        ])
         setLocalCategories(allCategories)
 
-        const transactions = getTransactions()
-        const settings = getSettings()
-        const categoryGoals = settings.categoryGoals || []
-
+        const currentCategoryGoals = settings.categoryGoals || []
+        setCategoryGoals(currentCategoryGoals)
         const currentMonth = new Date().toISOString().slice(0, 7)
         const monthlyTransactions = transactions.filter(t => t.date.startsWith(currentMonth))
         const globalSpendingGoal = settings.spendingGoal || 0
@@ -29,7 +33,7 @@ export function useCategoriesViewModel() {
         allCategories.forEach((category) => {
             const categoryTransactions = monthlyTransactions.filter((t) => t.categoryId === category.id)
             const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0)
-            const goalData = categoryGoals.find((g: any) => g.categoryId === category.id)
+            const goalData = currentCategoryGoals.find((g: any) => g.categoryId === category.id)
             const goalPercentValue = goalData?.percentage || 0
 
             let percentage = 0
@@ -51,14 +55,14 @@ export function useCategoriesViewModel() {
         })
 
         setCategoryStats(stats)
-    }
-
-    useEffect(() => {
-        loadCategories()
     }, [])
 
-    const handleDelete = (id: string) => {
-        const transactions = getTransactions()
+    useEffect(() => {
+        loadCategories().finally(() => setLoading(false))
+    }, [loadCategories])
+
+    const handleDelete = async (id: string) => {
+        const transactions = await getTransactions()
         const hasTransactions = transactions.some((t) => t.categoryId === id)
 
         if (hasTransactions) {
@@ -67,9 +71,8 @@ export function useCategoriesViewModel() {
         }
 
         if (confirm("Deseja excluir esta categoria?")) {
-            const updated = categories.filter((c) => c.id !== id)
-            setCategories(updated)
-            loadCategories()
+            await deleteCategory(id)
+            await loadCategories()
         }
     }
 
@@ -90,11 +93,13 @@ export function useCategoriesViewModel() {
 
     return {
         categories,
+        loading,
         isDialogOpen,
         setIsDialogOpen,
         filter,
         setFilter,
         categoryStats,
+        categoryGoals,
         loadCategories,
         handleDelete,
         filteredCategories,

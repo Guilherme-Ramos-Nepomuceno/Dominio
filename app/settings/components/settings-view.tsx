@@ -21,6 +21,12 @@ export function SettingsView() {
     const {
         theme,
         toggleTheme,
+        family,
+        invitingFamily,
+        inviteLink,
+        handleCreateInvite,
+        creatingCoupleAccount,
+        handleCreateCoupleAccount,
         spendingGoal,
         setSpendingGoal,
         currency,
@@ -37,8 +43,6 @@ export function SettingsView() {
         handlePercentageChange,
         totalPercentage,
         warnings,
-        handleFullSync,
-        syncing
     } = useSettingsViewModel()
 
 
@@ -86,6 +90,80 @@ export function SettingsView() {
                     ) : (
                         <p className="text-muted-foreground">Usuário não identificado.</p>
                     )}
+                </div>
+
+                {/* Family */}
+                <div className="rounded-[20px] bg-card p-6 border border-border/50">
+                    <div className="flex items-center gap-2 mb-2">
+                        <PhosphorIcons.UsersThree size={24} weight="fill" className="text-primary" />
+                        <h3 className="text-lg font-semibold">Família</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Conecte sua conta com a de outra pessoa por um link de convite. Vocês veem os gastos um do outro
+                        (somente leitura) e podem criar uma conta compartilhada do casal.
+                    </p>
+
+                    {family?.members && family.members.length > 0 && (
+                        <div className="space-y-2 mb-4">
+                            {family.members.map((member) => (
+                                <div key={member.id} className="flex items-center justify-between p-3 rounded-xl bg-background">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium text-foreground truncate">{member.name || member.email}</p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                            {member.accountType === "COUPLE" ? "Conta do casal" : member.email}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {family?.pendingInvite && (
+                        <p className="text-xs text-muted-foreground mb-4">
+                            Convite pendente — expira em{" "}
+                            {new Date(family.pendingInvite.expiresAt).toLocaleDateString("pt-BR")}.
+                        </p>
+                    )}
+
+                    {(!family?.members || family.members.filter((m) => m.accountType === "PERSONAL").length < 2) && (
+                        <button
+                            onClick={handleCreateInvite}
+                            disabled={invitingFamily}
+                            className={cn(
+                                "w-full flex items-center justify-center gap-2 py-3 px-4 rounded-[1vw] font-semibold transition-all",
+                                invitingFamily
+                                    ? "bg-muted text-muted-foreground cursor-not-allowed"
+                                    : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+                            )}
+                        >
+                            <PhosphorIcons.Link size={20} weight="bold" />
+                            {invitingFamily ? "Gerando link..." : "Gerar link de convite"}
+                        </button>
+                    )}
+
+                    {inviteLink && (
+                        <div className="mt-3 p-3 rounded-xl bg-muted/50 text-xs break-all text-muted-foreground">
+                            {inviteLink}
+                        </div>
+                    )}
+
+                    {family?.members &&
+                        family.members.filter((m) => m.accountType === "PERSONAL").length === 2 &&
+                        !family.members.some((m) => m.accountType === "COUPLE") && (
+                            <button
+                                onClick={handleCreateCoupleAccount}
+                                disabled={creatingCoupleAccount}
+                                className={cn(
+                                    "w-full mt-3 flex items-center justify-center gap-2 py-3 px-4 rounded-[1vw] font-semibold transition-all",
+                                    creatingCoupleAccount
+                                        ? "bg-muted text-muted-foreground cursor-not-allowed"
+                                        : "bg-primary text-background hover:bg-primary/90"
+                                )}
+                            >
+                                <PhosphorIcons.Wallet size={20} weight="bold" />
+                                {creatingCoupleAccount ? "Criando..." : "Criar conta do casal"}
+                            </button>
+                        )}
                 </div>
 
                 {/* Theme Toggle */}
@@ -237,45 +315,6 @@ export function SettingsView() {
                 >
                     Salvar Configurações
                 </button>
-
-                {/* Synchronization */}
-                <div className="rounded-[20px] bg-card p-6 border border-border/50">
-                    <div className="flex items-center gap-2 mb-4">
-                        <PhosphorIcons.CloudArrowUp size={24} weight="fill" className="text-primary" />
-                        <h3 className="text-lg font-semibold">Nuvem e Sincronização</h3>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground mb-6">
-                        Se o seu banco de dados estiver vazio mas você tiver dados locais, use o botão abaixo para forçar uma sincronização completa.
-                    </p>
-
-                    <button
-                        onClick={handleFullSync}
-                        disabled={syncing}
-                        className={cn(
-                            "w-full flex items-center justify-center gap-2 py-3 px-4 rounded-[1vw] font-semibold transition-all",
-                            syncing
-                                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                                : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
-                        )}
-                    >
-                        {syncing ? (
-                            <>
-                                <PhosphorIcons.CircleNotch size={20} weight="bold" className="animate-spin" />
-                                Sincronizando...
-                            </>
-                        ) : (
-                            <>
-                                <PhosphorIcons.ArrowsCounterClockwise size={20} weight="bold" />
-                                Sincronizar dados locais com o servidor
-                            </>
-                        )}
-                    </button>
-
-                    <p className="mt-3 text-[10px] text-center text-muted-foreground uppercase tracking-widest">
-                        Recomendado se você acabou de conectar sua conta
-                    </p>
-                </div>
 
                 {/* Danger Zone */}
                 <div className="rounded-[20px] bg-card p-6 border border-expense/30 mt-8">

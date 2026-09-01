@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthGuard } from "@/components/auth/auth-guard"
+import { AccountProvider } from "@/components/account/account-context"
 import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
@@ -29,7 +30,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${fontSans.className} ${fontSans.variable} antialiased`}>
-        <AuthGuard>{children}</AuthGuard>
+        <AuthGuard>
+          <AccountProvider>{children}</AccountProvider>
+        </AuthGuard>
         <Toaster />
         <Analytics />
       </body>

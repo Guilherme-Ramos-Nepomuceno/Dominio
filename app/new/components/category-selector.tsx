@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Check } from "@phosphor-icons/react"
 import { getCategories, addCategory } from "@/lib/storage"
-import type { TransactionType } from "@/lib/types"
+import type { Category, TransactionType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface CategorySelectorProps {
@@ -33,15 +33,19 @@ const predefinedColors = [
 ]
 
 export function CategorySelector({ type, value, onChange }: CategorySelectorProps) {
-  const [categories, setCategories] = useState(getCategories().filter((cat) => cat.type === type))
+  const [categories, setCategories] = useState<Category[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
   const [selectedColor, setSelectedColor] = useState(predefinedColors[0])
 
-  const handleAddCategory = () => {
+  useEffect(() => {
+    getCategories().then((all) => setCategories(all.filter((cat) => cat.type === type)))
+  }, [type])
+
+  const handleAddCategory = async () => {
     if (!newCategoryName.trim()) return
 
-    const newCategory = addCategory({
+    const newCategory = await addCategory({
       name: newCategoryName,
       color: selectedColor,
       type,
@@ -69,7 +73,7 @@ export function CategorySelector({ type, value, onChange }: CategorySelectorProp
             )}
           >
             <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+              className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
               style={{ backgroundColor: category.color + "20" }}
             >
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />

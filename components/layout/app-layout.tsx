@@ -10,6 +10,7 @@ interface AppLayoutProps {
 
 // Add imports
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import { AccountSwitcher } from "@/components/account/account-switcher"
 import { usePathname } from "next/navigation"
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -21,12 +22,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       <DesktopNav />
 
       {/* Mobile Top Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-md border-b border-border z-40 flex items-center px-4 justify-between">
-        <div className="flex items-center gap-2">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-md border-b border-border z-40 flex items-center px-4 justify-between gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <NotificationCenter />
           <h1 className="font-bold text-lg text-foreground">Dominio</h1>
         </div>
-        {/* Could add other actions here */}
+        <div className="flex-1 max-w-[55%]">
+          <AccountSwitcher />
+        </div>
       </div>
 
       {/* Main content */}

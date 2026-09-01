@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
 import { UserProfileBox } from "@/components/profile/user-profile-box"
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import { AccountSwitcher } from "@/components/account/account-switcher"
 
 const navItems = [
   { href: "/", icon: HouseIcon, label: "Home" },
@@ -80,6 +81,11 @@ export function DesktopNav() {
             )
           })}
         </nav>
+
+        {/* Account Switcher (Família) */}
+        <div className="px-4">
+          <AccountSwitcher />
+        </div>
 
         {/* Quick Action Button */}
         <div className="px-4 py-2">

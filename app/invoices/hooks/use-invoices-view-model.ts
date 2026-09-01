@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction } from "@/lib/storage"
 import type { Card, Transaction, Category } from "@/lib/types"
 
 export function useInvoicesViewModel() {
-    const [cards] = useState(getCards().filter((c) => c.type === "credit"))
+    const [cards, setCards] = useState<Card[]>([])
 
     // Garante que o mês atual seja gerado corretamente
     const getSafeCurrentMonth = () => {
@@ -14,10 +14,31 @@ export function useInvoicesViewModel() {
     }
 
     const [selectedMonth, setSelectedMonth] = useState(getSafeCurrentMonth())
-    const [transactions, setTransactions] = useState(getTransactions())
-    const [selectedCardId, setSelectedCardId] = useState<string | null>(cards[0]?.id || null)
+    const [transactions, setTransactions] = useState<Transaction[]>([])
+    const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
     const [partialAmount, setPartialAmount] = useState("")
-    const categories = getCategories()
+    const [categories, setCategories] = useState<Category[]>([])
+
+    const loadData = useCallback(async () => {
+        const [allCards, allTransactions, allCategories] = await Promise.all([
+            getCards(),
+            getTransactions(),
+            getCategories(),
+        ])
+        setCards(allCards.filter((c) => c.type === "credit"))
+        setTransactions(allTransactions)
+        setCategories(allCategories)
+    }, [])
+
+    useEffect(() => {
+        loadData()
+    }, [loadData])
+
+    useEffect(() => {
+        if (selectedCardId === null && cards.length > 0) {
+            setSelectedCardId(cards[0].id)
+        }
+    }, [cards, selectedCardId])
 
     const getFormattedMonthTitle = (monthStr: string) => {
         if (!monthStr) return ""
@@ -81,19 +102,19 @@ export function useInvoicesViewModel() {
 
     const selectedInvoice = cardInvoices.find((inv) => inv.card.id === selectedCardId)
 
-    const handlePayFull = () => {
+    const handlePayFull = async () => {
         if (!selectedInvoice || selectedInvoice.pendingTransactions.length === 0) return
 
         if (confirm(`Deseja pagar o restante da fatura de R$ ${selectedInvoice.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}?`)) {
-            selectedInvoice.pendingTransactions.forEach((transaction) => {
-                markTransactionAsPaid(transaction.id, selectedCardId || undefined)
-            })
-            setTransactions(getTransactions())
+            for (const transaction of selectedInvoice.pendingTransactions) {
+                await markTransactionAsPaid(transaction.id, selectedCardId || undefined)
+            }
+            await loadData()
             setPartialAmount("")
         }
     }
 
-    const handlePayPartial = () => {
+    const handlePayPartial = async () => {
         if (!selectedInvoice || !partialAmount || selectedInvoice.pendingTransactions.length === 0) return
 
         const amount = Number.parseFloat(partialAmount.replace(/\./g, "").replace(",", "."))
@@ -118,18 +139,18 @@ export function useInvoicesViewModel() {
             transactionsToPay.length > 0 &&
             confirm(`Pagar ${transactionsToPay.length} transações?`)
         ) {
-            transactionsToPay.forEach((id) => {
-                markTransactionAsPaid(id, selectedCardId || undefined)
-            })
-            setTransactions(getTransactions())
+            for (const id of transactionsToPay) {
+                await markTransactionAsPaid(id, selectedCardId || undefined)
+            }
+            await loadData()
             setPartialAmount("")
         }
     }
 
-    const handleCancelTransaction = (transactionId: string) => {
+    const handleCancelTransaction = async (transactionId: string) => {
         if (confirm("Deseja cancelar esta transação?")) {
-            cancelTransaction(transactionId)
-            setTransactions(getTransactions())
+            await cancelTransaction(transactionId)
+            await loadData()
         }
     }
 
