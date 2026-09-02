@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Bell, CalendarCheck, Warning, X } from "@phosphor-icons/react"
-import { motion, AnimatePresence } from "framer-motion"
-import { getTransactions, getCards } from "@/lib/storage"
+import { useState, useEffect } from "react"
+import { Bell, CalendarCheck, Warning } from "@phosphor-icons/react"
+import { usePendingSummary } from "@/hooks/use-transactions"
 import { formatCurrency } from "@/lib/date-utils"
 import * as Popover from "@radix-ui/react-popover"
 
@@ -11,62 +10,36 @@ interface Notification {
     id: string
     title: string
     message: string
-    type: "warning" | "info" | "success"
+    type: "warning" | "info"
     date: string
-    amount?: number
+    amount: number
 }
 
 export function NotificationCenter() {
-    const [notifications, setNotifications] = useState<Notification[]>([])
-    const [hasUnread, setHasUnread] = useState(false)
+    const { items } = usePendingSummary()
     const [isOpen, setIsOpen] = useState(false)
+    const [hasUnread, setHasUnread] = useState(false)
 
-    const checkNotifications = useCallback(async () => {
-        const allTransactions = await getTransactions()
-        const cards = await getCards()
-        const today = new Date()
-        const nextWeek = new Date()
-        nextWeek.setDate(today.getDate() + 7) // Look ahead 7 days
+    // usePendingSummary só traz o que já venceu ou vence hoje (não pendências futuras).
+    const notifications: Notification[] = items.map((t) => {
+        const isExpense = t.type === "expense"
+        const isOverdue = new Date(t.date) < new Date(new Date().setHours(0, 0, 0, 0))
+        const label = isOverdue ? "Atrasado" : "Vence hoje"
 
-        const newNotifications: Notification[] = []
-
-        // Check Pending Transactions (Due soon)
-        // Check Pending Transactions (Due soon)
-        allTransactions.forEach(t => {
-            if (t.status === 'paid') return
-
-            const tDate = new Date(t.date)
-            const daysDiff = Math.ceil((tDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
-
-            if (daysDiff >= 0 && daysDiff <= 5) {
-                const isExpense = t.type === 'expense'
-                const prefix = isExpense ? "Vencimento" : "Recebimento"
-                const daysText = daysDiff === 0 ? "hoje" : daysDiff === 1 ? "em 1 dia" : `em ${daysDiff} dias`
-
-                newNotifications.push({
-                    id: t.id,
-                    title: isExpense ? "Conta Próxima" : "Entrada Próxima",
-                    message: `${t.description}: ${prefix} ${daysText}.`,
-                    type: daysDiff <= 1 ? "warning" : "info",
-                    date: t.date,
-                    amount: t.amount
-                })
-            }
-        })
-
-        // Check Invoices (Mock Logic - Assuming Invoice closes on Day X)
-        // For now, simpler to rely on pending transactions from credit cards
-
-        setNotifications(newNotifications.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
-        if (newNotifications.length > 0) setHasUnread(true)
-    }, [])
+        return {
+            id: t.id,
+            title: isExpense ? "Conta pendente" : "Recebimento pendente",
+            message: `${t.description}: ${label}.`,
+            type: isOverdue ? "warning" : "info",
+            date: t.date,
+            amount: t.amount,
+        }
+    })
 
     useEffect(() => {
-        checkNotifications()
-        // Poll every minute
-        const interval = setInterval(checkNotifications, 60000)
-        return () => clearInterval(interval)
-    }, [checkNotifications])
+        if (notifications.length > 0) setHasUnread(true)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items])
 
     const handleNotificationClick = () => {
         setIsOpen(false)

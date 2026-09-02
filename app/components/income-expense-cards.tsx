@@ -58,7 +58,7 @@ export function IncomeExpenseCards({
     const projectedTransactions: any[] = []
 
     creditHistory.forEach(t => {
-        if (t.status === 'paid') return
+        if (t.status === 'paid' || t.status === 'cancelled') return
 
         const tDate = new Date(t.date)
         const tYear = tDate.getFullYear()

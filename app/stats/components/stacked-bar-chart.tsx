@@ -60,8 +60,10 @@ export function StackedBarChart({
 
     loadData()
 
+    window.addEventListener("storage-update", loadData)
     return () => {
       cancelled = true
+      window.removeEventListener("storage-update", loadData)
     }
   }, [customThreshold]);
 
@@ -102,6 +104,7 @@ export function StackedBarChart({
 
     allTransactions.forEach((transaction) => {
       if (transaction.type !== 'expense') return
+      if (transaction.status === 'cancelled') return
 
       const transDate = new Date(transaction.date)
       const transYear = transDate.getFullYear()
