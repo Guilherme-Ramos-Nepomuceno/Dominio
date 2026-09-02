@@ -61,12 +61,12 @@ export function useStatsViewModel() {
 
                 if (installments === 1) {
                     if (t.date.startsWith(selectedMonth)) {
-                        if (t.status !== 'paid') creditTransactions.push(t)
+                        if (t.status !== 'paid' && t.status !== 'cancelled') creditTransactions.push(t)
                     }
                 } else {
                     const monthDiff = (selYear - tYear) * 12 + (selMonth - tMonth)
                     if (monthDiff >= 0 && monthDiff < installments) {
-                        if (t.status === 'paid') return;
+                        if (t.status === 'paid' || t.status === 'cancelled') return;
                         creditTransactions.push({
                             ...t,
                             amount: t.amount / installments,
