@@ -1,18 +1,43 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { getPendingTransactions } from "@/lib/storage"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { getPendingTransactions, cancelRecurringTransaction } from "@/lib/storage"
+import { useToast } from "@/hooks/use-toast"
 
 export function useRecurringViewModel() {
     const [transactions, setTransactions] = useState<any[]>([])
+    const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
+    const { toast } = useToast()
+
+    const loadData = useCallback(async () => {
+        const pending = await getPendingTransactions()
+        setTransactions(pending)
+    }, [])
 
     useEffect(() => {
-        const loadData = async () => {
-            const pending = await getPendingTransactions()
-            setTransactions(pending)
-        }
         loadData()
-    }, [])
+    }, [loadData])
+
+    const confirmCancelRecurrence = async () => {
+        if (!transactionToCancel) return
+        try {
+            await cancelRecurringTransaction(transactionToCancel)
+            toast({
+                title: "Recorrência cancelada",
+                description: "Esta e todas as próximas ocorrências foram canceladas.",
+                variant: "success",
+            })
+            await loadData()
+        } catch (error: any) {
+            toast({
+                title: "Erro ao cancelar",
+                description: error.message || "Não foi possível cancelar a recorrência.",
+                variant: "destructive",
+            })
+        } finally {
+            setTransactionToCancel(null)
+        }
+    }
 
     const recurringList = useMemo(() => {
         const recurringMap = new Map()
@@ -62,6 +87,9 @@ export function useRecurringViewModel() {
     return {
         recurringList,
         installmentList,
-        formatFrequency
+        formatFrequency,
+        transactionToCancel,
+        setTransactionToCancel,
+        confirmCancelRecurrence,
     }
 }

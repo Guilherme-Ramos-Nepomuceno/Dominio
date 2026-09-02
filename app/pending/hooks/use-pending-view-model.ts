@@ -6,6 +6,7 @@ import {
     getCategories,
     markTransactionAsPaid,
     cancelTransaction,
+    cancelRecurringTransaction,
     getCards
 } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
@@ -23,6 +24,7 @@ export function usePendingViewModel() {
     const [selectedCard, setSelectedCard] = useState<string>("")
     const [confirmDate, setConfirmDate] = useState<string>("")
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
+    const [transactionToCancelRecurrence, setTransactionToCancelRecurrence] = useState<string | null>(null)
 
     const loadData = useCallback(async () => {
         const [allPending, allCategories, allCards] = await Promise.all([
@@ -125,6 +127,27 @@ export function usePendingViewModel() {
         }
     }
 
+    const confirmCancelRecurrence = async () => {
+        if (!transactionToCancelRecurrence) return
+        try {
+            await cancelRecurringTransaction(transactionToCancelRecurrence)
+            await loadData()
+            toast({
+                title: "Recorrência cancelada",
+                description: "Esta e todas as próximas ocorrências foram canceladas.",
+                variant: "success"
+            })
+        } catch (error: any) {
+            toast({
+                title: "Erro ao cancelar",
+                description: error.message || "Não foi possível cancelar a recorrência.",
+                variant: "destructive"
+            })
+        } finally {
+            setTransactionToCancelRecurrence(null)
+        }
+    }
+
     return {
         pendingTransactions,
         categories,
@@ -139,8 +162,11 @@ export function usePendingViewModel() {
         setConfirmDate,
         transactionToCancel,
         setTransactionToCancel,
+        transactionToCancelRecurrence,
+        setTransactionToCancelRecurrence,
         handleMarkAsPaid,
         confirmPayment,
-        confirmCancel
+        confirmCancel,
+        confirmCancelRecurrence
     }
 }

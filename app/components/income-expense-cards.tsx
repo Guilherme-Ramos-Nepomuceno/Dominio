@@ -29,10 +29,14 @@ export function IncomeExpenseCards({
   const [cards, setCards] = useState<Card[]>([])
 
   useEffect(() => {
-    (async () => {
+    const load = async () => {
       setAllHistory(await getTransactions())
       setCards(await getCards())
-    })()
+    }
+    load()
+
+    window.addEventListener("storage-update", load)
+    return () => window.removeEventListener("storage-update", load)
   }, [])
 
   // 1. Lógica Inteligente de Processamento (MANTIDA IGUAL)

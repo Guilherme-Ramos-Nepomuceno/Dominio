@@ -45,6 +45,14 @@ function colorForId(id: string): string {
   return PALETTE[hash % PALETTE.length]
 }
 
+// Avisa as telas que dependem de useTransactions/useMonthData/useTotalBalance que os dados
+// mudaram, para que refaçam o fetch sem precisar de um reload da página inteira.
+function notifyStorageUpdate(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("storage-update"))
+  }
+}
+
 function isReadOnly(): boolean {
   return getActiveAccountSelection().type === "partner"
 }
@@ -295,6 +303,7 @@ export async function addTransaction(
       })
     }
 
+    notifyStorageUpdate()
     return first
   }
 
@@ -333,16 +342,20 @@ export async function addTransaction(
       })
     }
 
+    notifyStorageUpdate()
     return head
   }
 
   // --- Transação simples ---
-  return createTransactionApi({ ...transaction, status: initialStatus })
+  const result = await createTransactionApi({ ...transaction, status: initialStatus })
+  notifyStorageUpdate()
+  return result
 }
 
 export async function updateTransaction(id: string, updates: Partial<Transaction>): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(mapTransactionToApi(updates)) })
+  notifyStorageUpdate()
 }
 
 // Apaga a transação. Se ela for a "cabeça" de um grupo de parcelas/recorrência,
@@ -350,11 +363,13 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
 export async function deleteTransaction(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${id}`, { method: "DELETE" })
+  notifyStorageUpdate()
 }
 
 export async function deleteAllTransactions(): Promise<void> {
   assertWritable()
   await fetchApi("/transactions", { method: "DELETE" })
+  notifyStorageUpdate()
 }
 
 export async function markTransactionAsPaid(id: string, cardId?: string, paidAt?: string): Promise<void> {
@@ -363,11 +378,21 @@ export async function markTransactionAsPaid(id: string, cardId?: string, paidAt?
     method: "PATCH",
     body: JSON.stringify({ cardId, confirmDate: paidAt }),
   })
+  notifyStorageUpdate()
 }
 
 export async function cancelTransaction(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${id}/cancel`, { method: "PATCH" })
+  notifyStorageUpdate()
+}
+
+// Cancela esta ocorrência e todas as futuras da mesma recorrência (não apenas o mês atual).
+export async function cancelRecurringTransaction(id: string): Promise<{ cancelledCount: number }> {
+  assertWritable()
+  const result = await fetchApi(`/transactions/${id}/cancel-recurrence`, { method: "PATCH" })
+  notifyStorageUpdate()
+  return result
 }
 
 export async function getPendingTransactions(): Promise<Transaction[]> {

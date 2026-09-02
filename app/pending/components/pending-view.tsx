@@ -33,9 +33,12 @@ export function PendingView() {
         setConfirmDate,
         transactionToCancel,
         setTransactionToCancel,
+        transactionToCancelRecurrence,
+        setTransactionToCancelRecurrence,
         handleMarkAsPaid,
         confirmPayment,
-        confirmCancel
+        confirmCancel,
+        confirmCancelRecurrence
     } = usePendingViewModel()
 
     if (!isLoaded) {
@@ -125,13 +128,24 @@ export function PendingView() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="flex gap-2 mt-3">
-                                                <Button onClick={() => handleMarkAsPaid(transaction.id)} className={cn("flex-1", isExpense ? "bg-expense hover:bg-expense/90 text-background" : "bg-income hover:bg-income/90 text-background")}>
-                                                    <CheckCircle size={20} weight="bold" className="mr-2 text-background" />{isExpense ? "Pagar" : "Receber"}
-                                                </Button>
-                                                <Button onClick={() => setTransactionToCancel(transaction.id)} variant="outline" className="flex-1 border-expense text-expense hover:bg-expense/10">
-                                                    <XCircle size={20} weight="bold" className="mr-2" />Cancelar
-                                                </Button>
+                                            <div className="flex flex-col gap-2 mt-3">
+                                                <div className="flex gap-2">
+                                                    <Button onClick={() => handleMarkAsPaid(transaction.id)} className={cn("flex-1", isExpense ? "bg-expense hover:bg-expense/90 text-background" : "bg-income hover:bg-income/90 text-background")}>
+                                                        <CheckCircle size={20} weight="bold" className="mr-2 text-background" />{isExpense ? "Pagar" : "Receber"}
+                                                    </Button>
+                                                    <Button onClick={() => setTransactionToCancel(transaction.id)} variant="outline" className="flex-1 border-expense text-expense hover:bg-expense/10">
+                                                        <XCircle size={20} weight="bold" className="mr-2" />Cancelar este mês
+                                                    </Button>
+                                                </div>
+                                                {transaction.recurrence && transaction.recurrence !== "none" && (
+                                                    <Button
+                                                        onClick={() => setTransactionToCancelRecurrence(transaction.id)}
+                                                        variant="ghost"
+                                                        className="text-xs text-muted-foreground hover:text-expense"
+                                                    >
+                                                        Cancelar toda a recorrência (meses futuros)
+                                                    </Button>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -151,6 +165,21 @@ export function PendingView() {
                     <AlertDialogFooter>
                         <AlertDialogCancel>Voltar</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmCancel} className="bg-destructive text-white hover:bg-destructive/90">Confirmar Cancelamento</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!transactionToCancelRecurrence} onOpenChange={() => setTransactionToCancelRecurrence(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Cancelar toda a recorrência?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Isso cancela esta e todas as próximas ocorrências (meses futuros), não apenas o mês atual. Meses já pagos não são afetados.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Voltar</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmCancelRecurrence} className="bg-destructive text-white hover:bg-destructive/90">Confirmar Cancelamento</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
