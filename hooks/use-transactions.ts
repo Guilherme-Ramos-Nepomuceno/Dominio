@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import type { Transaction, Category, MonthData } from "@/lib/types"
-import { getTransactions, getCategories, getSavingsGoals } from "@/lib/storage"
+import { getTransactions, getCategories, getSavingsGoals, getPendingTransactions, getCards } from "@/lib/storage"
 import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
 
 export function useTransactions(selectedMonth?: string) {
@@ -123,4 +123,67 @@ export function useTotalBalance(month: string) {
     expense,
     transactions: paidTransactions,
   }
+}
+
+// Pendências de qualquer mês (incluindo meses anteriores não pagos), com a mesma
+// deduplicação de recorrência/parcelas usada na tela de Contas a Pagar/Receber.
+export function usePendingSummary() {
+  const [items, setItems] = useState<Transaction[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadPending = useCallback(async () => {
+    setLoading(true)
+    const [pending, cards] = await Promise.all([getPendingTransactions(), getCards()])
+
+    const visible = pending.filter((t) => {
+      if (t.cardId) {
+        const card = cards.find((c) => c.id === t.cardId)
+        if (card?.type === "credit") return false
+      }
+      return true
+    })
+
+    const grouped = new Map<string, Transaction>()
+    const singles: Transaction[] = []
+
+    visible.forEach((t) => {
+      const isRecurring = t.recurrence && t.recurrence !== "none"
+      const isInstallment = t.installments && t.installments > 1
+
+      if (!isRecurring && !isInstallment) {
+        singles.push(t)
+        return
+      }
+
+      const groupId = t.parentId || t.description
+      const existing = grouped.get(groupId)
+      if (!existing || new Date(t.date) < new Date(existing.date)) {
+        grouped.set(groupId, t)
+      }
+    })
+
+    const result = [...singles, ...Array.from(grouped.values())].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    )
+
+    setItems(result)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    loadPending()
+
+    const handleStorageUpdate = () => {
+      loadPending()
+    }
+    window.addEventListener("storage-update", handleStorageUpdate)
+
+    return () => {
+      window.removeEventListener("storage-update", handleStorageUpdate)
+    }
+  }, [loadPending])
+
+  const total = items.reduce((sum, t) => sum + t.amount, 0)
+
+  return { items, total, count: items.length, loading, refresh: loadPending }
 }

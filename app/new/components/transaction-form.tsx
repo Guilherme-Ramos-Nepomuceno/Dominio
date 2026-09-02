@@ -63,6 +63,7 @@ export function TransactionForm() {
   const [recurrence, setRecurrence] = useState<RecurrenceType>("none")
   const [installments, setInstallments] = useState("1")
   const [cardId, setCardId] = useState<string>("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const filteredCategories = categories.filter((cat) => cat.type === type)
 
@@ -84,6 +85,8 @@ export function TransactionForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (isSubmitting) return
 
     if (type === "income" && !hasDebitCard) {
       toast({
@@ -155,6 +158,7 @@ export function TransactionForm() {
     const [year, month, day] = date.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day, 12, 0, 0);
 
+    setIsSubmitting(true)
     try {
       await addTransaction({
         description,
@@ -179,6 +183,7 @@ export function TransactionForm() {
         description: error.message || "Não foi possível salvar a transação.",
         variant: "destructive"
       })
+      setIsSubmitting(false)
     }
   }
 
@@ -382,7 +387,7 @@ export function TransactionForm() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="block w-full min-w-0 max-w-full box-border appearance-none px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
           </div>
@@ -452,10 +457,10 @@ export function TransactionForm() {
           )}
 
           {/* Submit Button */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-2 sm:gap-3 pt-4">
             <Button
               type="button"
-              className="flex-1 h-12 rounded-[1vw] bg-background text-foreground hover:bg-background/70"
+              className="flex-1 min-w-0 h-12 px-2 sm:px-4 rounded-[1vw] bg-background text-foreground hover:bg-background/70 truncate"
               onClick={() => {
                 toast({ title: "Operação cancelada", description: "O lançamento não foi salvo.", variant: "default" })
                 router.push("/")
@@ -463,8 +468,12 @@ export function TransactionForm() {
             >
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1 h-12 rounded-[1vw] font-semibold text-background">
-              Salvar Transação
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 min-w-0 h-12 px-2 sm:px-4 rounded-[1vw] font-semibold text-background disabled:opacity-60 truncate"
+            >
+              {isSubmitting ? "Salvando..." : "Salvar Transação"}
             </Button>
           </div>
         </>

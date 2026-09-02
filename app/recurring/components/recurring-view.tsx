@@ -2,13 +2,31 @@
 
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
+import { Button } from "@/components/ui/button"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
-import { RepeatIcon, CalendarBlankIcon } from "@phosphor-icons/react"
+import { RepeatIcon, CalendarBlankIcon, XCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useRecurringViewModel } from "../hooks/use-recurring-view-model"
 
 export function RecurringView() {
-    const { recurringList, installmentList, formatFrequency } = useRecurringViewModel()
+    const {
+        recurringList,
+        installmentList,
+        formatFrequency,
+        transactionToCancel,
+        setTransactionToCancel,
+        confirmCancelRecurrence,
+    } = useRecurringViewModel()
 
     return (
         <AppLayout>
@@ -31,26 +49,39 @@ export function RecurringView() {
                             {recurringList.map((transaction) => (
                                 <div
                                     key={transaction.id}
-                                    className="rounded-2xl bg-card p-5 border border-border/50 flex items-center justify-between hover:border-primary/50 transition-colors"
+                                    className="rounded-2xl bg-card p-5 border border-border/50 hover:border-primary/50 transition-colors"
                                 >
-                                    <div className="flex-1">
-                                        <h3 className="text-lg font-semibold text-foreground">{transaction.description}</h3>
-                                        <div className="flex items-center gap-3 mt-1">
-                                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
-                                                <RepeatIcon size={12} weight="bold" />
-                                                {formatFrequency(transaction.recurrence || "monthly")}
-                                            </span>
-                                            <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                                <CalendarBlankIcon size={14} />
-                                                Vence: {formatDate(transaction.date)}
-                                            </span>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                            <h3 className="text-lg font-semibold text-foreground">{transaction.description}</h3>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                                                    <RepeatIcon size={12} weight="bold" />
+                                                    {formatFrequency(transaction.recurrence || "monthly")}
+                                                </span>
+                                                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                                    <CalendarBlankIcon size={14} />
+                                                    Vence: {formatDate(transaction.date)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className={cn("text-xl font-bold text-text-primary")}>
+                                                {transaction.type === "expense" ? "-" : "+"}
+                                                {formatCurrency(transaction.amount)}
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className={cn("text-xl font-bold text-text-primary")}>
-                                            {transaction.type === "expense" ? "-" : "+"}
-                                            {formatCurrency(transaction.amount)}
-                                        </p>
+                                    <div className="flex justify-end mt-3 pt-3 border-t border-border/50">
+                                        <Button
+                                            onClick={() => setTransactionToCancel(transaction.id)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-expense text-expense hover:bg-expense/10"
+                                        >
+                                            <XCircle size={16} weight="bold" className="mr-2" />
+                                            Cancelar recorrência
+                                        </Button>
                                     </div>
                                 </div>
                             ))}
@@ -119,6 +150,23 @@ export function RecurringView() {
                     )}
                 </div>
             </div>
+
+            <AlertDialog open={!!transactionToCancel} onOpenChange={() => setTransactionToCancel(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Cancelar recorrência?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Isso cancela esta e todas as próximas ocorrências desta recorrência (meses futuros). Ocorrências já pagas em meses anteriores não são afetadas.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Voltar</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmCancelRecurrence} className="bg-destructive text-white hover:bg-destructive/90">
+                            Confirmar Cancelamento
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </AppLayout>
     )
 }

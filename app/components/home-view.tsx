@@ -4,14 +4,23 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { CircularBalance } from "./circular-balance"
 import { IncomeExpenseCards } from "./income-expense-cards"
 import { RecentTransactions } from "./recent-transactions"
+import { PendingAlert } from "./pending-alert"
 import { useHomeViewModel } from "../hooks/use-home-view-model"
 
 export function HomeView() {
-    const { period, setPeriod, balanceData } = useHomeViewModel()
+    const { period, setPeriod, balanceData, pendingSummary } = useHomeViewModel()
 
     return (
         <AppLayout>
             <div className="space-y-6">
+                {/* Pendências (inclusive de meses anteriores ainda não pagas) */}
+                <PendingAlert
+                    items={pendingSummary.items}
+                    total={pendingSummary.total}
+                    count={pendingSummary.count}
+                    loading={pendingSummary.loading}
+                />
+
                 {/* Circular Balance Display */}
                 <CircularBalance
                     balance={balanceData.totalBalance}

@@ -33,7 +33,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       </div>
 
       {/* Main content */}
-      <main className="pb-24 pt-2 md:pt-0 md:pb-8 md:pl-64 mt-16 md:mt-0">
+      {/* pb usa calc() somando a altura do BottomNav (h-16 = 4rem) + folga (2rem) +
+          env(safe-area-inset-bottom) para nunca deixar o último elemento do conteúdo
+          coberto pelo BottomNav fixo, mesmo em iPhones com home indicator. */}
+      <main className="pb-[calc(6rem+env(safe-area-inset-bottom))] pt-2 md:pt-0 md:pb-8 md:pl-64 mt-16 md:mt-0">
         <div className="container max-w-7xl mx-auto px-4 py-6 md:py-8">{children}</div>
       </main>
 

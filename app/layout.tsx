@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthGuard } from "@/components/auth/auth-guard"
@@ -20,6 +20,15 @@ export const metadata: Metadata = {
   icons: {
     icon: "/icon.png",
   },
+}
+
+// viewport-fit: "cover" faz o conteúdo se estender por trás do notch/home indicator
+// nos iPhones e habilita os valores de env(safe-area-inset-*) no CSS (sem isso eles
+// sempre retornam 0). Necessário para o padding de segurança do BottomNav funcionar.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 }
 
 export default function RootLayout({
