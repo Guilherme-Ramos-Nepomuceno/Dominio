@@ -27,7 +27,7 @@ export function BottomNav() {
           <Plus weight="bold" size={28} />
         </Link>
       )}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border md:hidden pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-black/10 dark:border-white/10 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href

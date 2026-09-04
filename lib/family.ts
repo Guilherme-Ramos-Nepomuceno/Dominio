@@ -57,7 +57,15 @@ export function getMemberSavings(memberId: string) {
     return fetchApi(`/family/members/${memberId}/savings`)
 }
 
-export function getMemberMonthData(memberId: string, year: number, month: number) {
+export interface MemberMonthData {
+    month: string
+    income: number
+    expense: number
+    balance: number
+    transactionCount: number
+}
+
+export function getMemberMonthData(memberId: string, year: number, month: number): Promise<MemberMonthData> {
     return fetchApi(`/family/members/${memberId}/stats/month-data/${year}/${month}`)
 }
 
@@ -67,4 +75,16 @@ export function getMemberTotalBalance(memberId: string, year: number, month: num
 
 export function getMemberCategoryBreakdown(memberId: string, year: number, month: number) {
     return fetchApi(`/family/members/${memberId}/stats/category-breakdown/${year}/${month}`)
+}
+
+export interface TransferToFamilyMemberDTO {
+    fromCardId: string
+    toMemberId: string
+    toCardId: string
+    amount: number
+    description?: string
+}
+
+export function transferToFamilyMember(dto: TransferToFamilyMemberDTO): Promise<{ success: boolean }> {
+    return fetchApi("/transactions/transfer-to-family-member", { method: "POST", body: JSON.stringify(dto) })
 }

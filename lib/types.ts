@@ -3,8 +3,9 @@
 export type TransactionType = "income" | "expense"
 export type RecurrenceType = "none" | "daily" | "weekly" | "monthly" | "yearly"
 export type TransactionStatus = "pending" | "paid" | "cancelled"
-export type CardType = "credit" | "debit"
-export type BankName = "nubank" | "inter" | "itau" | "bradesco" | "santander" | "caixa" | "bb" | "alelo" | "other"
+export type CardKind = "card" | "checking" | "savings"
+export type PaymentMethod = "credit" | "debit"
+export type BankName = "nubank" | "inter" | "itau" | "bradesco" | "santander" | "caixa" | "bb" | "alelo" | "other" | "cash"
 export type PeriodType = "week" | "month" | "lastMonth"
 
 export interface Category {
@@ -29,6 +30,8 @@ export interface Transaction {
   parentId?: string // For installment transactions
   status?: TransactionStatus
   cardId?: string // Added cardId to Transaction interface
+  paymentMethod?: PaymentMethod // Só relevante p/ cartão combinado (crédito+débito)
+  isCasal?: boolean // Marca uma despesa pessoal como do casal (aparece agregada na conta do casal)
   createdAt: string
   updatedAt: string
 }
@@ -56,6 +59,7 @@ export interface SavingsGoal {
   color: string
   icon: string
   cardId?: string // Added cardId to track which card the savings are from
+  isCasal?: boolean // Reserva compartilhada: entra inteira (com todo o histórico) na conta do casal
   createdAt: string
   updatedAt: string
 }
@@ -65,13 +69,16 @@ export interface Card {
   name: string // Changed from 'name' to match existing usage
   bankName: BankName // Changed from 'bankName' to match existing usage
   lastDigits: string
-  type: CardType
+  hasCredit: boolean
+  hasDebit: boolean
+  kind: CardKind
   color: string
   limit?: number
   dueDate?: number // Day of month (1-31)
   createdAt: string
   spentAmount?: number // Calculado pelo backend (cartões de crédito, mês atual)
   calculatedBalance?: number // Calculado pelo backend (contas de débito)
+  investmentTotal?: number // Calculado pelo backend (soma das Reservas vinculadas)
 }
 
 export interface MonthData {

@@ -3,12 +3,14 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { X, PiggyBank, Target, Wallet } from "@phosphor-icons/react"
+import { X, Heart } from "@phosphor-icons/react"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import { getCards } from "@/lib/storage"
 import type { Card } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
+import { SAVINGS_ICON_OPTIONS } from "@/lib/savings-icons"
+import { useAccount } from "@/components/account/account-context"
 
 interface EditSavingsDialogProps {
   goal: any
@@ -16,31 +18,22 @@ interface EditSavingsDialogProps {
   onClose: () => void
 }
 
-const GOAL_ICONS = ["PiggyBank", "Target", "Wallet"]
-const GOAL_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"]
-
-const QUICK_AMOUNTS = [50, 100, 200, 500, 1000]
-
 export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogProps) {
   const [name, setName] = useState(goal.name)
   const [targetAmount, setTargetAmount] = useState(formatCurrencyInput((goal.targetAmount * 100).toString()))
   const [selectedIcon, setSelectedIcon] = useState(goal.icon)
-  const [selectedColor, setSelectedColor] = useState(goal.color)
   const [selectedCardId, setSelectedCardId] = useState(goal.cardId || "")
+  const [isCasal, setIsCasal] = useState(!!goal.isCasal)
   const [cards, setCards] = useState<Card[]>([])
+  const { family } = useAccount()
+  const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
+
+  // Uma reserva sempre precisa de um cartão com débito — o backend exige isso.
+  const debitCards = cards.filter((card) => card.hasDebit)
 
   useEffect(() => {
     getCards().then(setCards)
   }, [])
-
-  const icons = { PiggyBank, Target, Wallet }
-
-  const handleQuickAmount = (value: number) => {
-    const currentAmount = parseCurrencyInput(targetAmount)
-    const newAmount = currentAmount + value
-    const cents = Math.round(newAmount * 100).toString()
-    setTargetAmount(formatCurrencyInput(cents))
-  }
 
   const handleTargetChange = (value: string) => {
     const onlyNumbers = value.replace(/\D/g, "")
@@ -56,26 +49,28 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
       return
     }
 
+    if (!selectedCardId) {
+      alert("Selecione o cartão da reserva")
+      return
+    }
+
     onSave(goal.id, {
       name: name.trim(),
       targetAmount: target,
       icon: selectedIcon,
-      color: selectedColor,
       cardId: selectedCardId,
+      isCasal,
     })
     onClose()
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div
-        className="bg-card rounded-2xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-foreground">Editar Reserva</h2>
+    <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-card w-full max-w-md rounded-t-3xl md:rounded-3xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-foreground">Editar Reserva</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <X size={24} weight="bold" />
+            <X size={20} weight="bold" />
           </button>
         </div>
 
@@ -100,7 +95,7 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
               <input
                 type="text"
-                inputMode="numeric"
+                inputMode="decimal"
                 value={targetAmount}
                 onChange={(e) => handleTargetChange(e.target.value)}
                 placeholder="0,00"
@@ -108,82 +103,68 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
                 required
               />
             </div>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {QUICK_AMOUNTS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => handleQuickAmount(value)}
-                  className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
-                >
-                  +R$ {value}
-                </button>
-              ))}
-            </div>
           </div>
+
+          {/* Tag "do casal" — reserva entra inteira (com todo o histórico) na conta do casal;
+              só mostra se existir mesmo uma conta do casal */}
+          {hasCoupleAccount && (
+          <button
+            type="button"
+            onClick={() => setIsCasal(!isCasal)}
+            className={cn(
+              "w-full flex items-center gap-3 p-4 rounded-[1vw] border transition-all text-left",
+              isCasal
+                ? "border-primary bg-primary/10"
+                : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
+            )}
+          >
+            <div className={cn("w-10 h-10 flex items-center justify-center shrink-0 rounded-lg", isCasal ? "text-primary" : "text-muted-foreground")}>
+              <Heart size={22} weight={isCasal ? "fill" : "duotone"} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Reserva do casal</p>
+              <p className="text-xs text-muted-foreground">Aparece inteira, com todo o saldo, na conta do casal</p>
+            </div>
+            <div className={cn("w-11 h-6 rounded-full transition-colors shrink-0 relative", isCasal ? "bg-primary" : "bg-muted")}>
+              <div className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all", isCasal ? "left-5" : "left-0.5")} />
+            </div>
+          </button>
+          )}
 
           {/* Icon Selection */}
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Ícone</label>
-            <div className="flex gap-3">
-              {GOAL_ICONS.map((iconName) => {
-                const IconComponent = icons[iconName as keyof typeof icons]
-                return (
-                  <button
-                    key={iconName}
-                    type="button"
-                    onClick={() => setSelectedIcon(iconName)}
-                    className={cn(
-                      "w-14 h-14 rounded-[1vw] flex items-center justify-center border-2 transition-all",
-                      selectedIcon === iconName
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-background hover:bg-muted",
-                    )}
-                  >
-                    <IconComponent size={28} weight="fill" />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Color Selection */}
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">Cor</label>
-            <div className="flex flex-wrap gap-3">
-              {GOAL_COLORS.map((color) => (
+            <div className="grid grid-cols-6 gap-2">
+              {SAVINGS_ICON_OPTIONS.map(({ name: iconName, Icon }) => (
                 <button
-                  key={color}
+                  key={iconName}
                   type="button"
-                  onClick={() => setSelectedColor(color)}
+                  onClick={() => setSelectedIcon(iconName)}
                   className={cn(
-                    "w-10 h-10 rounded-full border-2 transition-all",
-                    selectedColor === color ? "border-foreground scale-110" : "border-transparent",
+                    "w-10 h-10 rounded-lg flex items-center justify-center transition-all",
+                    selectedIcon === iconName
+                      ? "text-primary ring-2 ring-primary/40 scale-110"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
-                  style={{ backgroundColor: color }}
-                />
+                >
+                  <Icon size={22} weight="duotone" />
+                </button>
               ))}
             </div>
           </div>
 
           {/* Card Selection */}
-          {cards.length > 0 && (
+          {debitCards.length === 0 ? (
+            <div className="p-4 rounded-[1vw] bg-warning/10 border border-warning/20 space-y-2">
+              <p className="text-sm text-warning font-medium">
+                Você precisa de um cartão com débito cadastrado para ter uma reserva.
+              </p>
+            </div>
+          ) : (
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Cartão (opcional)</label>
+              <label className="text-sm font-medium text-foreground mb-2 block">Cartão</label>
               <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCardId("")}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all text-left",
-                    selectedCardId === ""
-                      ? "border-primary bg-primary/5"
-                      : "border-border bg-background hover:bg-muted",
-                  )}
-                >
-                  <span className="text-sm font-medium text-foreground">Nenhum cartão</span>
-                </button>
-                {cards.map((card) => {
+                {debitCards.map((card) => {
                   const BankIcon = getBankIcon(card.bankName)
                   return (
                     <button
@@ -217,7 +198,8 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
+            disabled={debitCards.length === 0}
+            className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
           >
             Salvar Alterações
           </button>

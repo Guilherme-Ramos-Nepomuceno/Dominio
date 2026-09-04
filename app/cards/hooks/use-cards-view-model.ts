@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { getCards, getTransactions, getSavingsGoals, deleteCard } from "@/lib/storage"
+import { getCards, getTransactions, getSavingsGoals, deleteCard, updateCard, mergeCards } from "@/lib/storage"
+import type { Card } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
 export function useCardsViewModel() {
@@ -10,6 +11,8 @@ export function useCardsViewModel() {
     const [transactions, setTransactions] = useState<any[]>([])
     const [savingsGoals, setSavingsGoals] = useState<any[]>([])
     const [cardToDelete, setCardToDelete] = useState<string | null>(null)
+    const [editingCard, setEditingCard] = useState<Card | null>(null)
+    const [mergingCard, setMergingCard] = useState<Card | null>(null)
 
     const { toast } = useToast()
 
@@ -53,12 +56,37 @@ export function useCardsViewModel() {
         })
     }
 
+    const handleSaveEdit = async (id: string, updates: Partial<Card>) => {
+        await updateCard(id, updates)
+        setEditingCard(null)
+        await loadData()
+        toast({
+            title: "Cartão atualizado!",
+            description: "As alterações foram salvas.",
+            variant: "success",
+        })
+    }
+
+    const handleMerge = async (mergeCardId: string) => {
+        if (!mergingCard) return
+        await mergeCards(mergingCard.id, mergeCardId)
+        setMergingCard(null)
+        await loadData()
+        toast({
+            title: "Cartões mesclados!",
+            description: "As transações e reservas foram unificadas.",
+            variant: "success",
+        })
+    }
+
     const processedCards = useMemo(() => {
         return cards.map((card) => {
             let calculatedBalance = 0
             let spentAmount = 0
 
-            if (card.type === "credit") {
+            // Cartão combinado (crédito + débito) recebe os dois cálculos ao
+            // mesmo tempo — antes era um if/else mutuamente exclusivo.
+            if (card.hasCredit) {
                 const currentInvoiceTransactions = transactions.filter(
                     (t) =>
                         t.cardId === card.id &&
@@ -66,7 +94,8 @@ export function useCardsViewModel() {
                         t.type === "expense",
                 )
                 spentAmount = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0)
-            } else {
+            }
+            if (card.hasDebit) {
                 calculatedBalance = card.calculatedBalance ?? 0
                 spentAmount = transactions
                     .filter((t) => t.cardId === card.id && t.date.startsWith(currentMonth) && t.type === "expense")
@@ -89,8 +118,14 @@ export function useCardsViewModel() {
         setIsDialogOpen,
         cardToDelete,
         setCardToDelete,
+        editingCard,
+        setEditingCard,
+        mergingCard,
+        setMergingCard,
         processedCards,
         confirmDeleteCard,
-        handleCreateSuccess
+        handleCreateSuccess,
+        handleSaveEdit,
+        handleMerge,
     }
 }

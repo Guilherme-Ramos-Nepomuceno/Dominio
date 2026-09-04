@@ -1,6 +1,7 @@
 "use client"
 
 import { CreditCardIcon, ReceiptIcon, CheckCircle, CalendarIcon } from "@phosphor-icons/react"
+import * as PhosphorIcons from "@phosphor-icons/react"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
@@ -160,6 +161,7 @@ export function InvoicesView() {
                                             selectedInvoice.transactions.map((transaction) => {
                                                 const category = categories.find((c) => c.id === transaction.categoryId)
                                                 const isPaid = transaction.status === "paid"
+                                                const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
 
                                                 return (
                                                     <div
@@ -171,11 +173,9 @@ export function InvoicesView() {
                                                     >
                                                         <div className="flex items-start justify-between">
                                                             <div className="flex items-start gap-3 flex-1">
-                                                                <div
-                                                                    className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                                                                    style={{ backgroundColor: category?.color + "20" }}
-                                                                >
-                                                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category?.color }} />
+                                                                <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
+                                                                    {/* @ts-ignore - Dynamic icon component */}
+                                                                    <CategoryIcon size={26} weight="duotone" />
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="font-semibold text-foreground truncate">{transaction.description}</p>

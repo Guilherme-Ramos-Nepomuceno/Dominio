@@ -3,17 +3,15 @@
 import type React from "react"
 import { useState } from "react"
 import { XIcon } from "@phosphor-icons/react"
-import { addCard } from "@/lib/storage"
-import type { BankName, CardKind } from "@/lib/types"
+import type { BankName, CardKind, Card } from "@/lib/types"
 import { bankLogos, bankColors } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
-import { useToast } from "@/hooks/use-toast"
 
-interface AddCardDialogProps {
-  isOpen: boolean
+interface EditCardDialogProps {
+  card: Card | null
+  onSave: (id: string, updates: Partial<Card>) => void
   onClose: () => void
-  onSuccess: () => void
 }
 
 const KIND_OPTIONS: { value: CardKind; label: string }[] = [
@@ -22,23 +20,21 @@ const KIND_OPTIONS: { value: CardKind; label: string }[] = [
   { value: "savings", label: "Conta Poupança" },
 ]
 
-export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps) {
-  const [name, setName] = useState("")
-  const [lastDigits, setLastDigits] = useState("")
-  const [bankName, setBankName] = useState<BankName>("nubank")
-  const [kind, setKind] = useState<CardKind>("card")
-  // Contas (corrente/poupança) são sempre só débito — sem linha de crédito própria.
-  const [hasCredit, setHasCredit] = useState(true)
-  const [hasDebit, setHasDebit] = useState(false)
-  const [limit, setLimit] = useState("")
-  const [dueDate, setDueDate] = useState("10")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const { toast } = useToast()
+const BANKS: BankName[] = ["nubank", "inter", "itau", "bradesco", "santander", "caixa", "bb", "alelo", "other"]
 
-  if (!isOpen) return null
+export function EditCardDialog({ card, onSave, onClose }: EditCardDialogProps) {
+  const [name, setName] = useState(card?.name ?? "")
+  const [lastDigits, setLastDigits] = useState(card?.lastDigits ?? "")
+  const [bankName, setBankName] = useState<BankName>(card?.bankName ?? "nubank")
+  const [kind, setKind] = useState<CardKind>(card?.kind ?? "card")
+  const [hasCredit, setHasCredit] = useState(card?.hasCredit ?? true)
+  const [hasDebit, setHasDebit] = useState(card?.hasDebit ?? false)
+  const [limit, setLimit] = useState(card?.limit ? formatCurrencyInput((card.limit * 100).toString()) : "")
+  const [dueDate, setDueDate] = useState(card?.dueDate ? String(card.dueDate) : "10")
 
-  const isAccount = kind !== "card"
-  const digitsLabel = isAccount ? "Número da Conta" : "Últimos 4 Dígitos"
+  if (!card) return null
+
+  const digitsLabel = kind !== "card" ? "Número da Conta" : "Últimos 4 Dígitos"
 
   const handleKindChange = (value: CardKind) => {
     setKind(value)
@@ -49,7 +45,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
   }
 
   const toggleCredit = () => {
-    if (hasCredit && !hasDebit) return // precisa ter pelo menos um marcado
+    if (hasCredit && !hasDebit) return
     setHasCredit((v) => !v)
   }
 
@@ -63,57 +59,34 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
     setLimit(formatCurrencyInput(onlyNumbers))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (isSubmitting) return
 
-    setIsSubmitting(true)
-    try {
-      await addCard({
-        name,
-        lastDigits,
-        bankName,
-        hasCredit,
-        hasDebit,
-        kind,
-        color: bankColors[bankName],
-        limit: hasCredit ? (limit ? parseCurrencyInput(limit) : undefined) : undefined,
-        dueDate: hasCredit ? Number.parseInt(dueDate) : undefined,
-      })
-
-      setName("")
-      setLastDigits("")
-      setKind("card")
-      setHasCredit(true)
-      setHasDebit(false)
-      setLimit("")
-      setDueDate("10")
-      onSuccess()
-      onClose()
-    } catch (error: any) {
-      toast({
-        title: "Não foi possível cadastrar",
-        description: error.message || "Tente novamente em instantes.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
+    onSave(card.id, {
+      name,
+      lastDigits,
+      bankName,
+      hasCredit,
+      hasDebit,
+      kind,
+      color: bankColors[bankName],
+      limit: hasCredit ? (limit ? parseCurrencyInput(limit) : undefined) : undefined,
+      dueDate: hasCredit ? Number.parseInt(dueDate) : undefined,
+    })
+    onClose()
   }
 
-  const banks: BankName[] = ["nubank", "inter", "itau", "bradesco", "santander", "caixa", "bb", "alelo", "other"]
-
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-card rounded-3xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-foreground">Novo Cartão</h2>
-          <button onClick={onClose} className="p-2 rounded-[1vw] hover:bg-muted transition-colors">
-            <XIcon size={24} />
+    <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-card w-full max-w-md rounded-t-3xl md:rounded-3xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-foreground">Editar Cartão</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
+            <XIcon size={20} weight="bold" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Nome do Cartão</label>
             <input
@@ -142,7 +115,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Banco</label>
             <div className="grid grid-cols-4 gap-2">
-              {banks.map((bank) => (
+              {BANKS.map((bank) => (
                 <button
                   key={bank}
                   type="button"
@@ -155,11 +128,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
                   )}
                   style={
                     bankName === bank
-                      ? {
-                        borderColor: bankColors[bank],
-                        backgroundColor: bankColors[bank] + "20",
-                        color: bankColors[bank],
-                      }
+                      ? { borderColor: bankColors[bank], backgroundColor: bankColors[bank] + "20", color: bankColors[bank] }
                       : {}
                   }
                 >
@@ -170,7 +139,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">O que você está cadastrando?</label>
+            <label className="text-sm font-medium text-foreground">O que é este registro?</label>
             <div className="grid grid-cols-3 gap-2">
               {KIND_OPTIONS.map((option) => (
                 <button
@@ -201,9 +170,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
                   onClick={toggleCredit}
                   className={cn(
                     "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                    hasCredit
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card text-muted-foreground",
+                    hasCredit ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground",
                   )}
                 >
                   Crédito
@@ -213,9 +180,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
                   onClick={toggleDebit}
                   className={cn(
                     "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                    hasDebit
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card text-muted-foreground",
+                    hasDebit ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground",
                   )}
                 >
                   Débito
@@ -234,9 +199,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Limite (opcional)</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
-                    R$
-                  </span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -264,13 +227,21 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
             </>
           )}
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-3 rounded-[1vw] bg-primary text-background font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
-          >
-            {isSubmitting ? "Salvando..." : "Adicionar Cartão"}
-          </button>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors"
+            >
+              Salvar Alterações
+            </button>
+          </div>
         </form>
       </div>
     </div>

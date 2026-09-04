@@ -1,6 +1,6 @@
 "use client"
 
-import { Moon, Sun, Warning, Trash, User as UserIcon, Envelope } from "@phosphor-icons/react"
+import { Moon, Sun, Warning, Trash, User as UserIcon, Envelope, SignOut } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
@@ -32,13 +32,14 @@ export function SettingsView() {
         currency,
         setCurrency,
         categoryGoals,
-        categories,
+        groupedCategories,
         showClearDialog,
         setShowClearDialog,
         user,
         setUser,
         handleUpdateProfile,
         handleSave,
+        handleLogout,
         confirmClearData,
         handlePercentageChange,
         totalPercentage,
@@ -256,20 +257,17 @@ export function SettingsView() {
                     )}
 
                     <div className="space-y-3 mb-4">
-                        {categories.map((category) => {
-                            const goal = categoryGoals.find((g) => g.categoryId === category.id)
+                        {groupedCategories.map((category) => {
+                            const goal = categoryGoals.find((g) => category.ids.includes(g.categoryId))
                             const percentage = goal?.percentage || 0
 
                             const IconComponent = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
 
                             return (
                                 <div key={category.id} className="flex items-center gap-3">
-                                    <div
-                                        className="w-10 h-10 rounded-lg flex items-center justify-center bg-background"
-                                        style={{ color: category.color }}
-                                    >
+                                    <div className="w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground">
                                         {/* @ts-ignore */}
-                                        <IconComponent size={20} weight="fill" />
+                                        <IconComponent size={22} weight="duotone" />
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-sm font-medium text-foreground">{category.name}</p>
@@ -280,7 +278,7 @@ export function SettingsView() {
                                             min="0"
                                             max="100"
                                             value={percentage}
-                                            onChange={(e) => handlePercentageChange(category.id, Number.parseInt(e.target.value) || 0)}
+                                            onChange={(e) => handlePercentageChange(category.ids, Number.parseInt(e.target.value) || 0)}
                                             className="w-20 px-3 py-2 rounded-lg bg-background border border-border text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary"
                                         />
                                         <span className="text-sm font-medium text-muted-foreground">%</span>
@@ -314,6 +312,15 @@ export function SettingsView() {
                     className="w-full py-3 px-4 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
                 >
                     Salvar Configurações
+                </button>
+
+                {/* Logout */}
+                <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-[1vw] font-semibold border border-border text-foreground hover:bg-muted transition-colors"
+                >
+                    <SignOut size={20} weight="bold" />
+                    Sair
                 </button>
 
                 {/* Danger Zone */}

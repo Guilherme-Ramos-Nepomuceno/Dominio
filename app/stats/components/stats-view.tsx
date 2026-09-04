@@ -8,7 +8,12 @@ import { PeriodSelector } from "@/components/ui/period-selector"
 import { formatMonth, formatCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
-import { CreditCard, Wallet, Circle } from "@phosphor-icons/react"
+import { CreditCard, Wallet, Circle, Heart } from "@phosphor-icons/react"
+import { EditTransactionDialog } from "@/app/components/edit-transaction-dialog"
+import { CasalFamiliaToggle } from "@/app/components/casal-familia-toggle"
+import { FamilyTotalsView } from "@/app/components/family-totals-view"
+import { updateTransaction } from "@/lib/storage"
+import { useAccount } from "@/components/account/account-context"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -27,6 +32,11 @@ export function StatsView() {
         setSelectedMonth,
         filterType,
         setFilterType,
+        viewMode,
+        setViewMode,
+        isCoupleAccount,
+        familyTotals,
+        loadingFamilyTotals,
         transactionToCancel,
         setTransactionToCancel,
         categories,
@@ -35,8 +45,18 @@ export function StatsView() {
         sortedDates,
         confirmCancelTransaction,
         categoryAlerts,
-        handleThresholdChange
+        handleThresholdChange,
+        refresh
     } = useStatsViewModel()
+
+    const [editingTransaction, setEditingTransaction] = useState<any>(null)
+    const { family } = useAccount()
+    const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
+
+    const toggleCasal = async (transaction: any) => {
+        await updateTransaction(transaction.id, { isCasal: !transaction.isCasal })
+        refresh()
+    }
 
     const getLocalDateKey = (date: Date) => date.toLocaleDateString('sv-SE')
     const todayKey = getLocalDateKey(new Date())
@@ -77,15 +97,16 @@ export function StatsView() {
                     </button>
                 </div>
                 <div
-                    className="relative bg-card border border-border/50 hover:border-border transition-colors p-4 flex items-center justify-between z-10"
+                    className="relative bg-card border border-border/50 hover:border-border transition-colors p-4 flex items-center justify-between z-10 cursor-pointer"
                     style={{ transform: `translateX(${swipeOffset}px)`, transition: startX === null ? 'transform 0.2s ease-out' : 'none' }}
+                    onClick={() => setEditingTransaction(transaction)}
                     onTouchStart={onTouchStart}
                     onTouchMove={onTouchMove}
                     onTouchEnd={onTouchEnd}
                 >
                     <div className="flex items-center gap-4 flex-1">
-                        <div className="w-10 h-10 rounded-[0.8rem] flex items-center justify-center bg-background border border-border group-hover:bg-muted transition-colors relative" style={{ color: category?.color || "#888" }}>
-                            <IconComponent size={20} weight="duotone" />
+                        <div className="w-10 h-10 flex items-center justify-center shrink-0 relative text-muted-foreground">
+                            <IconComponent size={22} weight="duotone" />
                         </div>
                         <div>
                             <p className="font-semibold text-foreground">{transaction.description}</p>
@@ -103,6 +124,18 @@ export function StatsView() {
                                 {card && filterType === 'credit' && <span className="text-[10px] text-muted-foreground flex items-center gap-1">• {card.name}</span>}
                             </div>
                         </div>
+                        {hasCoupleAccount && transaction.type === "expense" && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); toggleCasal(transaction); }}
+                                className={cn(
+                                    "flex items-center justify-center w-7 h-7 shrink-0 transition-all",
+                                    transaction.isCasal ? "text-foreground" : "text-foreground/40 hover:text-foreground/70",
+                                )}
+                                title={transaction.isCasal ? "Despesa do casal — clique para desmarcar" : "Marcar como despesa do casal"}
+                            >
+                                <Heart size={18} weight="fill" />
+                            </button>
+                        )}
                     </div>
                     <div className="text-right flex items-center gap-4">
                         <div>
@@ -127,6 +160,14 @@ export function StatsView() {
             <PeriodSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} className="mb-4" />
             <PageHeader title={formatMonth(selectedMonth)} subtitle="Análise detalhada dos seus gastos" />
 
+            {isCoupleAccount && <CasalFamiliaToggle viewMode={viewMode} onChange={setViewMode} />}
+
+            {viewMode === "familia" ? (
+                <div className="pb-10">
+                    <FamilyTotalsView loading={loadingFamilyTotals} totals={familyTotals} />
+                </div>
+            ) : (
+                <>
             {categoryAlerts.length > 0 && filterType === 'all' && (
                 <div className="mb-6 space-y-2">
                     {categoryAlerts.map((alert, idx) => (
@@ -186,6 +227,14 @@ export function StatsView() {
                     </div>
                 )}
             </div>
+                </>
+            )}
+
+            <EditTransactionDialog
+                transaction={editingTransaction}
+                onClose={() => setEditingTransaction(null)}
+                onSaved={() => { setEditingTransaction(null); refresh(); }}
+            />
 
             <AlertDialog open={!!transactionToCancel} onOpenChange={() => setTransactionToCancel(null)}>
                 <AlertDialogContent>

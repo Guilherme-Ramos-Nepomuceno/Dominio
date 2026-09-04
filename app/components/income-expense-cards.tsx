@@ -12,6 +12,9 @@ interface IncomeExpenseCardsProps {
   income: number
   expense: number
   transactions?: any[]
+  // Histórico completo (sem recorte de mês) usado pelo gráfico semanal, para que dias
+  // de uma semana que cai em dois meses diferentes não fiquem zerados.
+  allTransactions?: any[]
   period: PeriodType
   onPeriodChange: (period: PeriodType) => void
 }
@@ -20,9 +23,11 @@ export function IncomeExpenseCards({
   income,
   expense,
   transactions = [],
+  allTransactions,
   period,
   onPeriodChange,
 }: IncomeExpenseCardsProps) {
+  const weekChartSource = period === "week" && allTransactions ? allTransactions : transactions
   const [expenseView, setExpenseView] = useState<"all" | "credit">("all")
 
   const [allHistory, setAllHistory] = useState<Transaction[]>([])
@@ -44,12 +49,19 @@ export function IncomeExpenseCards({
     if (expenseView === "all") {
         return {
             displayedExpenseValue: expense,
-            processedExpenseTransactions: transactions.filter(t => t.type === 'expense')
+            processedExpenseTransactions: weekChartSource.filter(t => t.type === 'expense')
         }
     }
 
-    const creditCards = cards.filter(c => c.type === 'credit').map(c => c.id)
-    const creditHistory = allHistory.filter(t => creditCards.includes(t.cardId || "") && t.type === 'expense')
+    const creditCards = cards.filter(c => c.hasCredit).map(c => c.id)
+    // Cartão combinado (crédito + débito): só o lado marcado como crédito conta
+    // como fatura pendente — o lado débito não é fatura.
+    const creditHistory = allHistory.filter(t => {
+        if (!creditCards.includes(t.cardId || "") || t.type !== 'expense') return false
+        const card = cards.find(c => c.id === t.cardId)
+        if (card?.hasDebit) return t.paymentMethod === "credit"
+        return true
+    })
     
     const now = new Date()
     const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -107,7 +119,7 @@ export function IncomeExpenseCards({
         processedExpenseTransactions: finalFiltered
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, expense, expenseView, period, allHistory, cards])
+  }, [weekChartSource, expense, expenseView, period, allHistory, cards])
 
 
   // 2. Geração dos Gráficos (MANTIDA IGUAL)
@@ -158,10 +170,10 @@ export function IncomeExpenseCards({
     }
 
     return {
-        incomeChartData: processTransactions(transactions, "income"),
+        incomeChartData: processTransactions(weekChartSource, "income"),
         expenseChartData: processTransactions(processedExpenseTransactions, "expense")
     }
-  }, [transactions, processedExpenseTransactions, period])
+  }, [weekChartSource, processedExpenseTransactions, period])
 
   return (
     <div className="space-y-4 mt-4">

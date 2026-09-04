@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { CaretLeftIcon, CaretRightIcon, CircleNotchIcon, TrendUpIcon } from "@phosphor-icons/react"
 import { getCategories, getSettings, getTransactions } from "@/lib/storage"
+import { isInternalTransfer } from "@/hooks/use-transactions"
 import type { Transaction, Category } from "@/lib/types"
 import { formatCurrency, formatShortMonth, getNextMonth, getPreviousMonth } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
@@ -17,8 +18,16 @@ interface StackedBarChartProps {
 interface CategoryData {
   categoryId: string
   name: string
-  color: string
   amount: number
+}
+
+// Todas as fatias usam o mesmo tom (--expense); a intensidade decresce por
+// posição no ranking (maior gasto = mais opaco), formando uma escala tipo heatmap.
+const MIN_SEGMENT_OPACITY = 0.32
+
+function segmentIntensity(rank: number, total: number) {
+  if (total <= 1) return 1
+  return 1 - (rank / (total - 1)) * (1 - MIN_SEGMENT_OPACITY)
 }
 
 export function StackedBarChart({
@@ -36,7 +45,7 @@ export function StackedBarChart({
 
   const [isEditingThreshold, setIsEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState("")
-  const [activeSegment, setActiveSegment] = useState<{ month: string, categoryId: string } | null>(null)
+  const [activeColumn, setActiveColumn] = useState<string | null>(null)
   
   const chartRef = useRef<HTMLDivElement>(null)
 
@@ -70,7 +79,7 @@ export function StackedBarChart({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (chartRef.current && !chartRef.current.contains(event.target as Node)) {
-        setActiveSegment(null)
+        setActiveColumn(null)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -105,6 +114,7 @@ export function StackedBarChart({
     allTransactions.forEach((transaction) => {
       if (transaction.type !== 'expense') return
       if (transaction.status === 'cancelled') return
+      if (isInternalTransfer(categories, transaction)) return
 
       const transDate = new Date(transaction.date)
       const transYear = transDate.getFullYear()
@@ -135,7 +145,6 @@ export function StackedBarChart({
           result.push({
             categoryId: category.id,
             name: category.name,
-            color: category.color,
             amount: amountToAdd,
           })
         }
@@ -172,7 +181,7 @@ export function StackedBarChart({
   const thresholdPercentage = Math.min((threshold / maxValue) * 100, 100)
 
   const renderColumn = (monthData: typeof chartData[0], index: number) => {
-    const isColumnActive = activeSegment?.month === monthData.month
+    const isColumnActive = activeColumn === monthData.month
     
     // CORREÇÃO 1: Em telas pequenas (mobile), escondemos o primeiro (0) e o último (4) mês.
     // Isso libera espaço para os textos de valores altos não quebrarem o layout.
@@ -193,9 +202,9 @@ export function StackedBarChart({
           
           <div className={cn(
             "w-12 sm:w-14 h-full flex flex-col-reverse justify-start relative transition-transform duration-300 group-hover/column:scale-[1.02]",
-            isColumnActive ? "z-50" : "group-hover/column:z-50"
+            isColumnActive ? "z-50 brightness-110" : "group-hover/column:z-50"
           )}>
-            
+
             {monthData.categories.length === 0 ? (
                <div className="h-1 w-full bg-border/50 rounded-full mb-0" />
             ) : (
@@ -204,7 +213,7 @@ export function StackedBarChart({
                 const isTop = index === monthData.categories.length - 1
                 const isBottom = index === 0
 
-                const isSegmentActive = isColumnActive && activeSegment?.categoryId === cat.categoryId
+                const intensity = segmentIntensity(index, monthData.categories.length)
 
                 if (heightPercentage <= 0) return null;
 
@@ -213,37 +222,30 @@ export function StackedBarChart({
                     key={cat.categoryId}
                     onClick={(e) => {
                         e.stopPropagation()
-                        if (isSegmentActive) {
-                            setActiveSegment(null)
-                        } else {
-                            setActiveSegment({ month: monthData.month, categoryId: cat.categoryId })
-                        }
+                        setActiveColumn(isColumnActive ? null : monthData.month)
                     }}
                     className={cn(
                         "relative w-full transition-all duration-300 hover:brightness-110 group/segment cursor-pointer",
-                        "hover:z-20", 
-                        isSegmentActive && "z-30 brightness-110",
+                        "hover:z-20",
                         isTop ? "rounded-t-[6px]" : "",
                         isBottom ? "rounded-b-[6px]" : "",
                         !isBottom ? "border-b-2 border-card" : ""
                     )}
                     style={{
-                      backgroundColor: cat.color,
+                      backgroundColor: "var(--expense)",
                       height: `${heightPercentage}%`,
-                      opacity: monthData.isCurrent ? 1 : 0.6,
+                      opacity: intensity * (monthData.isCurrent ? 1 : 0.6),
                     }}
                   >
-                    {/* Tooltip */}
+                    {/* Tooltip individual (hover, desktop) */}
                     <div className={cn(
                         "absolute left-1/2 -translate-x-1/2 bottom-[110%] transition-all duration-200 pointer-events-none min-w-35",
-                        "z-100",
-                        isSegmentActive 
-                            ? "opacity-100 translate-y-0 scale-100" 
-                            : "opacity-0 translate-y-2 scale-95 group-hover/segment:opacity-100 group-hover/segment:translate-y-0 group-hover/segment:scale-100"
+                        "z-100 opacity-0 translate-y-2 scale-95",
+                        "group-hover/segment:opacity-100 group-hover/segment:translate-y-0 group-hover/segment:scale-100"
                     )}>
                         <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-4 py-3 shadow-2xl relative">
                             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--expense)", opacity: intensity }} />
                                 <p className="text-xs font-medium text-gray-300 truncate max-w-25">{cat.name}</p>
                             </div>
                             <div className="flex justify-between items-end gap-4">
@@ -262,6 +264,44 @@ export function StackedBarChart({
                   </div>
                 )
               })
+            )}
+
+            {/* Tooltip agregado (clique, mobile) — todos os gastos do mês, um embaixo do outro */}
+            {monthData.categories.length > 0 && (
+              <div
+                  className={cn(
+                      "absolute left-1/2 -translate-x-1/2 transition-all duration-200 min-w-40 max-w-56",
+                      "z-100",
+                      isColumnActive
+                          ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
+                          : "opacity-0 translate-y-2 scale-95 pointer-events-none"
+                  )}
+                  style={{ bottom: `calc(${(monthData.total / maxValue) * 100}% + 8px)` }}
+              >
+                  <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-3 py-3 shadow-2xl max-h-64 overflow-y-auto">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2 pb-2 border-b border-white/10">
+                          {monthData.label} · Total {formatCurrency(monthData.total)}
+                      </p>
+                      <div className="space-y-2">
+                          {monthData.categories.slice().reverse().map((cat, i) => {
+                              const catIndex = monthData.categories.length - 1 - i
+                              const catIntensity = segmentIntensity(catIndex, monthData.categories.length)
+                              return (
+                                  <div key={cat.categoryId} className="flex items-center justify-between gap-3">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "var(--expense)", opacity: catIntensity }} />
+                                          <span className="text-xs text-gray-200 truncate">{cat.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                          <span className="text-xs font-bold">{formatCurrency(cat.amount)}</span>
+                                          <span className="text-[10px] text-gray-400 w-8 text-right">{((cat.amount / monthData.total) * 100).toFixed(0)}%</span>
+                                      </div>
+                                  </div>
+                              )
+                          })}
+                      </div>
+                  </div>
+              </div>
             )}
           </div>
         </div>
@@ -337,7 +377,7 @@ export function StackedBarChart({
       </div>
 
       {/* Gráfico */}
-      <div className="relative mt-4 z-10">
+      <div className="relative mt-4 z-30">
         
         {/* Layer de Fundo e Meta */}
         <div className="absolute top-0 left-0 right-0 h-64 pointer-events-none z-0">

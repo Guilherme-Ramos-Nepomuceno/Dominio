@@ -1,5 +1,5 @@
 import type { BankName } from "./types"
-import { BankIcon, CreditCardIcon,  } from "@phosphor-icons/react"
+import { BankIcon, CreditCardIcon, MoneyIcon } from "@phosphor-icons/react"
 
 export const bankColors: Record<BankName, string> = {
   nubank: "#8A05BE",
@@ -11,6 +11,7 @@ export const bankColors: Record<BankName, string> = {
   bb: "#FDB913",
   alelo: "#04af2a",
   other: "#6B7280",
+  cash: "#22c55e",
 }
 
 export const bankLogos: Record<BankName, string> = {
@@ -23,6 +24,7 @@ export const bankLogos: Record<BankName, string> = {
   bb: "BB",
   alelo: "Alelo",
   other: "Outro",
+  cash: "Dinheiro",
 }
 
 export const getBankIcon = (bankName: BankName) => {
@@ -36,6 +38,7 @@ export const getBankIcon = (bankName: BankName) => {
     bb: BankIcon,
     alelo: BankIcon,
     other: CreditCardIcon,
+    cash: MoneyIcon,
   }
 
   return iconMap[bankName] || CreditCardIcon

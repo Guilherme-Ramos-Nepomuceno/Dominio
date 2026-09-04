@@ -46,7 +46,11 @@ export function usePendingViewModel() {
         const filtered = pendingTransactions.filter((t) => {
             if (t.cardId) {
                 const card = cards.find((c) => c.id === t.cardId)
-                if (card?.type === "credit") return false
+                if (card?.hasCredit) {
+                    // Cartão só-crédito: tudo é fatura. Cartão combinado: só o lado
+                    // crédito vai pra fatura — o lado débito continua pendência normal.
+                    if (!card.hasDebit || t.paymentMethod === "credit") return false
+                }
             }
             return true
         })
@@ -63,7 +67,11 @@ export function usePendingViewModel() {
                 return
             }
 
-            const groupId = t.parentId || t.description
+            // A 1ª parcela/ocorrência não tem parentId (ela É a raiz) — usar o próprio id
+            // como chave garante que ela caia no mesmo grupo das demais, que referenciam
+            // esse id via parentId. Usar a descrição como fallback juntava só as demais
+            // ocorrências entre si, deixando a raiz sempre visível junto com a próxima.
+            const groupId = t.parentId || t.id
             const existing = grouped.get(groupId)
 
             if (!existing || new Date(t.date) < new Date(existing.date)) {
@@ -167,6 +175,7 @@ export function usePendingViewModel() {
         handleMarkAsPaid,
         confirmPayment,
         confirmCancel,
-        confirmCancelRecurrence
+        confirmCancelRecurrence,
+        refresh: loadData,
     }
 }

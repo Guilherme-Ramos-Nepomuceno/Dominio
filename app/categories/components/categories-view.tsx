@@ -1,11 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import { Plus, Folders } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { CategoryItem } from "./category-item"
 import { AddCategoryDialog } from "./add-category-dialog"
+import { CategoryHistoryDialog } from "./category-history-dialog"
 import { cn } from "@/lib/utils"
+import type { Category } from "@/lib/types"
 import { useCategoriesViewModel } from "../hooks/use-categories-view-model"
 
 export function CategoriesView() {
@@ -22,6 +25,8 @@ export function CategoriesView() {
         incomeCategories,
         expenseCategories
     } = useCategoriesViewModel()
+
+    const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
 
     return (
         <AppLayout>
@@ -89,6 +94,7 @@ export function CategoriesView() {
                                     percentage={categoryStats[category.id]?.percentage || 0}
                                     categoryGoals={categoryGoals}
                                     onDelete={handleDelete}
+                                    onClick={setSelectedCategory}
                                 />
                             ))}
                         </div>
@@ -109,6 +115,7 @@ export function CategoriesView() {
                                     percentage={categoryStats[category.id]?.percentage || 0}
                                     categoryGoals={categoryGoals}
                                     onDelete={handleDelete}
+                                    onClick={setSelectedCategory}
                                 />
                             ))}
                         </div>
@@ -140,6 +147,7 @@ export function CategoriesView() {
             )}
 
             <AddCategoryDialog isOpen={isDialogOpen} onClose={() => setIsDialogOpen(false)} onSuccess={loadCategories} />
+            <CategoryHistoryDialog category={selectedCategory} onClose={() => setSelectedCategory(null)} />
         </AppLayout>
     )
 }

@@ -23,11 +23,24 @@ const DEFAULT_CATEGORIES: Omit<Category, "id">[] = [
   { name: "Transferência", color: "#3b82f6", type: "income", icon: "HandArrowDown" },
   { name: "Transferência", color: "#3b82f6", type: "expense", icon: "HandArrowUp" },
   { name: "Investimento", color: "#8b5cf6", type: "expense", icon: "PiggyBank" },
+  { name: "Saque", color: "#3b82f6", type: "income", icon: "HandCoins" },
   { name: "Alimentação", color: "#f87171", type: "expense", icon: "ForkKnife" },
   { name: "Transporte", color: "#fb923c", type: "expense", icon: "Car" },
   { name: "Moradia", color: "#ef4444", type: "expense", icon: "House" },
   { name: "Lazer", color: "#a78bfa", type: "expense", icon: "GameController" },
 ]
+
+// Toda conta nova (pessoal ou do casal) já vem com uma carteira "Dinheiro" —
+// usada para lançamentos pagos ou recebidos fisicamente, sem passar por banco/cartão.
+const DEFAULT_CASH_CARD: Omit<Card, "id" | "createdAt"> = {
+  name: "Dinheiro",
+  bankName: "cash",
+  lastDigits: "0000",
+  hasCredit: false,
+  hasDebit: true,
+  kind: "checking",
+  color: "#22c55e",
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   spendingGoal: 5000,
@@ -150,13 +163,16 @@ function mapCardFromApi(c: any): Card {
     name: c.name,
     bankName: c.bankName as BankName,
     lastDigits: c.lastDigits,
-    type: String(c.type).toLowerCase() as Card["type"],
+    hasCredit: !!c.hasCredit,
+    hasDebit: !!c.hasDebit,
+    kind: String(c.kind ?? "CARD").toLowerCase() as Card["kind"],
     color: c.color,
     limit: c.limit != null ? Number(c.limit) : undefined,
     dueDate: c.dueDate ?? undefined,
     createdAt: c.createdAt,
     spentAmount: c.spentAmount != null ? Number(c.spentAmount) : undefined,
     calculatedBalance: c.calculatedBalance != null ? Number(c.calculatedBalance) : undefined,
+    investmentTotal: c.investmentTotal != null ? Number(c.investmentTotal) : undefined,
   }
 }
 
@@ -165,17 +181,51 @@ function mapCardToApi(c: Partial<Card>) {
   if (c.name !== undefined) body.name = c.name
   if (c.bankName !== undefined) body.bankName = c.bankName
   if (c.lastDigits !== undefined) body.lastDigits = c.lastDigits
-  if (c.type !== undefined) body.type = c.type.toUpperCase()
+  if (c.hasCredit !== undefined) body.hasCredit = c.hasCredit
+  if (c.hasDebit !== undefined) body.hasDebit = c.hasDebit
+  if (c.kind !== undefined) body.kind = c.kind.toUpperCase()
   if (c.color !== undefined) body.color = c.color
   if (c.limit !== undefined) body.limit = c.limit
   if (c.dueDate !== undefined) body.dueDate = c.dueDate
   return body
 }
 
+// Evita que múltiplos componentes montando ao mesmo tempo disparem a criação
+// da carteira "Dinheiro" em paralelo (mesmo problema do seeding de categorias).
+let cardSeedingPromise: Promise<Card[]> | null = null
+
+// Ver comentário equivalente em getMemberTransactionsMapped — cartões de um
+// parceiro específico, usado para escolher o destino de uma transferência para
+// a conta dele (Transferir > Enviar para o cônjuge).
+export async function getMemberCardsMapped(memberId: string): Promise<Card[]> {
+  const raw = await familyApi.getMemberCards(memberId)
+  return (raw || []).map(mapCardFromApi)
+}
+
 export async function getCards(): Promise<Card[]> {
   const ctx = getActiveAccountSelection()
   const raw = ctx.type === "partner" ? await familyApi.getMemberCards(ctx.id) : await fetchApi("/cards")
-  return (raw || []).map(mapCardFromApi)
+  const cards = (raw || []).map(mapCardFromApi)
+
+  if (cards.length === 0 && ctx.type !== "partner") {
+    if (!cardSeedingPromise) {
+      cardSeedingPromise = seedDefaultCashCard().finally(() => {
+        cardSeedingPromise = null
+      })
+    }
+    return cardSeedingPromise
+  }
+
+  return cards
+}
+
+async function seedDefaultCashCard(): Promise<Card[]> {
+  try {
+    return [await addCard(DEFAULT_CASH_CARD)]
+  } catch (error) {
+    console.error("Failed to seed default cash card:", error)
+    return []
+  }
 }
 
 export async function addCard(card: Omit<Card, "id" | "createdAt">): Promise<Card> {
@@ -192,6 +242,16 @@ export async function updateCard(id: string, updates: Partial<Card>): Promise<vo
 export async function deleteCard(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/cards/${id}`, { method: "DELETE" })
+}
+
+// Mescla `mergeCardId` para dentro de `id` — transações e reservas do cartão
+// mesclado passam a pertencer a este, as capacidades (crédito/débito) se somam,
+// e o cartão mesclado é removido.
+export async function mergeCards(id: string, mergeCardId: string): Promise<Card> {
+  assertWritable()
+  const merged = await fetchApi(`/cards/${id}/merge`, { method: "POST", body: JSON.stringify({ mergeCardId }) })
+  notifyStorageUpdate()
+  return mapCardFromApi(merged)
 }
 
 export async function getAccountBalance(cardId: string): Promise<number> {
@@ -217,6 +277,8 @@ function mapTransactionFromApi(t: any): Transaction {
     parentId: t.parentId ?? undefined,
     status: String(t.status || "PAID").toLowerCase() as TransactionStatus,
     cardId: t.cardId ?? undefined,
+    paymentMethod: t.paymentMethod ? (String(t.paymentMethod).toLowerCase() as Transaction["paymentMethod"]) : undefined,
+    isCasal: !!t.isCasal,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -235,6 +297,8 @@ function mapTransactionToApi(t: Partial<Transaction>) {
   if (t.currentInstallment !== undefined) body.currentInstallment = t.currentInstallment
   if (t.categoryId !== undefined) body.categoryId = t.categoryId
   if (t.cardId !== undefined) body.cardId = t.cardId
+  if (t.paymentMethod !== undefined) body.paymentMethod = t.paymentMethod.toUpperCase()
+  if (t.isCasal !== undefined) body.isCasal = t.isCasal
   return body
 }
 
@@ -246,6 +310,13 @@ async function createTransactionApi(data: Partial<Transaction>): Promise<Transac
 export async function getTransactions(): Promise<Transaction[]> {
   const ctx = getActiveAccountSelection()
   const raw = ctx.type === "partner" ? await familyApi.getMemberTransactions(ctx.id) : await fetchApi("/transactions")
+  return (raw || []).map(mapTransactionFromApi)
+}
+
+// Busca o histórico COMPLETO (não só o isCasal) de um membro específico da família —
+// usado para consolidar a visão "Total da Família", que soma tudo dos dois parceiros.
+export async function getMemberTransactionsMapped(memberId: string): Promise<Transaction[]> {
+  const raw = await familyApi.getMemberTransactions(memberId)
   return (raw || []).map(mapTransactionFromApi)
 }
 
@@ -263,13 +334,29 @@ export async function addTransaction(
   const isOriginalFuture = transactionDate > today
 
   const selectedCard = transaction.cardId ? cards.find((c) => c.id === transaction.cardId) : null
-  const isCreditCard = selectedCard?.type === "credit"
+  const isComboCard = !!selectedCard?.hasCredit && !!selectedCard?.hasDebit
+
+  // Cartão de um tipo só: o lado é implícito, não precisa perguntar. Cartão
+  // combinado (crédito + débito): respeita a escolha explícita de quem chamou
+  // (o formulário mostra os dois botões só nesse caso) — sem escolha, não dá
+  // pra saber de que lado é, então não assume nenhum dos dois.
+  const paymentMethod: Transaction["paymentMethod"] = isComboCard
+    ? transaction.paymentMethod
+    : selectedCard?.hasCredit
+      ? "credit"
+      : selectedCard?.hasDebit
+        ? "debit"
+        : undefined
+
+  const isCreditCard = paymentMethod === "credit"
 
   const initialStatus: TransactionStatus = transaction.status
     ? transaction.status
     : isCreditCard || isOriginalFuture
       ? "pending"
       : "paid"
+
+  transaction = { ...transaction, paymentMethod }
 
   // --- Parcelamento: cria a 1ª parcela, depois as demais referenciando o id real dela ---
   if (transaction.installments && transaction.installments > 1) {
@@ -497,8 +584,9 @@ function mapSavingsFromApi(s: any): SavingsGoal {
     targetAmount: Number(s.targetAmount),
     currentAmount: Number(s.currentAmount),
     color: colorForId(s.id),
-    icon: "PiggyBank",
+    icon: s.icon ?? "PiggyBank",
     cardId: s.cardId ?? undefined,
+    isCasal: !!s.isCasal,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   }
@@ -510,12 +598,21 @@ function mapSavingsToApi(s: Partial<SavingsGoal>) {
   if (s.targetAmount !== undefined) body.targetAmount = s.targetAmount
   if (s.currentAmount !== undefined) body.currentAmount = s.currentAmount
   if (s.cardId !== undefined) body.cardId = s.cardId
+  if (s.icon !== undefined) body.icon = s.icon
+  if (s.isCasal !== undefined) body.isCasal = s.isCasal
   return body
 }
 
 export async function getSavingsGoals(): Promise<SavingsGoal[]> {
   const ctx = getActiveAccountSelection()
   const raw = ctx.type === "partner" ? await familyApi.getMemberSavings(ctx.id) : await fetchApi("/savings")
+  return (raw || []).map(mapSavingsFromApi)
+}
+
+// Ver comentário equivalente em getMemberTransactionsMapped — todas as reservas de
+// um parceiro (não só as isCasal), para a visão "Total da Família".
+export async function getMemberSavingsMapped(memberId: string): Promise<SavingsGoal[]> {
+  const raw = await familyApi.getMemberSavings(memberId)
   return (raw || []).map(mapSavingsFromApi)
 }
 
@@ -535,57 +632,27 @@ export async function deleteSavingsGoal(id: string): Promise<void> {
   await fetchApi(`/savings/${id}`, { method: "DELETE" })
 }
 
-export async function addFundsToSavingsGoal(goalId: string, amount: number, cardId?: string): Promise<void> {
-  assertWritable()
-  const goals = await getSavingsGoals()
-  const targetGoal = goals.find((g) => g.id === goalId)
-  const finalCardId = cardId || targetGoal?.cardId
-
-  await updateSavingsGoal(goalId, {
-    currentAmount: (targetGoal?.currentAmount || 0) + amount,
-    cardId: finalCardId,
-  })
-
-  if (finalCardId) {
-    const categoryId = await ensureSystemCategory("Investimento", "expense", "#8b5cf6", "PiggyBank")
-    await addTransaction({
-      description: `Transferência para reserva: ${targetGoal?.name || "Meta"}`,
-      amount,
-      type: "expense",
-      categoryId,
-      date: new Date().toISOString(),
-      recurrence: "none",
-      cardId: finalCardId,
-      status: "paid",
-    })
-  } else {
-    console.warn("Transação de reserva criada sem conta vinculada (saldo não será afetado).")
-  }
-}
-
-export async function removeFundsFromSavingsGoal(goalId: string, amount: number, cardId?: string): Promise<void> {
+// Ajusta o saldo de uma reserva quando uma transação da categoria "Investimento"
+// é lançada pelo fluxo normal de Nova Transação — despesa soma (dinheiro indo pra
+// reserva), receita subtrai (retirada da reserva). A transação em si já é criada
+// pelo TransactionForm; esta função só atualiza o valor acumulado da reserva.
+export async function applySavingsGoalDelta(
+  goalId: string,
+  amount: number,
+  direction: "add" | "remove",
+  cardId?: string,
+): Promise<void> {
   assertWritable()
   const goals = await getSavingsGoals()
   const goal = goals.find((g) => g.id === goalId)
-  if (!goal || goal.currentAmount < amount) return
+  if (!goal) return
 
-  const finalCardId = cardId || goal.cardId
+  const newAmount = direction === "add" ? goal.currentAmount + amount : Math.max(0, goal.currentAmount - amount)
 
-  await updateSavingsGoal(goalId, { currentAmount: goal.currentAmount - amount })
+  const updates: Partial<SavingsGoal> = { currentAmount: newAmount }
+  if (cardId && !goal.cardId) updates.cardId = cardId
 
-  if (finalCardId) {
-    const categoryId = await ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown")
-    await addTransaction({
-      description: `Retirada da reserva: ${goal.name}`,
-      amount,
-      type: "income",
-      categoryId,
-      date: new Date().toISOString(),
-      recurrence: "none",
-      cardId: finalCardId,
-      status: "paid",
-    })
-  }
+  await updateSavingsGoal(goalId, updates)
 }
 
 export { ensureSystemCategory, isReadOnly }

@@ -20,8 +20,6 @@ export function SavingsView() {
         handleAddGoal,
         handleEdit,
         handleSaveEdit,
-        handleAddFunds,
-        handleRemoveFunds,
         handleDelete,
         totalSaved,
         totalTarget
@@ -71,8 +69,6 @@ export function SavingsView() {
                         <SavingsGoalCard
                             key={goal.id}
                             goal={goal}
-                            onAddFunds={handleAddFunds}
-                            onRemoveFunds={handleRemoveFunds}
                             onDelete={handleDelete}
                             onEdit={handleEdit}
                         />

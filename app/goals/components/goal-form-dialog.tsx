@@ -90,7 +90,7 @@ export function GoalFormDialog({ isOpen, onClose, onSave, initialGoal }: GoalFor
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-card rounded-[20px] shadow-2xl border border-border max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card rounded-t-[20px]">

@@ -6,6 +6,8 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { CardItem } from "./card-item"
 import { AddCardDialog } from "./add-card-dialog"
+import { EditCardDialog } from "./edit-card-dialog"
+import { MergeCardDialog } from "./merge-card-dialog"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -16,6 +18,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useAccount } from "@/components/account/account-context"
 import { useCardsViewModel } from "../hooks/use-cards-view-model"
 
 export function CardsView() {
@@ -24,10 +27,17 @@ export function CardsView() {
         setIsDialogOpen,
         cardToDelete,
         setCardToDelete,
+        editingCard,
+        setEditingCard,
+        mergingCard,
+        setMergingCard,
         processedCards,
         confirmDeleteCard,
-        handleCreateSuccess
+        handleCreateSuccess,
+        handleSaveEdit,
+        handleMerge,
     } = useCardsViewModel()
+    const { isReadOnly } = useAccount()
 
     return (
         <AppLayout>
@@ -51,26 +61,49 @@ export function CardsView() {
                         spent={card.spentAmount}
                         balance={card.calculatedBalance}
                         savingsGoals={card.cardGoals}
-                        onDelete={(id) => setCardToDelete(id)}
+                        onDelete={isReadOnly ? undefined : (id) => setCardToDelete(id)}
+                        onEdit={isReadOnly ? undefined : (c) => setEditingCard(c)}
+                        onMerge={isReadOnly ? undefined : (c) => setMergingCard(c)}
+                        readOnly={isReadOnly}
                     />
                 ))}
 
-                <button
-                    onClick={() => setIsDialogOpen(true)}
-                    className="min-h-[220px] rounded-[2rem] border-2 border-dashed border-foreground/40 flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all duration-300 group"
-                >
-                    <div className="w-14 h-14 rounded-full bg-foreground/40 group-hover:bg-foreground flex items-center justify-center transition-colors">
-                        <Plus weight="bold" size={24} className="text-background" />
-                    </div>
-                    <span className="font-medium">Adicionar Cartão</span>
-                </button>
+                {!isReadOnly && (
+                    <button
+                        onClick={() => setIsDialogOpen(true)}
+                        className="min-h-[220px] rounded-[2rem] border-2 border-dashed border-foreground/40 flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all duration-300 group"
+                    >
+                        <div className="w-14 h-14 rounded-full bg-foreground/40 group-hover:bg-foreground flex items-center justify-center transition-colors">
+                            <Plus weight="bold" size={24} className="text-background" />
+                        </div>
+                        <span className="font-medium">Adicionar Cartão</span>
+                    </button>
+                )}
             </div>
 
-            <AddCardDialog
-                isOpen={isDialogOpen}
-                onClose={() => setIsDialogOpen(false)}
-                onSuccess={handleCreateSuccess}
-            />
+            {!isReadOnly && (
+                <>
+                    <AddCardDialog
+                        isOpen={isDialogOpen}
+                        onClose={() => setIsDialogOpen(false)}
+                        onSuccess={handleCreateSuccess}
+                    />
+
+                    <EditCardDialog
+                        key={editingCard?.id ?? "none"}
+                        card={editingCard}
+                        onSave={handleSaveEdit}
+                        onClose={() => setEditingCard(null)}
+                    />
+
+                    <MergeCardDialog
+                        card={mergingCard}
+                        otherCards={processedCards.filter((c) => c.id !== mergingCard?.id)}
+                        onMerge={handleMerge}
+                        onClose={() => setMergingCard(null)}
+                    />
+                </>
+            )}
 
             <AlertDialog open={!!cardToDelete} onOpenChange={() => setCardToDelete(null)}>
                 <AlertDialogContent>
