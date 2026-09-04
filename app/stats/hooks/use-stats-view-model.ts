@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { useMonthData } from "@/hooks/use-transactions"
+import { useMonthData, isInternalTransfer } from "@/hooks/use-transactions"
+import { useFamilyTotals } from "@/hooks/use-family-totals"
 import { getCurrentMonth } from "@/lib/date-utils"
 import { setSettings, getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
@@ -11,9 +12,11 @@ import type { AppSettings, Category, Card, Transaction } from "@/lib/types"
 export function useStatsViewModel() {
     const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
     const [filterType, setFilterType] = useState<"all" | "credit">("all")
+    const [viewMode, setViewMode] = useState<"casal" | "familia">("casal")
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
 
     const { toast } = useToast()
+    const { isCoupleAccount, familyTotals, loadingFamilyTotals } = useFamilyTotals(selectedMonth, viewMode === "familia")
 
     const monthData = useMonthData(selectedMonth)
     const [settings, setSettingsState] = useState<AppSettings>({ spendingGoal: 0, currency: "BRL", firstDayOfWeek: 0, categoryGoals: [] })
@@ -48,9 +51,16 @@ export function useStatsViewModel() {
 
         if (filterType === "credit") {
             const creditTransactions: any[] = []
-            const creditCards = cards.filter(c => c.type === "credit")
+            const creditCards = cards.filter(c => c.hasCredit)
             const creditCardIds = creditCards.map(c => c.id)
-            const allCreditHistory = allTransactions.filter(t => creditCardIds.includes(t.cardId || ""))
+            // Cartão combinado (crédito + débito): só o lado marcado como crédito
+            // entra na projeção de fatura — o lado débito não é fatura.
+            const allCreditHistory = allTransactions.filter(t => {
+                if (!t.cardId || !creditCardIds.includes(t.cardId)) return false
+                const card = cards.find(c => c.id === t.cardId)
+                if (card?.hasDebit) return t.paymentMethod === "credit"
+                return true
+            })
             const [selYear, selMonth] = selectedMonth.split("-").map(Number)
 
             allCreditHistory.forEach(t => {
@@ -112,12 +122,12 @@ export function useStatsViewModel() {
 
     const categorySpending = useMemo(() =>
         monthData.transactions
-            .filter((t) => t.type === "expense")
+            .filter((t) => t.type === "expense" && !isInternalTransfer(categories, t))
             .reduce((acc, t) => {
                 acc[t.categoryId] = (acc[t.categoryId] || 0) + t.amount
                 return acc
             }, {} as Record<string, number>),
-        [monthData.transactions])
+        [monthData.transactions, categories])
 
     const totalExpenses = useMemo(() =>
         Object.values(categorySpending).reduce((sum, val) => sum + val, 0),
@@ -139,6 +149,11 @@ export function useStatsViewModel() {
         setSelectedMonth,
         filterType,
         setFilterType,
+        viewMode,
+        setViewMode,
+        isCoupleAccount,
+        familyTotals,
+        loadingFamilyTotals,
         transactionToCancel,
         setTransactionToCancel,
         monthData,
@@ -148,6 +163,7 @@ export function useStatsViewModel() {
         sortedDates,
         confirmCancelTransaction,
         categoryAlerts,
-        handleThresholdChange
+        handleThresholdChange,
+        refresh: loadData,
     }
 }

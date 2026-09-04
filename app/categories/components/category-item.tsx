@@ -14,9 +14,10 @@ interface CategoryItemProps {
   categoryGoals: CategoryGoal[]
   icon?: React.ReactNode
   onDelete: (id: string) => void
+  onClick?: (category: Category) => void
 }
 
-export function CategoryItem({ category, totalAmount, transactionCount, percentage, categoryGoals, icon, onDelete }: CategoryItemProps) {
+export function CategoryItem({ category, totalAmount, transactionCount, percentage, categoryGoals, icon, onDelete, onClick }: CategoryItemProps) {
   const Icon = category.type === "income" ? TrendUp : TrendDown
 
   const goalData = categoryGoals.find((g) => g.categoryId === category.id)
@@ -27,17 +28,15 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
   const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
 
   return (
-    <div className="flex items-center gap-4 p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors">
+    <div
+      onClick={() => onClick?.(category)}
+      className="flex items-center gap-4 p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer"
+    >
       
-      {/* Ícone da Categoria (Alterado conforme solicitado) */}
-      <div
-        className="w-12 h-12 rounded-[1vw] flex items-center justify-center"
-        // Adicionamos 'color' aqui para o ícone herdar a cor da categoria
-        style={{ backgroundColor: category.color + "20", color: category.color }} 
-      >
-        {/* Renderiza o ícone dinâmico em vez da bolinha */}
+      {/* Ícone da Categoria */}
+      <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
         {/* @ts-ignore - Ignora erro de tipo do componente dinâmico */}
-        <CategoryIcon size={24} weight="fill" />
+        <CategoryIcon size={26} weight="duotone" />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -71,7 +70,10 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
       </div>
 
       <button
-        onClick={() => onDelete(category.id)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete(category.id)
+        }}
         className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
       >
         <TrashIcon size={18} weight="bold" />

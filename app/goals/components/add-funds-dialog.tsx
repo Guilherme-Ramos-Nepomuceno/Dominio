@@ -39,7 +39,7 @@ export function AddFundsDialog({ isOpen, onClose, goal, onAddFunds }: AddFundsDi
   const remaining = goal.targetAmount - goal.currentAmount
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-md bg-card rounded-[20px] shadow-2xl border border-border">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">

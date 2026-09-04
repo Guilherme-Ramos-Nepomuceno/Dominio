@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { useTheme } from "@/hooks/use-theme"
 import {
     getSettings,
@@ -10,12 +11,13 @@ import {
     deleteAllTransactions,
 } from "@/lib/storage"
 import type { Category, Transaction } from "@/lib/types"
-import { getCurrentUser, updateCurrentUser, type User } from "@/lib/auth"
+import { getCurrentUser, updateCurrentUser, logoutUser, type User } from "@/lib/auth"
 import { toast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 import { createFamilyInvite, createCoupleAccount as createCoupleAccountApi } from "@/lib/family"
 
 export function useSettingsViewModel() {
+    const router = useRouter()
     const { theme, toggleTheme } = useTheme()
     const { family, refreshFamily } = useAccount()
     const [spendingGoal, setSpendingGoal] = useState("")
@@ -58,6 +60,11 @@ export function useSettingsViewModel() {
         toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
     }
 
+    const handleLogout = () => {
+        logoutUser()
+        router.push("/login")
+    }
+
     const confirmClearData = async () => {
         await deleteAllTransactions()
         toast({ title: "Dados apagados!", description: "Todos os dados foram apagados com sucesso.", variant: "destructive" })
@@ -65,15 +72,40 @@ export function useSettingsViewModel() {
         window.location.reload()
     }
 
-    const handlePercentageChange = (categoryId: string, value: number) => {
-        const updated = categoryGoals.filter((g) => g.categoryId !== categoryId)
+    // Na conta do casal, `categories` traz as categorias dos dois parceiros
+    // separadas (cada um tem sua própria cópia das categorias padrão) — aqui
+    // agrupamos por nome para exibir/editar a meta uma única vez, aplicando o
+    // mesmo percentual a todos os ids subjacentes daquele nome.
+    const groupedCategories = useMemo(() => {
+        const groups = new Map<string, { id: string; name: string; icon?: string; color: string; ids: string[] }>()
+        categories.forEach((category) => {
+            const key = category.name.trim().toLowerCase()
+            const existing = groups.get(key)
+            if (existing) {
+                existing.ids.push(category.id)
+            } else {
+                groups.set(key, { id: category.id, name: category.name, icon: category.icon, color: category.color, ids: [category.id] })
+            }
+        })
+        return Array.from(groups.values())
+    }, [categories])
+
+    const handlePercentageChange = (categoryIds: string[], value: number) => {
+        const updated = categoryGoals.filter((g) => !categoryIds.includes(g.categoryId))
         if (value > 0) {
-            updated.push({ categoryId, percentage: value })
+            categoryIds.forEach((categoryId) => updated.push({ categoryId, percentage: value }))
         }
         setCategoryGoals(updated)
     }
 
-    const totalPercentage = useMemo(() => categoryGoals.reduce((sum, g) => sum + g.percentage, 0), [categoryGoals])
+    const totalPercentage = useMemo(
+        () =>
+            groupedCategories.reduce((sum, group) => {
+                const goal = categoryGoals.find((g) => group.ids.includes(g.categoryId))
+                return sum + (goal?.percentage || 0)
+            }, 0),
+        [groupedCategories, categoryGoals],
+    )
 
     const warnings = useMemo(() => {
         const warns: string[] = []
@@ -162,12 +194,14 @@ export function useSettingsViewModel() {
         setCurrency,
         categoryGoals,
         categories,
+        groupedCategories,
         showClearDialog,
         setShowClearDialog,
         user,
         setUser,
         handleUpdateProfile,
         handleSave,
+        handleLogout,
         confirmClearData,
         handlePercentageChange,
         totalPercentage,

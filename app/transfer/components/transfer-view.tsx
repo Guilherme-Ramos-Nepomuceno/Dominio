@@ -3,29 +3,31 @@
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { getBankIcon } from "@/lib/bank-icons"
-import { formatCurrency } from "@/lib/date-utils"
 import { Button } from "@/components/ui/button"
 import { ArrowRightIcon, CreditCard, WarningCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import { useTransferViewModel, QUICK_AMOUNTS } from "../hooks/use-transfer-view-model"
+import { useTransferViewModel } from "../hooks/use-transfer-view-model"
 
 export function TransferView() {
     const {
         router,
         debitCards,
+        familyMembers,
         fromCardId,
         setFromCardId,
+        toMemberId,
+        setToMemberId,
         toCardId,
         setToCardId,
+        toCardOptions,
         amount,
         handleAmountChange,
-        handleQuickAmount,
         description,
         setDescription,
         handleSubmit
     } = useTransferViewModel()
 
-    if (debitCards.length < 2) {
+    if (debitCards.length === 0) {
         return (
             <AppLayout>
                 <PageHeader title="Transferir entre Contas" subtitle="Mova valores entre seus cartões" />
@@ -38,7 +40,7 @@ export function TransferView() {
                     <div className="space-y-2 max-w-sm">
                         <h3 className="text-xl font-semibold text-foreground">Transferência indisponível</h3>
                         <p className="text-muted-foreground">
-                            Para realizar transferências entre contas, você precisa ter pelo menos <b>2 contas de débito</b> cadastradas.
+                            Para realizar transferências, você precisa ter pelo menos <b>1 conta de débito</b> cadastrada.
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
                             Nota: Cartões de crédito não realizam transferências.
@@ -105,14 +107,51 @@ export function TransferView() {
                     </div>
                 )}
 
+                {/* Destination: own accounts vs a family member's account */}
+                {fromCardId && familyMembers.length > 0 && (
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">Para quem?</label>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setToMemberId("")}
+                                className={cn(
+                                    "px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all",
+                                    !toMemberId ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted",
+                                )}
+                            >
+                                Minhas contas
+                            </button>
+                            {familyMembers.map((member) => (
+                                <button
+                                    key={member.id}
+                                    type="button"
+                                    onClick={() => setToMemberId(member.id)}
+                                    className={cn(
+                                        "px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all",
+                                        toMemberId === member.id ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted",
+                                    )}
+                                >
+                                    {member.name || member.email}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* To Card */}
                 {fromCardId && (
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Para qual conta?</label>
-                        <div className="grid grid-cols-1 gap-2">
-                            {debitCards
-                                .filter((c) => c.id !== fromCardId)
-                                .map((card) => {
+                        {toCardOptions.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-4 rounded-[1vw] border border-dashed border-border">
+                                {toMemberId
+                                    ? "Essa pessoa ainda não tem uma conta de débito cadastrada."
+                                    : "Você não tem outra conta de débito. Cadastre mais uma ou envie para um parceiro da família."}
+                            </p>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-2">
+                                {toCardOptions.map((card) => {
                                     const BankIcon = getBankIcon(card.bankName)
                                     return (
                                         <button
@@ -139,7 +178,8 @@ export function TransferView() {
                                         </button>
                                     )
                                 })}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -152,26 +192,13 @@ export function TransferView() {
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
                                 <input
                                     type="text"
-                                    inputMode="numeric"
+                                    inputMode="decimal"
                                     value={amount}
                                     onChange={(e) => handleAmountChange(e.target.value)}
                                     placeholder="0,00"
                                     className="w-full pl-12 pr-4 py-3 rounded-[1vw] bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-lg font-semibold"
                                     required
                                 />
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                {QUICK_AMOUNTS.map((value) => (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        onClick={() => handleQuickAmount(value)}
-                                        className="px-3 py-3 rounded-[1vw] bg-primary text-secondary text-sm font-medium hover:bg-primary/90 transition-colors"
-                                    >
-                                        {formatCurrency(value)}
-                                    </button>
-                                ))}
                             </div>
                         </div>
 

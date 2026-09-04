@@ -6,6 +6,8 @@ import { getCategories } from "@/lib/storage"
 import type { Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
+import { Heart } from "@phosphor-icons/react"
+import { EditTransactionDialog } from "./edit-transaction-dialog"
 
 interface RecentTransactionsProps {
   transactions: Transaction[]
@@ -14,6 +16,7 @@ interface RecentTransactionsProps {
 
 export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransactionsProps) {
   const [categories, setCategories] = useState<Category[]>([])
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -51,16 +54,15 @@ export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransac
             (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
 
           return (
-            <div
+            <button
               key={transaction.id}
-              className="flex items-center gap-4 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors"
+              type="button"
+              onClick={() => setEditingTransaction(transaction)}
+              className="w-full flex items-center gap-4 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors text-left"
             >
-              <div
-                className="w-10 h-10 rounded-[1vw] flex items-center justify-center shrink-0 bg-background"
-                style={{ color: category?.color }}
-              >
+              <div className="w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground">
                 {/* @ts-ignore - Dynamic icon component */}
-                <IconComponent size={20} weight="bold" />
+                <IconComponent size={22} weight="duotone" />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -72,16 +74,27 @@ export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransac
                       {transaction.currentInstallment}/{transaction.installments}x
                     </span>
                   )}
+                  {transaction.isCasal && (
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary">
+                      <Heart size={11} weight="fill" />
+                    </span>
+                  )}
                 </div>
               </div>
 
               <p className={cn("font-bold text-sm whitespace-nowrap text-text-primary",)}>
                 {isExpense ? "-" : "+"} {formatCurrency(transaction.amount)}
               </p>
-            </div>
+            </button>
           )
         })}
       </div>
+
+      <EditTransactionDialog
+        transaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+        onSaved={() => setEditingTransaction(null)}
+      />
     </div>
   )
 }

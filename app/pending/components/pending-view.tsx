@@ -1,12 +1,16 @@
 "use client"
 
-import { Clock, CheckCircle, XCircle, Wallet, CalendarCheck, Warning } from "@phosphor-icons/react"
+import { Clock, CheckCircle, XCircle, Wallet, CalendarCheck, Warning, Heart, Pencil } from "@phosphor-icons/react"
+import * as PhosphorIcons from "@phosphor-icons/react"
+import { useState } from "react"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
+import { EditTransactionDialog } from "@/app/components/edit-transaction-dialog"
+import type { Transaction } from "@/lib/types"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -38,8 +42,11 @@ export function PendingView() {
         handleMarkAsPaid,
         confirmPayment,
         confirmCancel,
-        confirmCancelRecurrence
+        confirmCancelRecurrence,
+        refresh
     } = usePendingViewModel()
+
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
     if (!isLoaded) {
         return (
@@ -67,6 +74,7 @@ export function PendingView() {
                             visibleTransactions.map((transaction) => {
                                 const category = categories.find((c) => c.id === transaction.categoryId)
                                 const isExpense = category?.type === "expense"
+                                const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
                                 const linkedCard = transaction.cardId ? cards.find(c => c.id === transaction.cardId) : null
                                 const totalInst = transaction.installments || 1
                                 const paidInst = transaction.paidInstallments || 0
@@ -75,23 +83,25 @@ export function PendingView() {
                                 const installmentLabel = isInstallment ? `${currentInst}/${totalInst}` : transaction.recurrence === "monthly" ? "Mensal" : null
 
                                 return (
-                                    <div key={transaction.id} className="p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors">
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div className="flex items-start gap-3 flex-1">
-                                                <div className="w-12 h-12 rounded-[1vw] flex items-center justify-center shrink-0" style={{ backgroundColor: category?.color + "20" }}>
-                                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category?.color }} />
+                                    <div key={transaction.id} className="p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors overflow-hidden">
+                                        <div className="flex items-start justify-between gap-2 mb-3">
+                                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
+                                                    {/* @ts-ignore - Dynamic icon component */}
+                                                    <CategoryIcon size={26} weight="duotone" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-semibold text-foreground truncate">{transaction.description}</p>
                                                     <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                        <p className="text-sm text-muted-foreground">{category?.name}</p>
+                                                        <p className="text-sm text-muted-foreground truncate max-w-full">{category?.name}</p>
                                                         {installmentLabel && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">{installmentLabel}</span>}
                                                         {linkedCard && <span className="text-[10px] flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20"><Wallet size={10} weight="fill" />{linkedCard.name}</span>}
+                                                        {transaction.isCasal && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary"><Heart size={11} weight="fill" /></span>}
                                                     </div>
                                                     <p className="text-xs text-muted-foreground mt-1 capitalize">Vencimento: {formatDate(transaction.date)}</p>
                                                 </div>
                                             </div>
-                                            <p className={cn("font-bold text-lg text-text-primary")}>{isExpense ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
+                                            <p className={cn("font-bold text-lg text-text-primary text-right break-words shrink min-w-0 max-w-[45%]")}>{isExpense ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
                                         </div>
 
                                         {selectedTransaction === transaction.id ? (
@@ -115,7 +125,7 @@ export function PendingView() {
                                                                 return (
                                                                     <button key={card.id} type="button" onClick={() => setSelectedCard(card.id)} className={cn("flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all", selectedCard === card.id ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-background hover:bg-muted")}>
                                                                         <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: card.color + "20" }}><BankIcon size={24} color={card.color} weight="fill" /></div>
-                                                                        <div className="flex-1 text-left"><p className="text-sm font-medium text-foreground">{card.name}</p><div className="flex items-center gap-2"><span className="text-[10px] bg-muted px-1 rounded">{card.type === 'credit' ? 'Crédito' : 'Débito'}</span></div></div>
+                                                                        <div className="flex-1 text-left"><p className="text-sm font-medium text-foreground">{card.name}</p><div className="flex items-center gap-2"><span className="text-[10px] bg-muted px-1 rounded">{card.hasCredit && card.hasDebit ? 'Crédito + Débito' : card.hasCredit ? 'Crédito' : 'Débito'}</span></div></div>
                                                                     </button>
                                                                 )
                                                             })}
@@ -132,6 +142,9 @@ export function PendingView() {
                                                 <div className="flex gap-2">
                                                     <Button onClick={() => handleMarkAsPaid(transaction.id)} className={cn("flex-1", isExpense ? "bg-expense hover:bg-expense/90 text-background" : "bg-income hover:bg-income/90 text-background")}>
                                                         <CheckCircle size={20} weight="bold" className="mr-2 text-background" />{isExpense ? "Pagar" : "Receber"}
+                                                    </Button>
+                                                    <Button onClick={() => setEditingTransaction(transaction)} variant="outline" className="px-3">
+                                                        <Pencil size={18} weight="bold" />
                                                     </Button>
                                                     <Button onClick={() => setTransactionToCancel(transaction.id)} variant="outline" className="flex-1 border-expense text-expense hover:bg-expense/10">
                                                         <XCircle size={20} weight="bold" className="mr-2" />Cancelar este mês
@@ -183,6 +196,12 @@ export function PendingView() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <EditTransactionDialog
+                transaction={editingTransaction}
+                onClose={() => setEditingTransaction(null)}
+                onSaved={() => { setEditingTransaction(null); refresh() }}
+            />
         </AppLayout>
     )
 }

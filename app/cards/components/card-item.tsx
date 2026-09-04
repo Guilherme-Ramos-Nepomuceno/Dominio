@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Eye, EyeSlashIcon, TrashIcon, PiggyBank } from "@phosphor-icons/react"
+import { Eye, EyeSlashIcon, TrashIcon, PiggyBank, Pencil, ArrowsLeftRight } from "@phosphor-icons/react"
 import type { Card, SavingsGoal } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 import { formatCurrency } from "@/lib/date-utils"
@@ -11,16 +11,23 @@ interface CardItemProps {
   spent?: number
   balance?: number
   savingsGoals?: SavingsGoal[]
-  onDelete: (id: string) => void
+  onDelete?: (id: string) => void
+  onEdit?: (card: Card) => void
+  onMerge?: (card: Card) => void
+  readOnly?: boolean
 }
 
-export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete }: CardItemProps) {
+export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete, onEdit, onMerge, readOnly }: CardItemProps) {
   const [showNumber, setShowNumber] = useState(false)
   const BankIcon = getBankIcon(card.bankName)
   
-  const availableBalance = card.type === "credit" && card.limit ? card.limit - spent : balance
-  const pendingDebt = card.type === "credit" ? spent : 0
+  const availableBalance = card.hasCredit && card.limit ? card.limit - spent : balance
+  const pendingDebt = card.hasCredit ? spent : 0
   const totalSavings = savingsGoals.reduce((sum, goal) => sum + goal.currentAmount, 0)
+
+  const kindLabel =
+    card.kind === "checking" ? "Conta Corrente" : card.kind === "savings" ? "Conta Poupança" : null
+  const capabilityLabel = card.hasCredit && card.hasDebit ? "Crédito + Débito" : card.hasCredit ? "Crédito" : "Débito"
 
   return (
     <div
@@ -38,20 +45,49 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <BankIcon weight="fill" size={28} className="text-white" />
-            <span className="text-white font-semibold text-sm">{card.type === "credit" ? "Crédito" : "Débito"}</span>
+            <span className="text-white font-semibold text-sm">{kindLabel ?? capabilityLabel}</span>
           </div>
           
-          {/* BOTÃO DE DELETAR CORRIGIDO */}
-          <button
-            onClick={(e) => {
-                e.stopPropagation();
-                onDelete(card.id);
-            }}
-            className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 hover:text-red-200 transition-colors z-20 cursor-pointer"
-            title="Excluir cartão"
-          >
-            <TrashIcon size={16} className="text-white hover:text-red-100" weight="bold" />
-          </button>
+          {!readOnly && (
+            <div className="flex items-center gap-1.5">
+              {onMerge && (
+                <button
+                  onClick={(e) => {
+                      e.stopPropagation();
+                      onMerge(card);
+                  }}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors z-20 cursor-pointer"
+                  title="Mesclar com outro cartão"
+                >
+                  <ArrowsLeftRight size={16} className="text-white" weight="bold" />
+                </button>
+              )}
+              {onEdit && (
+                <button
+                  onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(card);
+                  }}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors z-20 cursor-pointer"
+                  title="Editar cartão"
+                >
+                  <Pencil size={16} className="text-white" weight="bold" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(card.id);
+                  }}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 hover:text-red-200 transition-colors z-20 cursor-pointer"
+                  title="Excluir cartão"
+                >
+                  <TrashIcon size={16} className="text-white hover:text-red-100" weight="bold" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div>
@@ -74,7 +110,7 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
         </div>
 
         <div className="pt-3 border-t border-white/20 space-y-2">
-          {card.type === "credit" && card.limit && (
+          {card.hasCredit && card.limit && (
             <>
               <div>
                 <p className="text-white/70 text-xs">Limite Disponível</p>
@@ -92,14 +128,14 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
             </>
           )}
 
-          {card.type === "debit" && balance !== undefined && (
+          {card.hasDebit && balance !== undefined && (
             <div>
               <p className="text-white/70 text-xs">Saldo</p>
               <p className="text-white text-lg font-bold">{formatCurrency(balance)}</p>
             </div>
           )}
 
-          {card.type === "debit" && spent > 0 && (
+          {card.hasDebit && spent > 0 && (
             <div>
               <p className="text-white/70 text-xs">Gasto neste período</p>
               <p className="text-white text-base font-bold">{formatCurrency(spent)}</p>
@@ -110,7 +146,7 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
             <div className="pt-2 border-t border-white/20">
               <div className="flex items-center gap-1.5 mb-2">
                 <PiggyBank size={14} className="text-white/70" weight="fill" />
-                <p className="text-white/70 text-xs">Reservas neste cartão</p>
+                <p className="text-white/70 text-xs">Investimento</p>
               </div>
               <div className="space-y-1.5">
                 {savingsGoals.map((goal) => (
@@ -120,7 +156,7 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
                   </div>
                 ))}
                 <div className="flex items-center justify-between text-sm font-bold pt-1 border-t border-white/20">
-                  <span className="text-white">Total em Reservas</span>
+                  <span className="text-white">Total investido</span>
                   <span className="text-white">{formatCurrency(totalSavings)}</span>
                 </div>
               </div>

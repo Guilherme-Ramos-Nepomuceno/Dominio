@@ -25,7 +25,7 @@ export function useInvoicesViewModel() {
             getTransactions(),
             getCategories(),
         ])
-        setCards(allCards.filter((c) => c.type === "credit"))
+        setCards(allCards.filter((c) => c.hasCredit))
         setTransactions(allTransactions)
         setCategories(allCategories)
     }, [])

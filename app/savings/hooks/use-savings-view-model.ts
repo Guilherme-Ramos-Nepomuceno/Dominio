@@ -5,8 +5,6 @@ import {
     getSavingsGoals,
     addSavingsGoal,
     deleteSavingsGoal,
-    addFundsToSavingsGoal,
-    removeFundsFromSavingsGoal,
     updateSavingsGoal,
 } from "@/lib/storage"
 
@@ -41,16 +39,6 @@ export function useSavingsViewModel() {
         setEditingGoal(null)
     }
 
-    const handleAddFunds = async (id: string, amount: number, cardId?: string) => {
-        await addFundsToSavingsGoal(id, amount, cardId)
-        await loadGoals()
-    }
-
-    const handleRemoveFunds = async (id: string, amount: number, cardId?: string) => {
-        await removeFundsFromSavingsGoal(id, amount, cardId)
-        await loadGoals()
-    }
-
     const handleDelete = async (id: string) => {
         const goal = goals.find((g) => g.id === id)
         if (goal && goal.currentAmount > 0) {
@@ -75,8 +63,6 @@ export function useSavingsViewModel() {
         handleAddGoal,
         handleEdit,
         handleSaveEdit,
-        handleAddFunds,
-        handleRemoveFunds,
         handleDelete,
         totalSaved,
         totalTarget

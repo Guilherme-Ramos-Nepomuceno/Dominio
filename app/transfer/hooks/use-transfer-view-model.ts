@@ -2,16 +2,34 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { getCards, addTransaction, ensureSystemCategory } from "@/lib/storage"
+import { getCards, getMemberCardsMapped, addTransaction, ensureSystemCategory } from "@/lib/storage"
+import { transferToFamilyMember } from "@/lib/family"
 import { parseCurrencyInput, formatCurrencyInput } from "@/lib/date-utils"
+import { getCurrentUser } from "@/lib/auth"
+import { useAccount } from "@/components/account/account-context"
 import type { Card } from "@/lib/types"
-
-export const QUICK_AMOUNTS = [2, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000]
 
 export function useTransferViewModel() {
     const router = useRouter()
+    const { family } = useAccount()
+
+    // Lido via useEffect (não direto no corpo do componente) para não pegar
+    // `null` na primeira renderização (SSR/hidratação não tem localStorage) —
+    // isso já causou a própria conta aparecer como opção de parceiro.
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    useEffect(() => {
+        setCurrentUserId(getCurrentUser()?.id ?? null)
+    }, [])
+
     const [cards, setCards] = useState<Card[]>([])
-    const debitCards = useMemo(() => cards.filter((c) => c.type === "debit"), [cards])
+    const debitCards = useMemo(() => cards.filter((c) => c.hasDebit), [cards])
+
+    // Outros parceiros pessoais da família (não a conta do casal) — destino
+    // possível de uma transferência para "o cartão do cônjuge".
+    const familyMembers = useMemo(
+        () => family?.members?.filter((m) => m.accountType === "PERSONAL" && m.id !== currentUserId) ?? [],
+        [family, currentUserId],
+    )
 
     const loadCards = useCallback(async () => {
         setCards(await getCards())
@@ -20,16 +38,26 @@ export function useTransferViewModel() {
     useEffect(() => { loadCards() }, [loadCards])
 
     const [fromCardId, setFromCardId] = useState("")
+    const [toMemberId, setToMemberId] = useState("") // "" = uma das minhas próprias contas
     const [toCardId, setToCardId] = useState("")
     const [amount, setAmount] = useState("")
     const [description, setDescription] = useState("")
 
-    const handleQuickAmount = (value: number) => {
-        const currentAmount = parseCurrencyInput(amount)
-        const newAmount = currentAmount + value
-        const cents = Math.round(newAmount * 100).toString()
-        setAmount(formatCurrencyInput(cents))
-    }
+    const [memberCards, setMemberCards] = useState<Card[]>([])
+    useEffect(() => {
+        setToCardId("")
+        if (!toMemberId) {
+            setMemberCards([])
+            return
+        }
+        let cancelled = false
+        getMemberCardsMapped(toMemberId).then((memberAll) => {
+            if (!cancelled) setMemberCards(memberAll.filter((c) => c.hasDebit))
+        })
+        return () => { cancelled = true }
+    }, [toMemberId])
+
+    const toCardOptions = toMemberId ? memberCards : debitCards.filter((c) => c.id !== fromCardId)
 
     const handleAmountChange = (value: string) => {
         const onlyNumbers = value.replace(/\D/g, "")
@@ -44,7 +72,7 @@ export function useTransferViewModel() {
             return
         }
 
-        if (fromCardId === toCardId) {
+        if (!toMemberId && fromCardId === toCardId) {
             alert("Selecione contas diferentes")
             return
         }
@@ -53,6 +81,12 @@ export function useTransferViewModel() {
 
         if (isNaN(numAmount) || numAmount <= 0) {
             alert("Valor inválido")
+            return
+        }
+
+        if (toMemberId) {
+            await transferToFamilyMember({ fromCardId, toMemberId, toCardId, amount: numAmount, description: description || undefined })
+            router.push("/")
             return
         }
 
@@ -89,13 +123,16 @@ export function useTransferViewModel() {
     return {
         router,
         debitCards,
+        familyMembers,
         fromCardId,
         setFromCardId,
+        toMemberId,
+        setToMemberId,
         toCardId,
         setToCardId,
+        toCardOptions,
         amount,
         handleAmountChange,
-        handleQuickAmount,
         description,
         setDescription,
         handleSubmit
