@@ -14,7 +14,7 @@ import { useAccount } from "@/components/account/account-context"
 
 interface EditSavingsDialogProps {
   goal: any
-  onSave: (id: string, updates: any) => void
+  onSave: (id: string, updates: any) => void | Promise<void>
   onClose: () => void
 }
 
@@ -25,6 +25,7 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
   const [selectedCardId, setSelectedCardId] = useState(goal.cardId || "")
   const [isCasal, setIsCasal] = useState(!!goal.isCasal)
   const [cards, setCards] = useState<Card[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { family } = useAccount()
   const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
 
@@ -40,8 +41,10 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
     setTargetAmount(formatCurrencyInput(onlyNumbers))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     const target = parseCurrencyInput(targetAmount)
 
     if (!name.trim() || isNaN(target) || target <= 0) {
@@ -54,14 +57,19 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
       return
     }
 
-    onSave(goal.id, {
-      name: name.trim(),
-      targetAmount: target,
-      icon: selectedIcon,
-      cardId: selectedCardId,
-      isCasal,
-    })
-    onClose()
+    setIsSubmitting(true)
+    try {
+      await onSave(goal.id, {
+        name: name.trim(),
+        targetAmount: target,
+        icon: selectedIcon,
+        cardId: selectedCardId,
+        isCasal,
+      })
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -198,10 +206,10 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={debitCards.length === 0}
+            disabled={debitCards.length === 0 || isSubmitting}
             className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
           >
-            Salvar Alterações
+            {isSubmitting ? "Salvando..." : "Salvar Alterações"}
           </button>
         </form>
       </div>

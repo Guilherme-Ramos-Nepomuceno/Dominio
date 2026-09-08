@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { ArrowsLeftRight, X } from "@phosphor-icons/react"
 import type { Card } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
@@ -8,12 +9,24 @@ import { cn } from "@/lib/utils"
 interface MergeCardDialogProps {
   card: Card | null
   otherCards: Card[]
-  onMerge: (mergeCardId: string) => void
+  onMerge: (mergeCardId: string) => void | Promise<void>
   onClose: () => void
 }
 
 export function MergeCardDialog({ card, otherCards, onMerge, onClose }: MergeCardDialogProps) {
+  const [isMerging, setIsMerging] = useState(false)
+
   if (!card) return null
+
+  const handleMerge = async (mergeCardId: string) => {
+    if (isMerging) return
+    setIsMerging(true)
+    try {
+      await onMerge(mergeCardId)
+    } finally {
+      setIsMerging(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -45,9 +58,10 @@ export function MergeCardDialog({ card, otherCards, onMerge, onClose }: MergeCar
                 <button
                   key={other.id}
                   type="button"
-                  onClick={() => onMerge(other.id)}
+                  onClick={() => handleMerge(other.id)}
+                  disabled={isMerging}
                   className={cn(
-                    "flex items-center gap-3 p-3 rounded-[1vw] border-2 border-border bg-background hover:border-primary/50 hover:bg-muted transition-all text-left",
+                    "flex items-center gap-3 p-3 rounded-[1vw] border-2 border-border bg-background hover:border-primary/50 hover:bg-muted transition-all text-left disabled:opacity-50",
                   )}
                 >
                   <div
@@ -70,9 +84,10 @@ export function MergeCardDialog({ card, otherCards, onMerge, onClose }: MergeCar
         <button
           type="button"
           onClick={onClose}
-          className="w-full py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors"
+          disabled={isMerging}
+          className="w-full py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors disabled:opacity-50"
         >
-          Cancelar
+          {isMerging ? "Mesclando..." : "Cancelar"}
         </button>
       </div>
     </div>

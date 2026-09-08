@@ -10,7 +10,7 @@ import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
 
 interface EditCardDialogProps {
   card: Card | null
-  onSave: (id: string, updates: Partial<Card>) => void
+  onSave: (id: string, updates: Partial<Card>) => void | Promise<void>
   onClose: () => void
 }
 
@@ -32,6 +32,7 @@ export function EditCardDialog({ card, onSave, onClose }: EditCardDialogProps) {
   const [limit, setLimit] = useState(card?.limit ? formatCurrencyInput((card.limit * 100).toString()) : "")
   const [dueDate, setDueDate] = useState(card?.dueDate ? String(card.dueDate) : "10")
   const [closingDate, setClosingDate] = useState(card?.closingDate ? String(card.closingDate) : "3")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (!card) return null
 
@@ -60,22 +61,28 @@ export function EditCardDialog({ card, onSave, onClose }: EditCardDialogProps) {
     setLimit(formatCurrencyInput(onlyNumbers))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
 
-    onSave(card.id, {
-      name,
-      lastDigits,
-      bankName,
-      hasCredit,
-      hasDebit,
-      kind,
-      color: bankColors[bankName],
-      limit: hasCredit ? (limit ? parseCurrencyInput(limit) : undefined) : undefined,
-      dueDate: hasCredit ? Number.parseInt(dueDate) : undefined,
-      closingDate: hasCredit ? Number.parseInt(closingDate) : undefined,
-    })
-    onClose()
+    setIsSubmitting(true)
+    try {
+      await onSave(card.id, {
+        name,
+        lastDigits,
+        bankName,
+        hasCredit,
+        hasDebit,
+        kind,
+        color: bankColors[bankName],
+        limit: hasCredit ? (limit ? parseCurrencyInput(limit) : undefined) : undefined,
+        dueDate: hasCredit ? Number.parseInt(dueDate) : undefined,
+        closingDate: hasCredit ? Number.parseInt(closingDate) : undefined,
+      })
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -249,15 +256,17 @@ export function EditCardDialog({ card, onSave, onClose }: EditCardDialogProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              Salvar Alterações
+              {isSubmitting ? "Salvando..." : "Salvar Alterações"}
             </button>
           </div>
         </form>

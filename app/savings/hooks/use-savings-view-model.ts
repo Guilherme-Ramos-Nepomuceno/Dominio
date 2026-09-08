@@ -13,9 +13,14 @@ export function useSavingsViewModel() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
     const [editingGoal, setEditingGoal] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
 
     const loadGoals = useCallback(async () => {
-        setGoals(await getSavingsGoals())
+        try {
+            setGoals(await getSavingsGoals())
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
     useEffect(() => {
@@ -54,6 +59,7 @@ export function useSavingsViewModel() {
     const totalTarget = goals.reduce((sum, goal) => sum + goal.targetAmount, 0)
 
     return {
+        loading,
         goals,
         isDialogOpen,
         setIsDialogOpen,

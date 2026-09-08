@@ -25,6 +25,7 @@ export function usePendingViewModel() {
     const [confirmDate, setConfirmDate] = useState<string>("")
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
     const [transactionToCancelRecurrence, setTransactionToCancelRecurrence] = useState<string | null>(null)
+    const [isConfirmingPayment, setIsConfirmingPayment] = useState(false)
 
     const loadData = useCallback(async () => {
         const [allPending, allCategories, allCards] = await Promise.all([
@@ -95,6 +96,7 @@ export function usePendingViewModel() {
     }
 
     const confirmPayment = async () => {
+        if (isConfirmingPayment) return
         if (!selectedTransaction) return
         const transaction = pendingTransactions.find(t => t.id === selectedTransaction)
         if (!transaction) return
@@ -108,18 +110,23 @@ export function usePendingViewModel() {
             return
         }
 
-        await markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
+        setIsConfirmingPayment(true)
+        try {
+            await markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
 
-        toast({
-            title: transaction.type === 'expense' ? "Pago com sucesso!" : "Recebido com sucesso!",
-            description: "A transação foi confirmada.",
-            variant: "success"
-        })
+            toast({
+                title: transaction.type === 'expense' ? "Pago com sucesso!" : "Recebido com sucesso!",
+                description: "A transação foi confirmada.",
+                variant: "success"
+            })
 
-        await loadData()
-        setSelectedTransaction(null)
-        setSelectedCard("")
-        setConfirmDate("")
+            await loadData()
+            setSelectedTransaction(null)
+            setSelectedCard("")
+            setConfirmDate("")
+        } finally {
+            setIsConfirmingPayment(false)
+        }
     }
 
     const confirmCancel = async () => {
@@ -174,6 +181,7 @@ export function usePendingViewModel() {
         setTransactionToCancelRecurrence,
         handleMarkAsPaid,
         confirmPayment,
+        isConfirmingPayment,
         confirmCancel,
         confirmCancelRecurrence,
         refresh: loadData,

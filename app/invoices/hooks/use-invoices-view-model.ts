@@ -22,16 +22,23 @@ export function useInvoicesViewModel() {
     // A fatura REAL de cada cartão nesse mês (pode ter sido editada individualmente,
     // diferente do padrão do cartão) — buscada sob demanda por cartão+mês.
     const [invoicesByCard, setInvoicesByCard] = useState<Record<string, Invoice>>({})
+    const [loading, setLoading] = useState(true)
+    const [isPaying, setIsPaying] = useState(false)
+    const [isMoving, setIsMoving] = useState(false)
 
     const loadData = useCallback(async () => {
-        const [allCards, allTransactions, allCategories] = await Promise.all([
-            getCards(),
-            getTransactions(),
-            getCategories(),
-        ])
-        setCards(allCards.filter((c) => c.hasCredit))
-        setTransactions(allTransactions)
-        setCategories(allCategories)
+        try {
+            const [allCards, allTransactions, allCategories] = await Promise.all([
+                getCards(),
+                getTransactions(),
+                getCategories(),
+            ])
+            setCards(allCards.filter((c) => c.hasCredit))
+            setTransactions(allTransactions)
+            setCategories(allCategories)
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
     useEffect(() => {
@@ -115,24 +122,35 @@ export function useInvoicesViewModel() {
     }
 
     const handleMoveTransaction = async (transactionId: string, direction: "next" | "previous") => {
-        await moveTransactionInvoice(transactionId, direction)
-        await loadData()
+        if (isMoving) return
+        setIsMoving(true)
+        try {
+            await moveTransactionInvoice(transactionId, direction)
+            await loadData()
+        } finally {
+            setIsMoving(false)
+        }
     }
 
     const handlePayFull = async () => {
-        if (!selectedInvoice || selectedInvoice.pendingTransactions.length === 0) return
+        if (isPaying || !selectedInvoice || selectedInvoice.pendingTransactions.length === 0) return
 
         if (confirm(`Deseja pagar o restante da fatura de R$ ${selectedInvoice.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}?`)) {
-            for (const transaction of selectedInvoice.pendingTransactions) {
-                await markTransactionAsPaid(transaction.id, selectedCardId || undefined)
+            setIsPaying(true)
+            try {
+                for (const transaction of selectedInvoice.pendingTransactions) {
+                    await markTransactionAsPaid(transaction.id, selectedCardId || undefined)
+                }
+                await loadData()
+                setPartialAmount("")
+            } finally {
+                setIsPaying(false)
             }
-            await loadData()
-            setPartialAmount("")
         }
     }
 
     const handlePayPartial = async () => {
-        if (!selectedInvoice || !partialAmount || selectedInvoice.pendingTransactions.length === 0) return
+        if (isPaying || !selectedInvoice || !partialAmount || selectedInvoice.pendingTransactions.length === 0) return
 
         const amount = Number.parseFloat(partialAmount.replace(/\./g, "").replace(",", "."))
         if (isNaN(amount) || amount <= 0 || amount > selectedInvoice.totalPending) {
@@ -156,11 +174,16 @@ export function useInvoicesViewModel() {
             transactionsToPay.length > 0 &&
             confirm(`Pagar ${transactionsToPay.length} transações?`)
         ) {
-            for (const id of transactionsToPay) {
-                await markTransactionAsPaid(id, selectedCardId || undefined)
+            setIsPaying(true)
+            try {
+                for (const id of transactionsToPay) {
+                    await markTransactionAsPaid(id, selectedCardId || undefined)
+                }
+                await loadData()
+                setPartialAmount("")
+            } finally {
+                setIsPaying(false)
             }
-            await loadData()
-            setPartialAmount("")
         }
     }
 
@@ -181,6 +204,9 @@ export function useInvoicesViewModel() {
     }
 
     return {
+        loading,
+        isPaying,
+        isMoving,
         cards,
         selectedMonth,
         setSelectedMonth,

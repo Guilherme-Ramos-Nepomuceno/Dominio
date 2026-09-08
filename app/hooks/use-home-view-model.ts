@@ -27,6 +27,7 @@ export function useHomeViewModel() {
         setViewMode,
         isCoupleAccount: familyData.isCoupleAccount,
         loadingFamilyData: viewMode === "familia" && familyData.loading,
+        isLoading: viewMode === "familia" ? familyData.loading : ownBalanceData.isLoading,
         // Só passado adiante na visão "Total da Família" — os cartões de destino de
         // uma transferência podem pertencer a qualquer um dos dois parceiros, e só
         // o dataset consolidado sabe resolver isso (o fetch próprio do componente

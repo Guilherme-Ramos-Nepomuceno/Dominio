@@ -6,6 +6,8 @@ import { IncomeExpenseCards } from "./income-expense-cards"
 import { RecentTransactions } from "./recent-transactions"
 import { RecentTransfers } from "./recent-transfers"
 import { CasalFamiliaToggle } from "./casal-familia-toggle"
+import { SkeletonCircularBalance } from "@/components/ui/loading-skeletons"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useHomeViewModel } from "../hooks/use-home-view-model"
 
 export function HomeView() {
@@ -16,7 +18,7 @@ export function HomeView() {
         viewMode,
         setViewMode,
         isCoupleAccount,
-        loadingFamilyData,
+        isLoading,
         cards,
     } = useHomeViewModel()
 
@@ -25,9 +27,14 @@ export function HomeView() {
             <div className="space-y-6">
                 {isCoupleAccount && <CasalFamiliaToggle viewMode={viewMode} onChange={setViewMode} />}
 
-                {loadingFamilyData ? (
-                    <div className="rounded-2xl bg-card p-12 text-center border border-border/50">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                {isLoading ? (
+                    <div className="space-y-6">
+                        <SkeletonCircularBalance />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Skeleton className="h-32 rounded-2xl" />
+                            <Skeleton className="h-32 rounded-2xl" />
+                        </div>
+                        <Skeleton className="h-48 rounded-2xl" />
                     </div>
                 ) : (
                     <>

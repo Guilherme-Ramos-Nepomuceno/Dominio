@@ -6,11 +6,13 @@ import { PageHeader } from "@/components/ui/page-header"
 import { SavingsGoalCard } from "./savings-goal-card"
 import { AddSavingsGoalDialog } from "./add-savings-goal-dialog"
 import { EditSavingsDialog } from "./edit-savings-dialog"
+import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
 import { formatCurrency } from "@/lib/date-utils"
 import { useSavingsViewModel } from "../hooks/use-savings-view-model"
 
 export function SavingsView() {
     const {
+        loading,
         goals,
         isDialogOpen,
         setIsDialogOpen,
@@ -38,18 +40,22 @@ export function SavingsView() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="rounded-2xl bg-card p-6 border border-border/50 shadow-sm">
-                    <p className="text-sm text-muted-foreground mb-1">Total Guardado</p>
-                    <p className="text-3xl font-bold text-income">{formatCurrency(totalSaved)}</p>
+            {!loading && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="rounded-2xl bg-card p-6 border border-border/50 shadow-sm">
+                        <p className="text-sm text-muted-foreground mb-1">Total Guardado</p>
+                        <p className="text-3xl font-bold text-income">{formatCurrency(totalSaved)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-card p-6 border border-border/50 shadow-sm">
+                        <p className="text-sm text-muted-foreground mb-1">Meta Total</p>
+                        <p className="text-3xl font-bold text-foreground">{formatCurrency(totalTarget)}</p>
+                    </div>
                 </div>
-                <div className="rounded-2xl bg-card p-6 border border-border/50 shadow-sm">
-                    <p className="text-sm text-muted-foreground mb-1">Meta Total</p>
-                    <p className="text-3xl font-bold text-foreground">{formatCurrency(totalTarget)}</p>
-                </div>
-            </div>
+            )}
 
-            {goals.length === 0 ? (
+            {loading ? (
+                <SkeletonCardGrid count={3} />
+            ) : goals.length === 0 ? (
                 <div className="rounded-2xl bg-card p-12 border border-border/50 shadow-sm text-center">
                     <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
                         <Plus size={32} className="text-muted-foreground" />

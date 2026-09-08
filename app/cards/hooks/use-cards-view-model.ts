@@ -15,17 +15,22 @@ export function useCardsViewModel() {
     const [editingCard, setEditingCard] = useState<Card | null>(null)
     const [mergingCard, setMergingCard] = useState<Card | null>(null)
 
+    const [loading, setLoading] = useState(true)
     const { toast } = useToast()
 
     const loadData = useCallback(async () => {
-        const [cardsData, transactionsData, savingsGoalsData] = await Promise.all([
-            getCards(),
-            getTransactions(),
-            getSavingsGoals(),
-        ])
-        setCards(cardsData)
-        setTransactions(transactionsData)
-        setSavingsGoals(savingsGoalsData)
+        try {
+            const [cardsData, transactionsData, savingsGoalsData] = await Promise.all([
+                getCards(),
+                getTransactions(),
+                getSavingsGoals(),
+            ])
+            setCards(cardsData)
+            setTransactions(transactionsData)
+            setSavingsGoals(savingsGoalsData)
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
     useEffect(() => {
@@ -120,6 +125,7 @@ export function useCardsViewModel() {
     }, [cards, transactions, savingsGoals, currentMonth])
 
     return {
+        loading,
         isDialogOpen,
         setIsDialogOpen,
         cardToDelete,

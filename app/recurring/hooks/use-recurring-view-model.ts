@@ -7,11 +7,16 @@ import { useToast } from "@/hooks/use-toast"
 export function useRecurringViewModel() {
     const [transactions, setTransactions] = useState<any[]>([])
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
     const { toast } = useToast()
 
     const loadData = useCallback(async () => {
-        const pending = await getPendingTransactions()
-        setTransactions(pending)
+        try {
+            const pending = await getPendingTransactions()
+            setTransactions(pending)
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
     useEffect(() => {
@@ -85,6 +90,7 @@ export function useRecurringViewModel() {
     }
 
     return {
+        loading,
         recurringList,
         installmentList,
         formatFrequency,

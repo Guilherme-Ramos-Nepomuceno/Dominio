@@ -41,6 +41,7 @@ export function PendingView() {
         setTransactionToCancelRecurrence,
         handleMarkAsPaid,
         confirmPayment,
+        isConfirmingPayment,
         confirmCancel,
         confirmCancelRecurrence,
         refresh
@@ -133,8 +134,8 @@ export function PendingView() {
                                                     </div>
                                                 )}
                                                 <div className="flex gap-2 pt-2">
-                                                    <Button onClick={() => { setSelectedTransaction(null); setSelectedCard(""); setConfirmDate(""); }} variant="outline" className="flex-1">Cancelar</Button>
-                                                    <Button onClick={confirmPayment} className="flex-1 text-background"><CheckCircle size={20} weight="bold" className="mr-2" />Confirmar</Button>
+                                                    <Button onClick={() => { setSelectedTransaction(null); setSelectedCard(""); setConfirmDate(""); }} disabled={isConfirmingPayment} variant="outline" className="flex-1">Cancelar</Button>
+                                                    <Button onClick={confirmPayment} disabled={isConfirmingPayment} className="flex-1 text-background"><CheckCircle size={20} weight="bold" className="mr-2" />{isConfirmingPayment ? "Confirmando..." : "Confirmar"}</Button>
                                                 </div>
                                             </div>
                                         ) : (

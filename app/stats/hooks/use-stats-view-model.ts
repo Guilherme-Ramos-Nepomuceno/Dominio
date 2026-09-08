@@ -23,18 +23,23 @@ export function useStatsViewModel() {
     const [categories, setCategories] = useState<Category[]>([])
     const [cards, setCards] = useState<Card[]>([])
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
+    const [loading, setLoading] = useState(true)
 
     const loadData = useCallback(async () => {
-        const [settingsData, categoriesData, cardsData, transactionsData] = await Promise.all([
-            getSettings(),
-            getCategories(),
-            getCards(),
-            getTransactions(),
-        ])
-        setSettingsState(settingsData)
-        setCategories(categoriesData)
-        setCards(cardsData)
-        setAllTransactions(transactionsData)
+        try {
+            const [settingsData, categoriesData, cardsData, transactionsData] = await Promise.all([
+                getSettings(),
+                getCategories(),
+                getCards(),
+                getTransactions(),
+            ])
+            setSettingsState(settingsData)
+            setCategories(categoriesData)
+            setCards(cardsData)
+            setAllTransactions(transactionsData)
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
     useEffect(() => { loadData() }, [loadData])
@@ -141,6 +146,7 @@ export function useStatsViewModel() {
         isCoupleAccount,
         familyTotals,
         loadingFamilyTotals,
+        loading,
         transactionToCancel,
         setTransactionToCancel,
         monthData,

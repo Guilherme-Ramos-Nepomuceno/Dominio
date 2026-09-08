@@ -22,6 +22,7 @@ export function useTransferViewModel() {
     }, [])
 
     const [cards, setCards] = useState<Card[]>([])
+    const [loading, setLoading] = useState(true)
     const debitCards = useMemo(() => cards.filter((c) => c.hasDebit), [cards])
 
     // Outros parceiros pessoais da família (não a conta do casal) — destino
@@ -32,7 +33,11 @@ export function useTransferViewModel() {
     )
 
     const loadCards = useCallback(async () => {
-        setCards(await getCards())
+        try {
+            setCards(await getCards())
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
     useEffect(() => { loadCards() }, [loadCards])
@@ -42,6 +47,7 @@ export function useTransferViewModel() {
     const [toCardId, setToCardId] = useState("")
     const [amount, setAmount] = useState("")
     const [description, setDescription] = useState("")
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const [memberCards, setMemberCards] = useState<Card[]>([])
     useEffect(() => {
@@ -66,6 +72,7 @@ export function useTransferViewModel() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (isSubmitting) return
 
         if (!fromCardId || !toCardId || !amount) {
             alert("Preencha todos os campos obrigatórios")
@@ -84,43 +91,50 @@ export function useTransferViewModel() {
             return
         }
 
-        if (toMemberId) {
-            await transferToFamilyMember({ fromCardId, toMemberId, toCardId, amount: numAmount, description: description || undefined })
+        setIsSubmitting(true)
+        try {
+            if (toMemberId) {
+                await transferToFamilyMember({ fromCardId, toMemberId, toCardId, amount: numAmount, description: description || undefined })
+                router.push("/")
+                return
+            }
+
+            const fromCard = cards.find((c) => c.id === fromCardId)
+            const toCard = cards.find((c) => c.id === toCardId)
+
+            // Create expense transaction (money leaving from card)
+            const expenseCategoryId = await ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp")
+            await addTransaction({
+                description: description || `Transferência para ${toCard?.name}`,
+                amount: numAmount,
+                type: "expense",
+                categoryId: expenseCategoryId,
+                date: new Date().toISOString(),
+                recurrence: "none",
+                cardId: fromCardId,
+            })
+
+            // Create income transaction (money entering to card)
+            const incomeCategoryId = await ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown")
+            await addTransaction({
+                description: description || `Transferência de ${fromCard?.name}`,
+                amount: numAmount,
+                type: "income",
+                categoryId: incomeCategoryId,
+                date: new Date().toISOString(),
+                recurrence: "none",
+                cardId: toCardId,
+            })
+
             router.push("/")
-            return
+        } finally {
+            setIsSubmitting(false)
         }
-
-        const fromCard = cards.find((c) => c.id === fromCardId)
-        const toCard = cards.find((c) => c.id === toCardId)
-
-        // Create expense transaction (money leaving from card)
-        const expenseCategoryId = await ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp")
-        await addTransaction({
-            description: description || `Transferência para ${toCard?.name}`,
-            amount: numAmount,
-            type: "expense",
-            categoryId: expenseCategoryId,
-            date: new Date().toISOString(),
-            recurrence: "none",
-            cardId: fromCardId,
-        })
-
-        // Create income transaction (money entering to card)
-        const incomeCategoryId = await ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown")
-        await addTransaction({
-            description: description || `Transferência de ${fromCard?.name}`,
-            amount: numAmount,
-            type: "income",
-            categoryId: incomeCategoryId,
-            date: new Date().toISOString(),
-            recurrence: "none",
-            cardId: toCardId,
-        })
-
-        router.push("/")
     }
 
     return {
+        loading,
+        isSubmitting,
         router,
         debitCards,
         familyMembers,

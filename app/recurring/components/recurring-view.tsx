@@ -1,8 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
+import { SkeletonRowList } from "@/components/ui/loading-skeletons"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { RepeatIcon, CalendarBlankIcon, XCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
@@ -20,6 +22,7 @@ import { useRecurringViewModel } from "../hooks/use-recurring-view-model"
 
 export function RecurringView() {
     const {
+        loading,
         recurringList,
         installmentList,
         formatFrequency,
@@ -27,6 +30,17 @@ export function RecurringView() {
         setTransactionToCancel,
         confirmCancelRecurrence,
     } = useRecurringViewModel()
+    const [isCancelling, setIsCancelling] = useState(false)
+
+    const handleConfirmCancel = async () => {
+        if (isCancelling) return
+        setIsCancelling(true)
+        try {
+            await confirmCancelRecurrence()
+        } finally {
+            setIsCancelling(false)
+        }
+    }
 
     return (
         <AppLayout>
@@ -40,7 +54,9 @@ export function RecurringView() {
                         Assinaturas & Fixas
                     </h2>
 
-                    {recurringList.length === 0 ? (
+                    {loading ? (
+                        <SkeletonRowList count={3} />
+                    ) : recurringList.length === 0 ? (
                         <div className="rounded-2xl bg-card p-8 text-center border border-border/50">
                             <p className="text-muted-foreground">Nenhuma assinatura ativa encontrada</p>
                         </div>
@@ -96,7 +112,9 @@ export function RecurringView() {
                         Compras Parceladas
                     </h2>
 
-                    {installmentList.length === 0 ? (
+                    {loading ? (
+                        <SkeletonRowList count={3} />
+                    ) : installmentList.length === 0 ? (
                         <div className="rounded-2xl bg-card p-8 text-center border border-border/50">
                             <p className="text-muted-foreground">Nenhum parcelamento ativo encontrado</p>
                         </div>
@@ -160,9 +178,9 @@ export function RecurringView() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Voltar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmCancelRecurrence} className="bg-destructive text-white hover:bg-destructive/90">
-                            Confirmar Cancelamento
+                        <AlertDialogCancel disabled={isCancelling}>Voltar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmCancel} disabled={isCancelling} className="bg-destructive text-white hover:bg-destructive/90">
+                            {isCancelling ? "Cancelando..." : "Confirmar Cancelamento"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
