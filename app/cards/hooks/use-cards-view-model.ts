@@ -89,6 +89,7 @@ export function useCardsViewModel() {
         return cards.map((card) => {
             let calculatedBalance = 0
             let spentAmount = 0
+            let debitSpentAmount = 0
 
             // Cartão combinado (crédito + débito) recebe os dois cálculos ao
             // mesmo tempo — antes era um if/else mutuamente exclusivo.
@@ -102,14 +103,24 @@ export function useCardsViewModel() {
                         t.cardId === card.id &&
                         t.status !== "cancelled" &&
                         t.type === "expense" &&
+                        // Cartão combinado: débito não entra na fatura de crédito.
+                        (!card.hasDebit || t.paymentMethod === "credit") &&
                         getInvoiceMonth(t.date, card.closingDate) === currentInvoiceMonth,
                 )
                 spentAmount = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0)
             }
             if (card.hasDebit) {
                 calculatedBalance = card.calculatedBalance ?? 0
-                spentAmount = transactions
-                    .filter((t) => t.cardId === card.id && t.status !== "cancelled" && t.date.startsWith(currentMonth) && t.type === "expense")
+                debitSpentAmount = transactions
+                    .filter(
+                        (t) =>
+                            t.cardId === card.id &&
+                            t.status !== "cancelled" &&
+                            t.date.startsWith(currentMonth) &&
+                            t.type === "expense" &&
+                            // Cartão combinado: crédito não entra no gasto de débito.
+                            (!card.hasCredit || t.paymentMethod === "debit"),
+                    )
                     .reduce((sum, t) => sum + t.amount, 0)
             }
 
@@ -118,6 +129,7 @@ export function useCardsViewModel() {
             return {
                 ...card,
                 spentAmount,
+                debitSpentAmount,
                 calculatedBalance,
                 cardGoals
             }

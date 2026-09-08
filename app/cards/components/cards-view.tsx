@@ -66,6 +66,7 @@ export function CardsView() {
                             key={card.id}
                             card={card}
                             spent={card.spentAmount}
+                            debitSpent={card.debitSpentAmount}
                             balance={card.calculatedBalance}
                             savingsGoals={card.cardGoals}
                             onDelete={isReadOnly ? undefined : (id) => setCardToDelete(id)}

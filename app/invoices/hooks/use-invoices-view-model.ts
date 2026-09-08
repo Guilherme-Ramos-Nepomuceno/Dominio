@@ -81,7 +81,9 @@ export function useInvoicesViewModel() {
                 (t) =>
                     t.cardId === card.id &&
                     t.status !== "cancelled" &&
-                    categories.find((c) => c.id === t.categoryId)?.type === "expense"
+                    categories.find((c) => c.id === t.categoryId)?.type === "expense" &&
+                    // Cartão combinado: débito não entra na fatura, só o lado crédito.
+                    (!card.hasDebit || t.paymentMethod === "credit")
             )
 
             const realInvoice = invoicesByCard[card.id]
