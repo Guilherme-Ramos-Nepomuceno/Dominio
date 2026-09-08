@@ -208,15 +208,15 @@ export function InvoicesView() {
 
                                             <div className="pt-4 border-t border-border">
                                                 <label className="text-sm font-medium text-foreground mb-2 block">Pagamento Parcial</label>
-                                                <div className="flex gap-3">
+                                                <div className="flex flex-col sm:flex-row gap-3">
                                                     <input
                                                         type="text"
                                                         value={partialAmount}
                                                         onChange={(e) => handlePartialAmountChange(e.target.value)}
                                                         placeholder="0,00"
-                                                        className="flex-1 px-4 py-2 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                                        className="flex-1 min-w-0 px-4 py-2 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                                                     />
-                                                    <Button onClick={handlePayPartial} disabled={isPaying} variant="outline" className="px-6 bg-transparent">
+                                                    <Button onClick={handlePayPartial} disabled={isPaying} variant="outline" className="px-6 bg-transparent shrink-0">
                                                         {isPaying ? "Pagando..." : "Pagar Parcial"}
                                                     </Button>
                                                 </div>
