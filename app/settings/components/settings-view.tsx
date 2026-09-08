@@ -15,6 +15,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useSettingsViewModel } from "../hooks/use-settings-view-model"
 
 export function SettingsView() {
@@ -44,7 +45,24 @@ export function SettingsView() {
         handlePercentageChange,
         totalPercentage,
         warnings,
+        loading,
+        updatingProfile,
+        savingSettings,
+        clearingData,
     } = useSettingsViewModel()
+
+    if (loading) {
+        return (
+            <AppLayout>
+                <PageHeader title="Configurações" subtitle="Personalize seu aplicativo" />
+                <div className="max-w-2xl mx-auto space-y-6 pb-10">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="rounded-[20px] h-32 w-full" />
+                    ))}
+                </div>
+            </AppLayout>
+        )
+    }
 
 
     return (
@@ -83,8 +101,8 @@ export function SettingsView() {
                                 </div>
                             </div>
                             <div className="flex justify-end">
-                                <button type="submit" className="px-4 py-2 bg-primary text-background rounded-lg text-sm font-bold hover:opacity-90">
-                                    Salvar Perfil
+                                <button type="submit" disabled={updatingProfile} className="px-4 py-2 bg-primary text-background rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-50">
+                                    {updatingProfile ? "Salvando..." : "Salvar Perfil"}
                                 </button>
                             </div>
                         </form>
@@ -309,9 +327,10 @@ export function SettingsView() {
                 {/* Save Button */}
                 <button
                     onClick={handleSave}
-                    className="w-full py-3 px-4 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
+                    disabled={savingSettings}
+                    className="w-full py-3 px-4 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                    Salvar Configurações
+                    {savingSettings ? "Salvando..." : "Salvar Configurações"}
                 </button>
 
                 {/* Logout */}
@@ -354,9 +373,9 @@ export function SettingsView() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmClearData} className="bg-destructive hover:bg-destructive/90 text-white">
-                            Sim, apagar tudo
+                        <AlertDialogCancel disabled={clearingData}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmClearData} disabled={clearingData} className="bg-destructive hover:bg-destructive/90 text-white">
+                            {clearingData ? "Apagando..." : "Sim, apagar tudo"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

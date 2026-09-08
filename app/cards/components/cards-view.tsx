@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ArrowsLeftRight, Plus } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
+import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
 import { CardItem } from "./card-item"
 import { AddCardDialog } from "./add-card-dialog"
 import { EditCardDialog } from "./edit-card-dialog"
@@ -23,6 +24,7 @@ import { useCardsViewModel } from "../hooks/use-cards-view-model"
 
 export function CardsView() {
     const {
+        loading,
         isDialogOpen,
         setIsDialogOpen,
         cardToDelete,
@@ -53,33 +55,39 @@ export function CardsView() {
                 </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
-                {processedCards.map((card) => (
-                    <CardItem
-                        key={card.id}
-                        card={card}
-                        spent={card.spentAmount}
-                        balance={card.calculatedBalance}
-                        savingsGoals={card.cardGoals}
-                        onDelete={isReadOnly ? undefined : (id) => setCardToDelete(id)}
-                        onEdit={isReadOnly ? undefined : (c) => setEditingCard(c)}
-                        onMerge={isReadOnly ? undefined : (c) => setMergingCard(c)}
-                        readOnly={isReadOnly}
-                    />
-                ))}
+            {loading ? (
+                <div className="mt-8">
+                    <SkeletonCardGrid count={3} />
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
+                    {processedCards.map((card) => (
+                        <CardItem
+                            key={card.id}
+                            card={card}
+                            spent={card.spentAmount}
+                            balance={card.calculatedBalance}
+                            savingsGoals={card.cardGoals}
+                            onDelete={isReadOnly ? undefined : (id) => setCardToDelete(id)}
+                            onEdit={isReadOnly ? undefined : (c) => setEditingCard(c)}
+                            onMerge={isReadOnly ? undefined : (c) => setMergingCard(c)}
+                            readOnly={isReadOnly}
+                        />
+                    ))}
 
-                {!isReadOnly && (
-                    <button
-                        onClick={() => setIsDialogOpen(true)}
-                        className="min-h-[220px] rounded-[2rem] border-2 border-dashed border-foreground/40 flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all duration-300 group"
-                    >
-                        <div className="w-14 h-14 rounded-full bg-foreground/40 group-hover:bg-foreground flex items-center justify-center transition-colors">
-                            <Plus weight="bold" size={24} className="text-background" />
-                        </div>
-                        <span className="font-medium">Adicionar Cartão</span>
-                    </button>
-                )}
-            </div>
+                    {!isReadOnly && (
+                        <button
+                            onClick={() => setIsDialogOpen(true)}
+                            className="min-h-[220px] rounded-[2rem] border-2 border-dashed border-foreground/40 flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all duration-300 group"
+                        >
+                            <div className="w-14 h-14 rounded-full bg-foreground/40 group-hover:bg-foreground flex items-center justify-center transition-colors">
+                                <Plus weight="bold" size={24} className="text-background" />
+                            </div>
+                            <span className="font-medium">Adicionar Cartão</span>
+                        </button>
+                    )}
+                </div>
+            )}
 
             {!isReadOnly && (
                 <>

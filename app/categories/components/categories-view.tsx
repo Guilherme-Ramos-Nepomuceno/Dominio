@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { CategoryItem } from "./category-item"
 import { AddCategoryDialog } from "./add-category-dialog"
 import { CategoryHistoryDialog } from "./category-history-dialog"
+import { SkeletonRowList } from "@/components/ui/loading-skeletons"
 import { cn } from "@/lib/utils"
 import type { Category } from "@/lib/types"
 import { useCategoriesViewModel } from "../hooks/use-categories-view-model"
@@ -23,7 +24,8 @@ export function CategoriesView() {
         handleDelete,
         filteredCategories,
         incomeCategories,
-        expenseCategories
+        expenseCategories,
+        loading,
     } = useCategoriesViewModel()
 
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
@@ -79,6 +81,9 @@ export function CategoriesView() {
                 </div>
             </div>
 
+            {loading ? (
+                <SkeletonRowList count={5} />
+            ) : (
             <div className="space-y-6">
                 {/* Income Categories */}
                 {(filter === "all" || filter === "income") && incomeCategories.length > 0 && (
@@ -135,9 +140,10 @@ export function CategoriesView() {
                     </div>
                 )}
             </div>
+            )}
 
             {/* FAB */}
-            {filteredCategories.length > 0 && (
+            {!loading && filteredCategories.length > 0 && (
                 <button
                     onClick={() => setIsDialogOpen(true)}
                     className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-110 transition-transform md:bottom-6"

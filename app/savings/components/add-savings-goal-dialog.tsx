@@ -13,7 +13,7 @@ import { useAccount } from "@/components/account/account-context"
 interface AddSavingsGoalDialogProps {
   isOpen: boolean
   onClose: () => void
-  onAdd: (goal: { name: string; targetAmount: number; color: string; icon: string; cardId: string; isCasal?: boolean }) => void
+  onAdd: (goal: { name: string; targetAmount: number; color: string; icon: string; cardId: string; isCasal?: boolean }) => void | Promise<void>
 }
 
 // Reservas não têm mais cor própria na interface (mesmo tratamento das categorias)
@@ -27,6 +27,7 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
   const [selectedCardId, setSelectedCardId] = useState<string>("")
   const [isCasal, setIsCasal] = useState(false)
   const [cards, setCards] = useState<Card[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { family } = useAccount()
   const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
 
@@ -55,7 +56,9 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
     setTargetAmount(formatCurrencyInput(onlyNumbers))
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmitting) return
+
     if (!name || !targetAmount) {
       alert("Preencha todos os campos")
       return
@@ -72,21 +75,26 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
       return
     }
 
-    onAdd({
-      name,
-      targetAmount: amount,
-      color: DEFAULT_GOAL_COLOR,
-      icon: selectedIcon,
-      cardId: selectedCardId,
-      isCasal,
-    })
+    setIsSubmitting(true)
+    try {
+      await onAdd({
+        name,
+        targetAmount: amount,
+        color: DEFAULT_GOAL_COLOR,
+        icon: selectedIcon,
+        cardId: selectedCardId,
+        isCasal,
+      })
 
-    setName("")
-    setTargetAmount("")
-    setSelectedIcon(SAVINGS_ICON_OPTIONS[0].name)
-    setSelectedCardId("")
-    setIsCasal(false)
-    onClose()
+      setName("")
+      setTargetAmount("")
+      setSelectedIcon(SAVINGS_ICON_OPTIONS[0].name)
+      setSelectedCardId("")
+      setIsCasal(false)
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -212,16 +220,17 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors"
+            disabled={isSubmitting}
+            className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
-            disabled={debitCards.length === 0}
+            disabled={debitCards.length === 0 || isSubmitting}
             className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
           >
-            Criar Reserva
+            {isSubmitting ? "Criando..." : "Criar Reserva"}
           </button>
         </div>
       </div>

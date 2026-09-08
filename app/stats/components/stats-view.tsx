@@ -14,6 +14,7 @@ import { CasalFamiliaToggle } from "@/app/components/casal-familia-toggle"
 import { FamilyTotalsView } from "@/app/components/family-totals-view"
 import { updateTransaction } from "@/lib/storage"
 import { useAccount } from "@/components/account/account-context"
+import { SkeletonRowList } from "@/components/ui/loading-skeletons"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -37,6 +38,7 @@ export function StatsView() {
         isCoupleAccount,
         familyTotals,
         loadingFamilyTotals,
+        loading,
         transactionToCancel,
         setTransactionToCancel,
         categories,
@@ -213,7 +215,9 @@ export function StatsView() {
             </div>
 
             <div className="space-y-8 pb-10">
-                {sortedDates.length > 0 ? (
+                {loading ? (
+                    <SkeletonRowList count={5} />
+                ) : sortedDates.length > 0 ? (
                     sortedDates.map((date) => {
                         const isToday = date === todayKey
                         const isYesterday = date === yesterdayKey

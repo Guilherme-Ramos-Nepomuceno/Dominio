@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { GoalCard } from "./goal-card"
 import { GoalFormDialog } from "./goal-form-dialog"
 import { AddFundsDialog } from "./add-funds-dialog"
+import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
 import { formatCurrency } from "@/lib/date-utils"
 import { useGoalsViewModel } from "../hooks/use-goals-view-model"
 
@@ -24,7 +25,8 @@ export function GoalsView() {
         handleDeleteGoal,
         handleAddFunds,
         totalSaved,
-        totalTarget
+        totalTarget,
+        loading,
     } = useGoalsViewModel()
 
     return (
@@ -47,7 +49,7 @@ export function GoalsView() {
             />
 
             {/* Summary Card */}
-            {goals.length > 0 && (
+            {!loading && goals.length > 0 && (
                 <div className="mb-6 rounded-[20px] bg-gradient-to-br from-primary/10 to-primary/5 p-6 border border-primary/20">
                     <div className="flex items-center justify-between">
                         <div>
@@ -72,7 +74,9 @@ export function GoalsView() {
             )}
 
             {/* Goals Grid */}
-            {goals.length === 0 ? (
+            {loading ? (
+                <SkeletonCardGrid count={3} />
+            ) : goals.length === 0 ? (
                 <div className="rounded-[20px] bg-card p-12 text-center border border-border/50">
                     <div className="inline-flex p-5 rounded-full bg-muted/50 mb-4">
                         <Plus size={48} weight="light" className="text-muted-foreground" />

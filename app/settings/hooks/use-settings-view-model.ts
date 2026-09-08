@@ -28,6 +28,9 @@ export function useSettingsViewModel() {
     const [categories, setCategories] = useState<Category[]>([])
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
+    const [updatingProfile, setUpdatingProfile] = useState(false)
+    const [savingSettings, setSavingSettings] = useState(false)
+    const [clearingData, setClearingData] = useState(false)
 
     useEffect(() => {
         setUser(getCurrentUser())
@@ -45,19 +48,31 @@ export function useSettingsViewModel() {
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (updatingProfile) return
         if (user) {
-            await updateCurrentUser(user)
-            toast({ title: "Perfil atualizado!", description: "Seus dados foram atualizados com sucesso.", variant: "success" })
+            setUpdatingProfile(true)
+            try {
+                await updateCurrentUser(user)
+                toast({ title: "Perfil atualizado!", description: "Seus dados foram atualizados com sucesso.", variant: "success" })
+            } finally {
+                setUpdatingProfile(false)
+            }
         }
     }
 
     const handleSave = async () => {
-        await saveSettings({
-            spendingGoal: Number.parseFloat(spendingGoal),
-            currency,
-            categoryGoals,
-        })
-        toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
+        if (savingSettings) return
+        setSavingSettings(true)
+        try {
+            await saveSettings({
+                spendingGoal: Number.parseFloat(spendingGoal),
+                currency,
+                categoryGoals,
+            })
+            toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
+        } finally {
+            setSavingSettings(false)
+        }
     }
 
     const handleLogout = () => {
@@ -66,10 +81,16 @@ export function useSettingsViewModel() {
     }
 
     const confirmClearData = async () => {
-        await deleteAllTransactions()
-        toast({ title: "Dados apagados!", description: "Todos os dados foram apagados com sucesso.", variant: "destructive" })
-        setShowClearDialog(false)
-        window.location.reload()
+        if (clearingData) return
+        setClearingData(true)
+        try {
+            await deleteAllTransactions()
+            toast({ title: "Dados apagados!", description: "Todos os dados foram apagados com sucesso.", variant: "destructive" })
+            setShowClearDialog(false)
+            window.location.reload()
+        } finally {
+            setClearingData(false)
+        }
     }
 
     // Na conta do casal, `categories` traz as categorias dos dois parceiros
@@ -188,6 +209,9 @@ export function useSettingsViewModel() {
         creatingCoupleAccount,
         handleCreateCoupleAccount,
         loading,
+        updatingProfile,
+        savingSettings,
+        clearingData,
         spendingGoal,
         setSpendingGoal,
         currency,

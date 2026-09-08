@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 interface GoalFormDialogProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (goal: Omit<Goal, "id" | "createdAt">) => void
+  onSave: (goal: Omit<Goal, "id" | "createdAt">) => void | Promise<void>
   initialGoal?: Goal
 }
 
@@ -48,6 +48,7 @@ export function GoalFormDialog({ isOpen, onClose, onSave, initialGoal }: GoalFor
   const [deadline, setDeadline] = useState("")
   const [selectedIcon, setSelectedIcon] = useState<string>("Target")
   const [selectedColor, setSelectedColor] = useState(goalColors[0])
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (initialGoal) {
@@ -67,24 +68,30 @@ export function GoalFormDialog({ isOpen, onClose, onSave, initialGoal }: GoalFor
     }
   }, [initialGoal, isOpen])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
 
     if (!name || !targetAmount) {
       alert("Preencha todos os campos obrigatórios")
       return
     }
 
-    onSave({
-      name,
-      targetAmount: Number.parseFloat(targetAmount),
-      currentAmount: Number.parseFloat(currentAmount) || 0,
-      deadline: deadline ? new Date(deadline).toISOString() : undefined,
-      icon: selectedIcon,
-      color: selectedColor,
-    })
+    setIsSubmitting(true)
+    try {
+      await onSave({
+        name,
+        targetAmount: Number.parseFloat(targetAmount),
+        currentAmount: Number.parseFloat(currentAmount) || 0,
+        deadline: deadline ? new Date(deadline).toISOString() : undefined,
+        icon: selectedIcon,
+        color: selectedColor,
+      })
 
-    onClose()
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -213,15 +220,17 @@ export function GoalFormDialog({ isOpen, onClose, onSave, initialGoal }: GoalFor
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 rounded-[1vw] border border-border bg-background text-foreground hover:bg-muted transition-colors font-semibold"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-3 rounded-[1vw] border border-border bg-background text-foreground hover:bg-muted transition-colors font-semibold disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 rounded-[1vw] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-3 rounded-[1vw] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50"
             >
-              {initialGoal ? "Salvar" : "Criar Objetivo"}
+              {isSubmitting ? "Salvando..." : initialGoal ? "Salvar" : "Criar Objetivo"}
             </button>
           </div>
         </form>

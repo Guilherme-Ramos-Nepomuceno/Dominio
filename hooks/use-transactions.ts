@@ -169,13 +169,20 @@ export function useTotalBalance(month: string) {
   const [savingsGoals, setSavingsGoals] = useState<any[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
+  // Só true até o primeiro carregamento — atualizações depois (via
+  // storage-update) não voltam a mostrar o skeleton.
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
-      const [savings, cats, all] = await Promise.all([getSavingsGoals(), getCategories(), getTransactions()])
-      setSavingsGoals(savings)
-      setCategories(cats)
-      setAllTransactions(all)
+      try {
+        const [savings, cats, all] = await Promise.all([getSavingsGoals(), getCategories(), getTransactions()])
+        setSavingsGoals(savings)
+        setCategories(cats)
+        setAllTransactions(all)
+      } finally {
+        setIsLoading(false)
+      }
     }
     load()
 
@@ -183,7 +190,7 @@ export function useTotalBalance(month: string) {
     return () => window.removeEventListener("storage-update", load)
   }, [])
 
-  return computeTotalBalanceFrom(allTransactions, categories, savingsGoals, month)
+  return { ...computeTotalBalanceFrom(allTransactions, categories, savingsGoals, month), isLoading }
 }
 
 // Pendências de qualquer mês (incluindo meses anteriores não pagos), com a mesma

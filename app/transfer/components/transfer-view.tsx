@@ -4,12 +4,15 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { getBankIcon } from "@/lib/bank-icons"
 import { Button } from "@/components/ui/button"
+import { SkeletonRowList } from "@/components/ui/loading-skeletons"
 import { ArrowRightIcon, CreditCard, WarningCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTransferViewModel } from "../hooks/use-transfer-view-model"
 
 export function TransferView() {
     const {
+        loading,
+        isSubmitting,
         router,
         debitCards,
         familyMembers,
@@ -26,6 +29,15 @@ export function TransferView() {
         setDescription,
         handleSubmit
     } = useTransferViewModel()
+
+    if (loading) {
+        return (
+            <AppLayout>
+                <PageHeader title="Transferir entre Contas" subtitle="Mova valores entre seus cartões" />
+                <SkeletonRowList count={3} className="mt-6" />
+            </AppLayout>
+        )
+    }
 
     if (debitCards.length === 0) {
         return (
@@ -224,11 +236,12 @@ export function TransferView() {
                             variant="outline"
                             className="flex-1 h-12 rounded-[1vw] bg-transparent"
                             onClick={() => router.push("/")}
+                            disabled={isSubmitting}
                         >
                             Cancelar
                         </Button>
-                        <Button type="submit" className="flex-1 h-12 rounded-[1vw] font-semibold">
-                            Transferir
+                        <Button type="submit" className="flex-1 h-12 rounded-[1vw] font-semibold" disabled={isSubmitting}>
+                            {isSubmitting ? "Transferindo..." : "Transferir"}
                         </Button>
                     </div>
                 )}

@@ -10,6 +10,7 @@ import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PeriodSelector } from "@/components/ui/period-selector"
+import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
 import type { Invoice } from "@/lib/types"
 import { useInvoicesViewModel } from "../hooks/use-invoices-view-model"
 
@@ -89,6 +90,9 @@ function InvoiceDatesEditor({ invoice, onSave }: { invoice: Invoice; onSave: (up
 
 export function InvoicesView() {
     const {
+        loading,
+        isPaying,
+        isMoving,
         cards,
         selectedMonth,
         setSelectedMonth,
@@ -120,7 +124,11 @@ export function InvoicesView() {
                         className="mb-6"
                     />
 
-                    {cards.length === 0 ? (
+                    {loading ? (
+                        <div className="mt-6">
+                            <SkeletonCardGrid count={3} />
+                        </div>
+                    ) : cards.length === 0 ? (
                         <div className="text-center py-12">
                             <CreditCardIcon size={48} className="mx-auto text-muted-foreground mb-4" weight="light" />
                             <p className="text-muted-foreground">Nenhum cartão de crédito cadastrado</p>
@@ -193,8 +201,8 @@ export function InvoicesView() {
                                             </h3>
 
                                             <div className="flex flex-col sm:flex-row gap-3">
-                                                <Button onClick={handlePayFull} className="flex-1 text-background bg-income hover:bg-income/90">
-                                                    Pagar Restante ({formatCurrency(selectedInvoice.totalPending)})
+                                                <Button onClick={handlePayFull} disabled={isPaying} className="flex-1 text-background bg-income hover:bg-income/90">
+                                                    {isPaying ? "Pagando..." : `Pagar Restante (${formatCurrency(selectedInvoice.totalPending)})`}
                                                 </Button>
                                             </div>
 
@@ -208,8 +216,8 @@ export function InvoicesView() {
                                                         placeholder="0,00"
                                                         className="flex-1 px-4 py-2 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                                                     />
-                                                    <Button onClick={handlePayPartial} variant="outline" className="px-6 bg-transparent">
-                                                        Pagar Parcial
+                                                    <Button onClick={handlePayPartial} disabled={isPaying} variant="outline" className="px-6 bg-transparent">
+                                                        {isPaying ? "Pagando..." : "Pagar Parcial"}
                                                     </Button>
                                                 </div>
                                                 <p className="text-xs text-muted-foreground mt-2">
@@ -303,16 +311,18 @@ export function InvoicesView() {
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => handleMoveTransaction(transaction.id, "previous")}
+                                                                            disabled={isMoving}
                                                                             title="Mover para a fatura anterior"
-                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
                                                                         >
                                                                             <ArrowLeft size={14} weight="bold" />
                                                                         </button>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => handleMoveTransaction(transaction.id, "next")}
+                                                                            disabled={isMoving}
                                                                             title="Mover para a fatura seguinte"
-                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
                                                                         >
                                                                             <ArrowRight size={14} weight="bold" />
                                                                         </button>

@@ -79,29 +79,36 @@ export function AddCategoryDialog({ isOpen, onClose, onSuccess }: AddCategoryDia
   const [name, setName] = useState("")
   const [type, setType] = useState<TransactionType>("expense")
   const [icon, setIcon] = useState(ICON_OPTIONS[0].name)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
 
     if (!name.trim()) {
       alert("Digite um nome para a categoria")
       return
     }
 
-    await addCategory({
-      name: name.trim(),
-      type,
-      color: DEFAULT_CATEGORY_COLOR,
-      icon,
-    })
+    setIsSubmitting(true)
+    try {
+      await addCategory({
+        name: name.trim(),
+        type,
+        color: DEFAULT_CATEGORY_COLOR,
+        icon,
+      })
 
-    setName("")
-    setType("expense")
-    setIcon(ICON_OPTIONS[0].name)
-    onSuccess()
-    onClose()
+      setName("")
+      setType("expense")
+      setIcon(ICON_OPTIONS[0].name)
+      onSuccess()
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -190,15 +197,17 @@ export function AddCategoryDialog({ isOpen, onClose, onSuccess }: AddCategoryDia
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 rounded-[1vw] border border-border text-foreground font-medium hover:bg-muted transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-3 rounded-[1vw] border border-border text-foreground font-medium hover:bg-muted transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 rounded-[1vw] bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-3 rounded-[1vw] bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              Criar Categoria
+              {isSubmitting ? "Criando..." : "Criar Categoria"}
             </button>
           </div>
         </form>

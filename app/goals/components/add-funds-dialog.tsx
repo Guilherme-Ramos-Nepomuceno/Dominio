@@ -11,15 +11,17 @@ interface AddFundsDialogProps {
   isOpen: boolean
   onClose: () => void
   goal: Goal
-  onAddFunds: (amount: number) => void
+  onAddFunds: (amount: number) => void | Promise<void>
 }
 
 export function AddFundsDialog({ isOpen, onClose, goal, onAddFunds }: AddFundsDialogProps) {
   const [amount, setAmount] = useState("")
   const [mode, setMode] = useState<"add" | "remove">("add")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
 
     const numAmount = Number.parseFloat(amount)
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -27,11 +29,16 @@ export function AddFundsDialog({ isOpen, onClose, goal, onAddFunds }: AddFundsDi
       return
     }
 
-    const finalAmount = mode === "add" ? numAmount : -numAmount
-    onAddFunds(finalAmount)
+    setIsSubmitting(true)
+    try {
+      const finalAmount = mode === "add" ? numAmount : -numAmount
+      await onAddFunds(finalAmount)
 
-    setAmount("")
-    onClose()
+      setAmount("")
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -112,15 +119,17 @@ export function AddFundsDialog({ isOpen, onClose, goal, onAddFunds }: AddFundsDi
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-3 rounded-[1vw] border border-border bg-background text-foreground hover:bg-muted transition-colors font-semibold"
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-3 rounded-[1vw] border border-border bg-background text-foreground hover:bg-muted transition-colors font-semibold disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-3 rounded-[1vw] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold"
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-3 rounded-[1vw] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50"
               >
-                Confirmar
+                {isSubmitting ? "Confirmando..." : "Confirmar"}
               </button>
             </div>
           </form>
