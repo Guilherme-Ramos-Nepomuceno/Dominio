@@ -90,6 +90,7 @@ export function useCardsViewModel() {
                 const currentInvoiceTransactions = transactions.filter(
                     (t) =>
                         t.cardId === card.id &&
+                        t.status !== "cancelled" &&
                         t.date.startsWith(currentMonth) &&
                         t.type === "expense",
                 )
@@ -98,7 +99,7 @@ export function useCardsViewModel() {
             if (card.hasDebit) {
                 calculatedBalance = card.calculatedBalance ?? 0
                 spentAmount = transactions
-                    .filter((t) => t.cardId === card.id && t.date.startsWith(currentMonth) && t.type === "expense")
+                    .filter((t) => t.cardId === card.id && t.status !== "cancelled" && t.date.startsWith(currentMonth) && t.type === "expense")
                     .reduce((sum, t) => sum + t.amount, 0)
             }
 
