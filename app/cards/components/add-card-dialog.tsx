@@ -32,6 +32,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
   const [hasDebit, setHasDebit] = useState(false)
   const [limit, setLimit] = useState("")
   const [dueDate, setDueDate] = useState("10")
+  const [closingDate, setClosingDate] = useState("3")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
 
@@ -79,6 +80,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
         color: bankColors[bankName],
         limit: hasCredit ? (limit ? parseCurrencyInput(limit) : undefined) : undefined,
         dueDate: hasCredit ? Number.parseInt(dueDate) : undefined,
+        closingDate: hasCredit ? Number.parseInt(closingDate) : undefined,
       })
 
       setName("")
@@ -88,6 +90,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
       setHasDebit(false)
       setLimit("")
       setDueDate("10")
+      setClosingDate("3")
       onSuccess()
       onClose()
     } catch (error: any) {
@@ -248,19 +251,35 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Dia de Vencimento</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  placeholder="10"
-                  className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <p className="text-xs text-muted-foreground">A fatura vence no dia {dueDate} de cada mês</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Dia de Fechamento</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={closingDate}
+                    onChange={(e) => setClosingDate(e.target.value)}
+                    placeholder="3"
+                    className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Dia de Vencimento</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    placeholder="10"
+                    className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground -mt-4">
+                Compras a partir do dia {closingDate} entram na fatura do mês seguinte, que vence dia {dueDate}
+              </p>
             </>
           )}
 

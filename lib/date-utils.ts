@@ -68,6 +68,26 @@ export const isSameMonth = (date1: string, date2: string): boolean => {
   return date1.substring(0, 7) === date2.substring(0, 7)
 }
 
+// Cartão de crédito com dia de fechamento: uma compra feita NAQUELE dia ou
+// depois já entra na fatura do mês seguinte, não na do mês da compra. Sem
+// dia de fechamento cadastrado, a fatura é simplesmente o mês da compra
+// (comportamento de antes, mantido pra cartões que não configuraram isso).
+export const getInvoiceMonth = (dateString: string, closingDate?: number | null): string => {
+  const date = new Date(dateString)
+  let year = date.getFullYear()
+  let month = date.getMonth() + 1 // 1-12
+
+  if (closingDate && date.getDate() >= closingDate) {
+    month += 1
+    if (month > 12) {
+      month = 1
+      year += 1
+    }
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}`
+}
+
 export const parseCurrency = (value: string): number => {
   return Number.parseFloat(value.replace(/[^\d,]/g, "").replace(",", ".")) || 0
 }

@@ -10,6 +10,7 @@ import type {
   Card,
   TransactionStatus,
   BankName,
+  Invoice,
 } from "./types"
 import { fetchApi } from "./api"
 import { getActiveAccountSelection } from "./active-account"
@@ -169,6 +170,7 @@ function mapCardFromApi(c: any): Card {
     color: c.color,
     limit: c.limit != null ? Number(c.limit) : undefined,
     dueDate: c.dueDate ?? undefined,
+    closingDate: c.closingDate ?? undefined,
     createdAt: c.createdAt,
     spentAmount: c.spentAmount != null ? Number(c.spentAmount) : undefined,
     calculatedBalance: c.calculatedBalance != null ? Number(c.calculatedBalance) : undefined,
@@ -187,6 +189,7 @@ function mapCardToApi(c: Partial<Card>) {
   if (c.color !== undefined) body.color = c.color
   if (c.limit !== undefined) body.limit = c.limit
   if (c.dueDate !== undefined) body.dueDate = c.dueDate
+  if (c.closingDate !== undefined) body.closingDate = c.closingDate
   return body
 }
 
@@ -279,6 +282,7 @@ function mapTransactionFromApi(t: any): Transaction {
     cardId: t.cardId ?? undefined,
     paymentMethod: t.paymentMethod ? (String(t.paymentMethod).toLowerCase() as Transaction["paymentMethod"]) : undefined,
     isCasal: !!t.isCasal,
+    invoiceId: t.invoiceId ?? undefined,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -487,6 +491,53 @@ export async function getPendingTransactions(): Promise<Transaction[]> {
   return transactions
     .filter((t) => t.status === "pending")
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+}
+
+// Move uma parcela/despesa no crédito para a fatura seguinte ou anterior do
+// mesmo cartão — resolve na hora uma divergência de 1 dia no fechamento real.
+export async function moveTransactionInvoice(id: string, direction: "next" | "previous"): Promise<Transaction> {
+  assertWritable()
+  const result = await fetchApi(`/transactions/${id}/move-invoice`, {
+    method: "PATCH",
+    body: JSON.stringify({ direction }),
+  })
+  notifyStorageUpdate()
+  return mapTransactionFromApi(result)
+}
+
+// ---------------------------------------------------------------------------
+// Invoices (fatura de um cartão de crédito, num mês específico)
+// ---------------------------------------------------------------------------
+
+function mapInvoiceFromApi(i: any): Invoice {
+  return {
+    id: i.id,
+    cardId: i.cardId,
+    year: i.year,
+    month: i.month,
+    closingDate: i.closingDate,
+    dueDate: i.dueDate,
+  }
+}
+
+export async function getInvoice(cardId: string, year: number, month: number): Promise<Invoice> {
+  const raw = await fetchApi(`/cards/${cardId}/invoices/${year}/${month}`)
+  return mapInvoiceFromApi(raw)
+}
+
+export async function updateInvoiceDates(
+  cardId: string,
+  year: number,
+  month: number,
+  updates: { closingDate?: string; dueDate?: string },
+): Promise<Invoice> {
+  assertWritable()
+  const raw = await fetchApi(`/cards/${cardId}/invoices/${year}/${month}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  })
+  notifyStorageUpdate()
+  return mapInvoiceFromApi(raw)
 }
 
 // ---------------------------------------------------------------------------

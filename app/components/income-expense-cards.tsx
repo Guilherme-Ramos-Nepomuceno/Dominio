@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { MiniBarChart, type ChartDataPoint } from "./mini-bar-chart"
-import { formatCurrency } from "@/lib/date-utils"
+import { formatCurrency, getInvoiceMonth } from "@/lib/date-utils"
 import type { PeriodType, Card, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { CreditCard, Wallet, Circle } from "@phosphor-icons/react"
@@ -72,9 +72,14 @@ export function IncomeExpenseCards({
 
     const finalFiltered = projectedTransactions.filter(t => {
         const tDate = new Date(t.date)
-        
+
         if (period === 'month') {
-            return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear()
+            // O mês da fatura considera o dia de fechamento do cartão — uma
+            // compra feita naquele dia (ou depois) já entra na fatura do mês
+            // seguinte, então comparamos com o mês de fatura "atual" (o de hoje).
+            const card = cards.find(c => c.id === t.cardId)
+            const currentInvoiceMonth = getInvoiceMonth(now.toISOString(), card?.closingDate)
+            return getInvoiceMonth(t.date, card?.closingDate) === currentInvoiceMonth
         } else {
             const oneWeekAgo = new Date()
             oneWeekAgo.setDate(now.getDate() - 7)
