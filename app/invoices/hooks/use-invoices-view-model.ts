@@ -81,9 +81,7 @@ export function useInvoicesViewModel() {
                 (t) =>
                     t.cardId === card.id &&
                     t.status !== "cancelled" &&
-                    categories.find((c) => c.id === t.categoryId)?.type === "expense" &&
-                    // Cartão combinado: débito não entra na fatura, só o lado crédito.
-                    (!card.hasDebit || t.paymentMethod === "credit")
+                    categories.find((c) => c.id === t.categoryId)?.type === "expense"
             )
 
             const realInvoice = invoicesByCard[card.id]
@@ -96,6 +94,10 @@ export function useInvoicesViewModel() {
             // cálculo pelo dia de fechamento do cartão, como antes.
             const monthTransactions: any[] = cardTransactions.filter((t) => {
                 if (t.invoiceId && realInvoice) return t.invoiceId === realInvoice.id
+                // Sem invoiceId: cartão combinado só deve considerar aqui o lado
+                // crédito (débito não gera fatura) — invoiceId ausente + tag
+                // "debit" explícita é o único caso que sabemos ser débito.
+                if (card.hasDebit && t.paymentMethod === "debit") return false
                 return getInvoiceMonth(t.date, card.closingDate) === selectedMonth
             })
 
