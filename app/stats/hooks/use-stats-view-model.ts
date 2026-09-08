@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useMonthData, isInternalTransfer } from "@/hooks/use-transactions"
 import { useFamilyTotals } from "@/hooks/use-family-totals"
-import { getCurrentMonth } from "@/lib/date-utils"
+import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
 import { setSettings, getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 import type { CategoryAlert } from "@/app/types/category"
@@ -46,7 +46,10 @@ export function useStatsViewModel() {
 
     const transactionsToDisplay = useMemo(() => {
         if (filterType === "all") {
-            return monthData.transactions
+            // O gráfico "Fluxo de Gastos" já soma pendentes (ex: ocorrências futuras de
+            // recorrência) no total do mês — a lista "Geral" precisa incluir essas mesmas
+            // transações, senão meses futuros aparecem com valor no gráfico mas lista vazia.
+            return allTransactions.filter((t) => t.status !== "cancelled" && isSameMonth(t.date, selectedMonth + "-01"))
         }
 
         if (filterType === "credit") {
@@ -71,7 +74,7 @@ export function useStatsViewModel() {
             return creditTransactions
         }
         return []
-    }, [filterType, selectedMonth, monthData.transactions, cards, allTransactions])
+    }, [filterType, selectedMonth, cards, allTransactions])
 
     const groupedTransactions = useMemo(() => {
         const getLocalDateKey = (date: Date) => date.toLocaleDateString('sv-SE')
