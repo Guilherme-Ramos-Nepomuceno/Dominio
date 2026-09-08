@@ -57,34 +57,10 @@ export function useInvoicesViewModel() {
                     categories.find((c) => c.id === t.categoryId)?.type === "expense"
             )
 
-            // 2. Processa as transações para o mês selecionado
-            const monthTransactions: any[] = []
-
-            cardTransactions.forEach((t) => {
-                const transactionDate = new Date(t.date)
-                const tYear = transactionDate.getFullYear()
-                const tMonth = transactionDate.getMonth() + 1
-
-                const [selYear, selMonth] = selectedMonth.split("-").map(Number)
-                const installments = t.installments && t.installments > 1 ? t.installments : 1
-
-                if (installments === 1) {
-                    if (t.date.startsWith(selectedMonth)) {
-                        monthTransactions.push(t)
-                    }
-                } else {
-                    const monthDiff = (selYear - tYear) * 12 + (selMonth - tMonth)
-                    if (monthDiff >= 0 && monthDiff < installments) {
-                        const installmentAmount = t.amount / installments
-                        monthTransactions.push({
-                            ...t,
-                            amount: installmentAmount,
-                            currentInstallment: monthDiff + 1,
-                            originalDate: t.date
-                        })
-                    }
-                }
-            })
+            // 2. Processa as transações para o mês selecionado — cada parcela já é
+            // sua própria transação, com data e valor corretos (addTransaction já
+            // cria uma linha por parcela), então só filtra pelo mês selecionado.
+            const monthTransactions: any[] = cardTransactions.filter((t) => t.date.startsWith(selectedMonth))
 
             const totalInvoice = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
             const pendingTransactions = monthTransactions.filter(t => t.status === "pending")
@@ -172,6 +148,7 @@ export function useInvoicesViewModel() {
         partialAmount,
         setPartialAmount,
         categories,
+        allTransactions: transactions,
         getFormattedMonthTitle,
         cardInvoices,
         selectedInvoice,

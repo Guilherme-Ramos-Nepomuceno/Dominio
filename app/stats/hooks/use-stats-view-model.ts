@@ -61,31 +61,12 @@ export function useStatsViewModel() {
                 if (card?.hasDebit) return t.paymentMethod === "credit"
                 return true
             })
-            const [selYear, selMonth] = selectedMonth.split("-").map(Number)
-
+            // Cada parcela já é sua própria transação, com data e valor corretos
+            // (addTransaction já cria uma linha por parcela) — não precisa (e não
+            // deve) recalcular mês/valor aqui, só filtrar pelo mês selecionado.
             allCreditHistory.forEach(t => {
-                const transactionDate = new Date(t.date)
-                const tYear = transactionDate.getFullYear()
-                const tMonth = transactionDate.getMonth() + 1
-                const installments = t.installments && t.installments > 1 ? t.installments : 1
-
-                if (installments === 1) {
-                    if (t.date.startsWith(selectedMonth)) {
-                        if (t.status !== 'paid' && t.status !== 'cancelled') creditTransactions.push(t)
-                    }
-                } else {
-                    const monthDiff = (selYear - tYear) * 12 + (selMonth - tMonth)
-                    if (monthDiff >= 0 && monthDiff < installments) {
-                        if (t.status === 'paid' || t.status === 'cancelled') return;
-                        creditTransactions.push({
-                            ...t,
-                            amount: t.amount / installments,
-                            currentInstallment: monthDiff + 1,
-                            originalDate: t.date,
-                            date: `${selectedMonth}-${String(transactionDate.getDate()).padStart(2, '0')}T12:00:00.000Z`
-                        })
-                    }
-                }
+                if (t.status === 'paid' || t.status === 'cancelled') return
+                if (t.date.startsWith(selectedMonth)) creditTransactions.push(t)
             })
             return creditTransactions
         }
@@ -159,6 +140,7 @@ export function useStatsViewModel() {
         monthData,
         categories,
         cards,
+        allTransactions,
         groupedTransactions,
         sortedDates,
         confirmCancelTransaction,

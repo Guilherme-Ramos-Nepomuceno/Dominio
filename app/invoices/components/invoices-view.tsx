@@ -20,6 +20,7 @@ export function InvoicesView() {
         setSelectedCardId,
         partialAmount,
         categories,
+        allTransactions,
         getFormattedMonthTitle,
         cardInvoices,
         selectedInvoice,
@@ -162,6 +163,11 @@ export function InvoicesView() {
                                                 const category = categories.find((c) => c.id === transaction.categoryId)
                                                 const isPaid = transaction.status === "paid"
                                                 const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
+                                                // No crédito, toda parcela referencia a data real da compra (a da 1ª parcela).
+                                                const purchaseTransaction = transaction.parentId
+                                                    ? allTransactions.find((t) => t.id === transaction.parentId)
+                                                    : null
+                                                const displayDate = purchaseTransaction?.date || transaction.date
 
                                                 return (
                                                     <div
@@ -181,7 +187,7 @@ export function InvoicesView() {
                                                                     <p className="font-semibold text-foreground truncate">{transaction.description}</p>
                                                                     <p className="text-sm text-muted-foreground">{category?.name}</p>
                                                                     <div className="flex items-center gap-2 mt-1">
-                                                                        <p className="text-xs text-muted-foreground">{formatDate(transaction.originalDate || transaction.date)}</p>
+                                                                        <p className="text-xs text-muted-foreground">{formatDate(displayDate)}</p>
                                                                         {isPaid && (
                                                                             <span className="text-xs px-2 py-0.5 rounded-full bg-income/20 text-income font-medium flex items-center gap-1">
                                                                                 <CheckCircle size={10} weight="fill" /> Pago

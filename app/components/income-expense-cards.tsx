@@ -64,39 +64,11 @@ export function IncomeExpenseCards({
     })
     
     const now = new Date()
-    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const [currYear, currMonth] = currentMonthStr.split('-').map(Number)
 
-    const projectedTransactions: any[] = []
-
-    creditHistory.forEach(t => {
-        if (t.status === 'paid' || t.status === 'cancelled') return
-
-        const tDate = new Date(t.date)
-        const tYear = tDate.getFullYear()
-        const tMonth = tDate.getMonth() + 1
-        const installments = t.installments && t.installments > 1 ? t.installments : 1
-
-        if (installments === 1) {
-            const tMonthStr = `${tYear}-${String(tMonth).padStart(2, '0')}`
-            if (tMonthStr === currentMonthStr) {
-                projectedTransactions.push(t)
-            }
-        } else {
-            const monthDiff = (currYear - tYear) * 12 + (currMonth - tMonth)
-
-            if (monthDiff >= 0 && monthDiff < installments) {
-                const adjustedDate = new Date(now.getFullYear(), now.getMonth(), tDate.getDate())
-                
-                projectedTransactions.push({
-                    ...t,
-                    amount: t.amount / installments,
-                    date: adjustedDate.toISOString(),
-                    originalDate: t.date
-                })
-            }
-        }
-    })
+    // Cada parcela já é sua própria transação, com data e valor corretos
+    // (addTransaction já cria uma linha por parcela) — só filtra pelo período,
+    // sem recalcular mês/valor.
+    const projectedTransactions = creditHistory.filter(t => t.status !== 'paid' && t.status !== 'cancelled')
 
     const finalFiltered = projectedTransactions.filter(t => {
         const tDate = new Date(t.date)

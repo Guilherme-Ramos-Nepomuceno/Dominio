@@ -35,6 +35,18 @@ export function MiniBarChart({
 
   const gapClass = safeData.length > 15 ? "gap-[1px]" : "gap-2"
 
+  // Com muitas barras (visão mensal, até 31 dias) não cabe um label por barra
+  // sem sobrepor os vizinhos. Mostra de 5 em 5 dias, mais o último dia do mês
+  // (28/29/30/31, variável), e o dia da barra em hover/toque mesmo fora do passo.
+  const manyBars = safeData.length > 15
+  const shouldShowLabel = (index: number, item: ChartDataPoint, isHovered: boolean) => {
+    if (!manyBars) return true
+    if (isHovered) return true
+    if (index === 0 || index === safeData.length - 1) return true
+    const day = parseInt(item.label, 10)
+    return !isNaN(day) && day % 5 === 0
+  }
+
   return (
     <div
       className={cn("w-full select-none", className)}
@@ -52,6 +64,7 @@ export function MiniBarChart({
               className="flex-1 h-full flex flex-col justify-end group relative min-w-0"
               onMouseEnter={() => setHoveredIndex(index)}
               onMouseLeave={() => setHoveredIndex(null)}
+              onClick={() => setHoveredIndex(isHovered ? null : index)}
             >
               
               {/* ÁREA DA BARRA */}
@@ -96,13 +109,21 @@ export function MiniBarChart({
               </div>
 
               {/* LABEL */}
-              <div className="h-[20px] w-full flex items-start justify-center overflow-visible">
-                 <span className={cn(
-                    "text-[8px] sm:text-[9px] text-neutral-600 font-semibold uppercase w-full text-center transition-colors duration-200 tracking-tighter",
-                     isHovered ? "text-text-primary scale-105" : ""
-                 )}>
-                    {item.label}
-                 </span>
+              {/* Colunas mensais são estreitas demais (até 31 no mesmo espaço) para o
+                  texto do label caber dentro da própria coluna sem cortar. Como só
+                  algumas colunas mostram label por vez, deixamos o texto "vazar" para
+                  as colunas vizinhas (vazias) via position absolute, ancorado nas
+                  pontas para não sair da borda do card. */}
+              <div className="h-[20px] w-full relative">
+                 {shouldShowLabel(index, item, isHovered) && (
+                   <span className={cn(
+                      "absolute top-0 text-[8px] sm:text-[9px] text-neutral-600 font-semibold uppercase whitespace-nowrap transition-colors duration-200 tracking-tighter",
+                      index === 0 ? "left-0" : index === safeData.length - 1 ? "right-0" : "left-1/2 -translate-x-1/2",
+                       isHovered ? "text-text-primary scale-105" : ""
+                   )}>
+                      {item.label}
+                   </span>
+                 )}
               </div>
 
             </div>
