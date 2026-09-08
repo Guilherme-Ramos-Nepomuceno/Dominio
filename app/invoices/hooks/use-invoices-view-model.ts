@@ -50,10 +50,11 @@ export function useInvoicesViewModel() {
     // --- NOVA LÓGICA: PROJEÇÃO DE PARCELAS ---
     const cardInvoices = useMemo(() => {
         return cards.map((card) => {
-            // 1. Filtra transações deste cartão que são despesas
+            // 1. Filtra transações deste cartão que são despesas (exclui canceladas)
             const cardTransactions = transactions.filter(
                 (t) =>
                     t.cardId === card.id &&
+                    t.status !== "cancelled" &&
                     categories.find((c) => c.id === t.categoryId)?.type === "expense"
             )
 

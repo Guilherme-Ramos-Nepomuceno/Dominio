@@ -8,7 +8,7 @@ import { PeriodSelector } from "@/components/ui/period-selector"
 import { formatMonth, formatCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
-import { CreditCard, Wallet, Circle, Heart } from "@phosphor-icons/react"
+import { CreditCard, Wallet, Circle, Heart, RepeatIcon } from "@phosphor-icons/react"
 import { EditTransactionDialog } from "@/app/components/edit-transaction-dialog"
 import { CasalFamiliaToggle } from "@/app/components/casal-familia-toggle"
 import { FamilyTotalsView } from "@/app/components/family-totals-view"
@@ -83,6 +83,7 @@ export function StatsView() {
             ? allTransactions.find((t: any) => t.id === transaction.parentId)
             : null
         const purchaseDateObj = purchaseTransaction ? new Date(purchaseTransaction.date) : null
+        const isRecurring = !!transaction.recurrence && transaction.recurrence !== "none"
 
         const [startX, setStartX] = useState<number | null>(null)
         const [swipeOffset, setSwipeOffset] = useState(0)
@@ -131,6 +132,12 @@ export function StatsView() {
                                     <span className="text-[10px] text-foreground font-bold bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
                                         <CreditCard size={10} weight="fill" />
                                         {transaction.currentInstallment}/{transaction.installments}
+                                    </span>
+                                )}
+                                {isRecurring && (
+                                    <span className="text-[10px] text-primary font-bold bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1" title="Transação recorrente">
+                                        <RepeatIcon size={10} weight="bold" />
+                                        Recorrente
                                     </span>
                                 )}
                                 {card && filterType === 'credit' && <span className="text-[10px] text-muted-foreground flex items-center gap-1">• {card.name}</span>}
