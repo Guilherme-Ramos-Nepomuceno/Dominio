@@ -109,30 +109,15 @@ export function StackedBarChart({
 
   const getMonthData = (targetMonthStr: string) => {
     const result: CategoryData[] = []
-    const [targetYear, targetMonth] = targetMonthStr.split('-').map(Number)
 
     allTransactions.forEach((transaction) => {
       if (transaction.type !== 'expense') return
       if (transaction.status === 'cancelled') return
       if (isInternalTransfer(categories, transaction)) return
 
-      const transDate = new Date(transaction.date)
-      const transYear = transDate.getFullYear()
-      const transMonth = transDate.getMonth() + 1
-
-      const installments = transaction.installments && transaction.installments > 1 ? transaction.installments : 1
-      let amountToAdd = 0
-
-      if (installments === 1) {
-        if (transaction.date.startsWith(targetMonthStr)) {
-          amountToAdd = transaction.amount
-        }
-      } else {
-        const monthDiff = (targetYear - transYear) * 12 + (targetMonth - transMonth)
-        if (monthDiff >= 0 && monthDiff < installments) {
-           amountToAdd = transaction.amount / installments
-        }
-      }
+      // Cada parcela já é sua própria transação, com data e valor corretos
+      // (addTransaction já cria uma linha por parcela) — só filtra pelo mês.
+      const amountToAdd = transaction.date.startsWith(targetMonthStr) ? transaction.amount : 0
 
       if (amountToAdd > 0) {
         const category = categories.find((c) => c.id === transaction.categoryId)

@@ -41,6 +41,7 @@ export function StatsView() {
         setTransactionToCancel,
         categories,
         cards,
+        allTransactions,
         groupedTransactions,
         sortedDates,
         confirmCancelTransaction,
@@ -65,12 +66,23 @@ export function StatsView() {
     const yesterdayKey = getLocalDateKey(yesterdayDate)
 
     const TransactionItem = ({ transaction }: { transaction: any }) => {
-        const displayDateObj = new Date(transaction.originalDate || transaction.date)
         const category = categories.find(c => c.id === transaction.categoryId)
         const IconComponent = category?.icon && (PhosphorIcons as any)[category.icon]
             ? (PhosphorIcons as any)[category.icon]
             : PhosphorIcons.Question
         const card = cards.find(c => c.id === transaction.cardId)
+
+        // No crédito, todas as parcelas de uma compra referenciam quando ela foi
+        // feita de verdade (a data da 1ª parcela) — no débito cada mês é uma baixa
+        // independente, então não faz sentido mostrar essa referência ali.
+        const isCreditInstallment =
+            transaction.installments > 1 &&
+            !!card?.hasCredit &&
+            (card.hasDebit ? transaction.paymentMethod === "credit" : true)
+        const purchaseTransaction = transaction.parentId
+            ? allTransactions.find((t: any) => t.id === transaction.parentId)
+            : null
+        const purchaseDateObj = purchaseTransaction ? new Date(purchaseTransaction.date) : null
 
         const [startX, setStartX] = useState<number | null>(null)
         const [swipeOffset, setSwipeOffset] = useState(0)
@@ -112,8 +124,8 @@ export function StatsView() {
                             <p className="font-semibold text-foreground">{transaction.description}</p>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">{category?.name || "Geral"}</span>
-                                {transaction.originalDate && (
-                                    <span className="text-[10px] text-muted-foreground">Comprou em: {displayDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                                {isCreditInstallment && purchaseDateObj && (
+                                    <span className="text-[10px] text-muted-foreground">Comprou em: {purchaseDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
                                 )}
                                 {transaction.installments && transaction.installments > 1 && (
                                     <span className="text-[10px] text-foreground font-bold bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
