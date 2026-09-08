@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/date-utils"
 interface CardItemProps {
   card: Card
   spent?: number
+  debitSpent?: number
   balance?: number
   savingsGoals?: SavingsGoal[]
   onDelete?: (id: string) => void
@@ -17,7 +18,7 @@ interface CardItemProps {
   readOnly?: boolean
 }
 
-export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete, onEdit, onMerge, readOnly }: CardItemProps) {
+export function CardItem({ card, spent = 0, debitSpent = 0, balance, savingsGoals = [], onDelete, onEdit, onMerge, readOnly }: CardItemProps) {
   const [showNumber, setShowNumber] = useState(false)
   const BankIcon = getBankIcon(card.bankName)
   
@@ -139,10 +140,10 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
             </div>
           )}
 
-          {card.hasDebit && spent > 0 && (
+          {card.hasDebit && debitSpent > 0 && (
             <div>
               <p className="text-white/70 text-xs">Gasto neste período</p>
-              <p className="text-white text-base font-bold">{formatCurrency(spent)}</p>
+              <p className="text-white text-base font-bold">{formatCurrency(debitSpent)}</p>
             </div>
           )}
 

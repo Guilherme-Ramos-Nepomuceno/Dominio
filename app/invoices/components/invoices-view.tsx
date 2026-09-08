@@ -275,7 +275,7 @@ export function InvoicesView() {
                                                         )}
                                                     >
                                                         <div className="flex items-start justify-between">
-                                                            <div className="flex items-start gap-3 flex-1">
+                                                            <div className="flex items-start gap-3 flex-1 min-w-0">
                                                                 <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
                                                                     {/* @ts-ignore - Dynamic icon component */}
                                                                     <CategoryIcon size={26} weight="duotone" />
@@ -302,7 +302,7 @@ export function InvoicesView() {
                                                                     )}
                                                                 </div>
                                                             </div>
-                                                            <div className="text-right">
+                                                            <div className="text-right shrink-0">
                                                                 <p className={cn("font-bold text-lg", isPaid ? "text-muted-foreground" : "text-expense")}>
                                                                     -{formatCurrency(transaction.amount)}
                                                                 </p>
