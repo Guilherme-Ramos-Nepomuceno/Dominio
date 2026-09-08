@@ -1,6 +1,7 @@
 "use client"
 
-import { CreditCardIcon, ReceiptIcon, CheckCircle, CalendarIcon } from "@phosphor-icons/react"
+import { useState } from "react"
+import { CreditCardIcon, ReceiptIcon, CheckCircle, CalendarIcon, PencilSimple, ArrowLeft, ArrowRight } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { PageHeader } from "@/components/ui/page-header"
@@ -9,7 +10,82 @@ import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PeriodSelector } from "@/components/ui/period-selector"
+import type { Invoice } from "@/lib/types"
 import { useInvoicesViewModel } from "../hooks/use-invoices-view-model"
+
+// YYYY-MM-DD (fuso local) a partir de um ISO — pra usar em <input type="date">.
+const toDateInputValue = (iso: string) => new Date(iso).toLocaleDateString("sv-SE")
+
+// Edita o fechamento/vencimento desta fatura específica (não o padrão do
+// cartão) — remonta (via `key` no local de uso) sempre que a fatura selecionada
+// muda, pra os campos partirem sempre do valor real dela.
+function InvoiceDatesEditor({ invoice, onSave }: { invoice: Invoice; onSave: (updates: { closingDate?: string; dueDate?: string }) => Promise<void> }) {
+    const [closingDate, setClosingDate] = useState(toDateInputValue(invoice.closingDate))
+    const [dueDate, setDueDate] = useState(toDateInputValue(invoice.dueDate))
+    const [isSaving, setIsSaving] = useState(false)
+    const [isOpen, setIsOpen] = useState(false)
+
+    const handleSave = async () => {
+        setIsSaving(true)
+        try {
+            await onSave({
+                closingDate: new Date(`${closingDate}T12:00:00`).toISOString(),
+                dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
+            })
+            setIsOpen(false)
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    if (!isOpen) {
+        return (
+            <button
+                type="button"
+                onClick={() => setIsOpen(true)}
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+                <PencilSimple size={12} weight="bold" />
+                Fecha dia {new Date(invoice.closingDate).getDate()} • Vence dia {new Date(invoice.dueDate).getDate()} (editar)
+            </button>
+        )
+    }
+
+    return (
+        <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Ajustar esta fatura específica</p>
+            <p className="text-xs text-muted-foreground -mt-2">Não altera o padrão do cartão, só esta ocorrência.</p>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                    <label className="text-xs font-medium text-foreground">Fechamento</label>
+                    <input
+                        type="date"
+                        value={closingDate}
+                        onChange={(e) => setClosingDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <label className="text-xs font-medium text-foreground">Vencimento</label>
+                    <input
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                </div>
+            </div>
+            <div className="flex gap-2">
+                <Button type="button" variant="outline" className="flex-1 bg-transparent" onClick={() => setIsOpen(false)}>
+                    Cancelar
+                </Button>
+                <Button type="button" className="flex-1 text-background" disabled={isSaving} onClick={handleSave}>
+                    {isSaving ? "Salvando..." : "Salvar"}
+                </Button>
+            </div>
+        </div>
+    )
+}
 
 export function InvoicesView() {
     const {
@@ -27,7 +103,9 @@ export function InvoicesView() {
         handlePayFull,
         handlePayPartial,
         handleCancelTransaction,
-        handlePartialAmountChange
+        handlePartialAmountChange,
+        handleUpdateInvoiceDates,
+        handleMoveTransaction,
     } = useInvoicesViewModel()
 
     return (
@@ -149,9 +227,19 @@ export function InvoicesView() {
                                     )}
 
                                     <div className="space-y-3">
-                                        <h3 className="text-lg font-semibold text-foreground capitalize">
-                                            Transações de {getFormattedMonthTitle(selectedMonth)}
-                                        </h3>
+                                        <div className="flex items-center justify-between flex-wrap gap-2">
+                                            <h3 className="text-lg font-semibold text-foreground capitalize">
+                                                Transações de {getFormattedMonthTitle(selectedMonth)}
+                                            </h3>
+                                        </div>
+
+                                        {selectedInvoice.invoice && (
+                                            <InvoiceDatesEditor
+                                                key={selectedInvoice.invoice.id}
+                                                invoice={selectedInvoice.invoice}
+                                                onSave={handleUpdateInvoiceDates}
+                                            />
+                                        )}
 
                                         {selectedInvoice.transactions.length === 0 ? (
                                             <div className="text-center py-12 bg-card rounded-2xl border border-border">
@@ -211,14 +299,32 @@ export function InvoicesView() {
                                                                     -{formatCurrency(transaction.amount)}
                                                                 </p>
                                                                 {!isPaid && (
-                                                                    <Button
-                                                                        onClick={() => handleCancelTransaction(transaction.id)}
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className="mt-2 text-xs border-expense text-expense hover:bg-expense/10"
-                                                                    >
-                                                                        Cancelar
-                                                                    </Button>
+                                                                    <div className="flex items-center gap-1 mt-2 justify-end">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleMoveTransaction(transaction.id, "previous")}
+                                                                            title="Mover para a fatura anterior"
+                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                                                        >
+                                                                            <ArrowLeft size={14} weight="bold" />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleMoveTransaction(transaction.id, "next")}
+                                                                            title="Mover para a fatura seguinte"
+                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                                                        >
+                                                                            <ArrowRight size={14} weight="bold" />
+                                                                        </button>
+                                                                        <Button
+                                                                            onClick={() => handleCancelTransaction(transaction.id)}
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="text-xs border-expense text-expense hover:bg-expense/10"
+                                                                        >
+                                                                            Cancelar
+                                                                        </Button>
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </div>

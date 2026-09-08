@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, TagIcon, Heart } from "@phosphor-icons/react"
+import { X, TagIcon, Heart, ArrowLeft, ArrowRight } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
-import { getCategories, updateTransaction } from "@/lib/storage"
+import { getCategories, updateTransaction, moveTransactionInvoice } from "@/lib/storage"
 import type { Category, Transaction } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
@@ -71,6 +71,23 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
       onClose()
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message || "Não foi possível atualizar a transação.", variant: "destructive" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleMoveInvoice = async (direction: "next" | "previous") => {
+    setIsSaving(true)
+    try {
+      await moveTransactionInvoice(transaction.id, direction)
+      toast({
+        title: direction === "next" ? "Movida para a fatura seguinte" : "Movida para a fatura anterior",
+        variant: "success",
+      })
+      onSaved()
+      onClose()
+    } catch (error: any) {
+      toast({ title: "Não foi possível mover", description: error.message || "Tente novamente.", variant: "destructive" })
     } finally {
       setIsSaving(false)
     }
@@ -178,6 +195,33 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
               <div className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all", isCasal ? "left-5" : "left-0.5")} />
             </div>
           </button>
+        )}
+
+        {/* Mover para fatura seguinte/anterior — só faz sentido pra despesa num cartão */}
+        {transaction.type === "expense" && transaction.cardId && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Fatura</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleMoveInvoice("previous")}
+                disabled={isSaving}
+                className="flex items-center justify-center gap-2 p-3 rounded-[1vw] border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+              >
+                <ArrowLeft size={16} weight="bold" />
+                Fatura anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMoveInvoice("next")}
+                disabled={isSaving}
+                className="flex items-center justify-center gap-2 p-3 rounded-[1vw] border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+              >
+                Fatura seguinte
+                <ArrowRight size={16} weight="bold" />
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Actions */}

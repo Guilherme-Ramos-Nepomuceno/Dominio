@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction } from "@/lib/storage"
-import type { Card, Transaction, Category } from "@/lib/types"
+import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice } from "@/lib/storage"
+import { getInvoiceMonth } from "@/lib/date-utils"
+import type { Card, Transaction, Category, Invoice } from "@/lib/types"
 
 export function useInvoicesViewModel() {
     const [cards, setCards] = useState<Card[]>([])
@@ -18,6 +19,9 @@ export function useInvoicesViewModel() {
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
     const [partialAmount, setPartialAmount] = useState("")
     const [categories, setCategories] = useState<Category[]>([])
+    // A fatura REAL de cada cartão nesse mês (pode ter sido editada individualmente,
+    // diferente do padrão do cartão) — buscada sob demanda por cartão+mês.
+    const [invoicesByCard, setInvoicesByCard] = useState<Record<string, Invoice>>({})
 
     const loadData = useCallback(async () => {
         const [allCards, allTransactions, allCategories] = await Promise.all([
@@ -40,6 +44,21 @@ export function useInvoicesViewModel() {
         }
     }, [cards, selectedCardId])
 
+    useEffect(() => {
+        if (cards.length === 0) return
+        const [year, month] = selectedMonth.split("-").map(Number)
+        let cancelled = false
+
+        Promise.all(cards.map((card) => getInvoice(card.id, year, month).then((inv) => [card.id, inv] as const)))
+            .then((entries) => {
+                if (cancelled) return
+                setInvoicesByCard(Object.fromEntries(entries))
+            })
+            .catch(() => { /* fatura ainda funciona pelo cálculo padrão se isso falhar */ })
+
+        return () => { cancelled = true }
+    }, [cards, selectedMonth])
+
     const getFormattedMonthTitle = (monthStr: string) => {
         if (!monthStr) return ""
         const [year, month] = monthStr.split("-").map(Number)
@@ -58,10 +77,18 @@ export function useInvoicesViewModel() {
                     categories.find((c) => c.id === t.categoryId)?.type === "expense"
             )
 
+            const realInvoice = invoicesByCard[card.id]
+
             // 2. Processa as transações para o mês selecionado — cada parcela já é
             // sua própria transação, com data e valor corretos (addTransaction já
-            // cria uma linha por parcela), então só filtra pelo mês selecionado.
-            const monthTransactions: any[] = cardTransactions.filter((t) => t.date.startsWith(selectedMonth))
+            // cria uma linha por parcela). Transações novas já têm invoiceId
+            // atribuído (respeita edição manual da fatura, ou "mover para fatura
+            // seguinte/anterior"); lançamentos antigos sem invoiceId caem no
+            // cálculo pelo dia de fechamento do cartão, como antes.
+            const monthTransactions: any[] = cardTransactions.filter((t) => {
+                if (t.invoiceId && realInvoice) return t.invoiceId === realInvoice.id
+                return getInvoiceMonth(t.date, card.closingDate) === selectedMonth
+            })
 
             const totalInvoice = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
             const pendingTransactions = monthTransactions.filter(t => t.status === "pending")
@@ -69,15 +96,28 @@ export function useInvoicesViewModel() {
 
             return {
                 card,
+                invoice: realInvoice,
                 transactions: monthTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
                 pendingTransactions,
                 total: totalInvoice,
                 totalPending: totalPending
             }
         })
-    }, [cards, transactions, categories, selectedMonth])
+    }, [cards, transactions, categories, selectedMonth, invoicesByCard])
 
     const selectedInvoice = cardInvoices.find((inv) => inv.card.id === selectedCardId)
+
+    const handleUpdateInvoiceDates = async (updates: { closingDate?: string; dueDate?: string }) => {
+        if (!selectedCardId) return
+        const [year, month] = selectedMonth.split("-").map(Number)
+        const updated = await updateInvoiceDates(selectedCardId, year, month, updates)
+        setInvoicesByCard((prev) => ({ ...prev, [selectedCardId]: updated }))
+    }
+
+    const handleMoveTransaction = async (transactionId: string, direction: "next" | "previous") => {
+        await moveTransactionInvoice(transactionId, direction)
+        await loadData()
+    }
 
     const handlePayFull = async () => {
         if (!selectedInvoice || selectedInvoice.pendingTransactions.length === 0) return
@@ -156,6 +196,8 @@ export function useInvoicesViewModel() {
         handlePayFull,
         handlePayPartial,
         handleCancelTransaction,
-        handlePartialAmountChange
+        handlePartialAmountChange,
+        handleUpdateInvoiceDates,
+        handleMoveTransaction,
     }
 }

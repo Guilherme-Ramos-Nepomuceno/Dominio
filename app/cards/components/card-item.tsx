@@ -122,7 +122,11 @@ export function CardItem({ card, spent = 0, balance, savingsGoals = [], onDelete
                 <div className="pt-2 border-t border-white/20">
                   <p className="text-white/70 text-xs">Fatura a Pagar</p>
                   <p className="text-white text-base font-bold">{formatCurrency(pendingDebt)}</p>
-                  {card.dueDate && <p className="text-white/60 text-xs mt-0.5">Vencimento dia {card.dueDate}</p>}
+                  {card.dueDate && (
+                    <p className="text-white/60 text-xs mt-0.5">
+                      Vencimento dia {card.dueDate}{card.closingDate && ` • Fecha dia ${card.closingDate}`}
+                    </p>
+                  )}
                 </div>
               )}
             </>

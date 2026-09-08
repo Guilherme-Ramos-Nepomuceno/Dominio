@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { getCards, getTransactions, getSavingsGoals, deleteCard, updateCard, mergeCards } from "@/lib/storage"
+import { getInvoiceMonth } from "@/lib/date-utils"
 import type { Card } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
@@ -87,12 +88,16 @@ export function useCardsViewModel() {
             // Cartão combinado (crédito + débito) recebe os dois cálculos ao
             // mesmo tempo — antes era um if/else mutuamente exclusivo.
             if (card.hasCredit) {
+                // A fatura "atual" (ainda aberta) considera o dia de fechamento do
+                // cartão — se hoje já passou do fechamento, a fatura em aberto já é
+                // a do mês seguinte, então compras de hoje já entram nela.
+                const currentInvoiceMonth = getInvoiceMonth(new Date().toISOString(), card.closingDate)
                 const currentInvoiceTransactions = transactions.filter(
                     (t) =>
                         t.cardId === card.id &&
                         t.status !== "cancelled" &&
-                        t.date.startsWith(currentMonth) &&
-                        t.type === "expense",
+                        t.type === "expense" &&
+                        getInvoiceMonth(t.date, card.closingDate) === currentInvoiceMonth,
                 )
                 spentAmount = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0)
             }

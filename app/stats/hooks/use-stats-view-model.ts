@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useMonthData, isInternalTransfer } from "@/hooks/use-transactions"
 import { useFamilyTotals } from "@/hooks/use-family-totals"
-import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
+import { getCurrentMonth, isSameMonth, getInvoiceMonth } from "@/lib/date-utils"
 import { setSettings, getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 import type { CategoryAlert } from "@/app/types/category"
@@ -66,10 +66,13 @@ export function useStatsViewModel() {
             })
             // Cada parcela já é sua própria transação, com data e valor corretos
             // (addTransaction já cria uma linha por parcela) — não precisa (e não
-            // deve) recalcular mês/valor aqui, só filtrar pelo mês selecionado.
+            // deve) recalcular mês/valor aqui. O mês da fatura considera o dia de
+            // fechamento do cartão (compra feita naquele dia ou depois já é da
+            // fatura do mês seguinte).
             allCreditHistory.forEach(t => {
                 if (t.status === 'paid' || t.status === 'cancelled') return
-                if (t.date.startsWith(selectedMonth)) creditTransactions.push(t)
+                const card = cards.find(c => c.id === t.cardId)
+                if (getInvoiceMonth(t.date, card?.closingDate) === selectedMonth) creditTransactions.push(t)
             })
             return creditTransactions
         }

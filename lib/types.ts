@@ -32,8 +32,18 @@ export interface Transaction {
   cardId?: string // Added cardId to Transaction interface
   paymentMethod?: PaymentMethod // Só relevante p/ cartão combinado (crédito+débito)
   isCasal?: boolean // Marca uma despesa pessoal como do casal (aparece agregada na conta do casal)
+  invoiceId?: string // Fatura (do cartão de crédito) em que essa despesa efetivamente entra
   createdAt: string
   updatedAt: string
+}
+
+export interface Invoice {
+  id: string
+  cardId: string
+  year: number
+  month: number // 1-12
+  closingDate: string // ISO
+  dueDate: string // ISO
 }
 
 export interface CardTransaction extends Transaction {
@@ -75,6 +85,7 @@ export interface Card {
   color: string
   limit?: number
   dueDate?: number // Day of month (1-31)
+  closingDate?: number // Dia de fechamento da fatura (1-31)
   createdAt: string
   spentAmount?: number // Calculado pelo backend (cartões de crédito, mês atual)
   calculatedBalance?: number // Calculado pelo backend (contas de débito)
