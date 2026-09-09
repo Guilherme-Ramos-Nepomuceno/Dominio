@@ -159,7 +159,12 @@ export function CategoriesView() {
             )}
 
             <AddCategoryDialog isOpen={isDialogOpen} onClose={() => setIsDialogOpen(false)} onSuccess={loadCategories} />
-            <EditCategoryDialog category={editingCategory} onSave={handleSaveEdit} onClose={() => setEditingCategory(null)} />
+            <EditCategoryDialog
+                key={editingCategory?.id ?? "none"}
+                category={editingCategory}
+                onSave={handleSaveEdit}
+                onClose={() => setEditingCategory(null)}
+            />
             <CategoryHistoryDialog category={selectedCategory} onClose={() => setSelectedCategory(null)} />
         </AppLayout>
     )
