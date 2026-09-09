@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { getCategories, getTransactions, deleteCategory, getSettings } from "@/lib/storage"
+import { getCategories, getTransactions, deleteCategory, updateCategory, getSettings } from "@/lib/storage"
 import type { Category } from "@/lib/types"
 
 export function useCategoriesViewModel() {
     const [categories, setLocalCategories] = useState<Category[]>([])
     const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null)
     const [filter, setFilter] = useState<"all" | "income" | "expense">("all")
     const [categoryStats, setCategoryStats] = useState<
         Record<string, { total: number; count: number; percentage: number }>
@@ -76,6 +77,12 @@ export function useCategoriesViewModel() {
         }
     }
 
+    const handleSaveEdit = async (id: string, updates: Partial<Category>) => {
+        await updateCategory(id, updates)
+        setEditingCategory(null)
+        await loadCategories()
+    }
+
     const filteredCategories = useMemo(() =>
         categories.filter((c) => filter === "all" || c.type === filter),
         [categories, filter]
@@ -96,12 +103,15 @@ export function useCategoriesViewModel() {
         loading,
         isDialogOpen,
         setIsDialogOpen,
+        editingCategory,
+        setEditingCategory,
         filter,
         setFilter,
         categoryStats,
         categoryGoals,
         loadCategories,
         handleDelete,
+        handleSaveEdit,
         filteredCategories,
         incomeCategories,
         expenseCategories

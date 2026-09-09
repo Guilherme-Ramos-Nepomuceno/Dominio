@@ -27,7 +27,7 @@ interface AddCategoryDialogProps {
 // todo o app) — este valor só preenche o campo obrigatório do backend.
 const DEFAULT_CATEGORY_COLOR = "#71717a"
 
-const ICON_OPTIONS = [
+export const ICON_OPTIONS = [
   { name: "Tag", Icon: Tag },
   // Compras / dia a dia
   { name: "ShoppingCart", Icon: ShoppingCart },

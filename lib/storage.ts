@@ -139,6 +139,12 @@ export async function addCategory(category: Omit<Category, "id">): Promise<Categ
   return mapCategoryFromApi(created)
 }
 
+export async function updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
+  assertWritable()
+  const updated = await fetchApi(`/categories/${id}`, { method: "PUT", body: JSON.stringify(mapCategoryToApi(updates)) })
+  return mapCategoryFromApi(updated)
+}
+
 export async function deleteCategory(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/categories/${id}`, { method: "DELETE" })

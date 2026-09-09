@@ -6,6 +6,7 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { CategoryItem } from "./category-item"
 import { AddCategoryDialog } from "./add-category-dialog"
+import { EditCategoryDialog } from "./edit-category-dialog"
 import { CategoryHistoryDialog } from "./category-history-dialog"
 import { SkeletonRowList } from "@/components/ui/loading-skeletons"
 import { cn } from "@/lib/utils"
@@ -16,12 +17,15 @@ export function CategoriesView() {
     const {
         isDialogOpen,
         setIsDialogOpen,
+        editingCategory,
+        setEditingCategory,
         filter,
         setFilter,
         categoryStats,
         categoryGoals,
         loadCategories,
         handleDelete,
+        handleSaveEdit,
         filteredCategories,
         incomeCategories,
         expenseCategories,
@@ -99,6 +103,7 @@ export function CategoriesView() {
                                     percentage={categoryStats[category.id]?.percentage || 0}
                                     categoryGoals={categoryGoals}
                                     onDelete={handleDelete}
+                                    onEdit={setEditingCategory}
                                     onClick={setSelectedCategory}
                                 />
                             ))}
@@ -120,6 +125,7 @@ export function CategoriesView() {
                                     percentage={categoryStats[category.id]?.percentage || 0}
                                     categoryGoals={categoryGoals}
                                     onDelete={handleDelete}
+                                    onEdit={setEditingCategory}
                                     onClick={setSelectedCategory}
                                 />
                             ))}
@@ -153,6 +159,7 @@ export function CategoriesView() {
             )}
 
             <AddCategoryDialog isOpen={isDialogOpen} onClose={() => setIsDialogOpen(false)} onSuccess={loadCategories} />
+            <EditCategoryDialog category={editingCategory} onSave={handleSaveEdit} onClose={() => setEditingCategory(null)} />
             <CategoryHistoryDialog category={selectedCategory} onClose={() => setSelectedCategory(null)} />
         </AppLayout>
     )
