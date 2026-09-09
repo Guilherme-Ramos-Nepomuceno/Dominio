@@ -1,6 +1,6 @@
 "use client"
 
-import { TrashIcon, TrendUp, TrendDown } from "@phosphor-icons/react"
+import { TrashIcon, Pencil, TrendUp, TrendDown } from "@phosphor-icons/react"
 // Adicionamos esta importação para poder buscar o ícone pelo nome (string)
 import * as PhosphorIcons from "@phosphor-icons/react" 
 import type { Category, CategoryGoal } from "@/lib/types"
@@ -14,10 +14,11 @@ interface CategoryItemProps {
   categoryGoals: CategoryGoal[]
   icon?: React.ReactNode
   onDelete: (id: string) => void
+  onEdit?: (category: Category) => void
   onClick?: (category: Category) => void
 }
 
-export function CategoryItem({ category, totalAmount, transactionCount, percentage, categoryGoals, icon, onDelete, onClick }: CategoryItemProps) {
+export function CategoryItem({ category, totalAmount, transactionCount, percentage, categoryGoals, icon, onDelete, onEdit, onClick }: CategoryItemProps) {
   const Icon = category.type === "income" ? TrendUp : TrendDown
 
   const goalData = categoryGoals.find((g) => g.categoryId === category.id)
@@ -68,6 +69,18 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
       <div className="text-right">
         <p className="text-lg font-bold text-foreground">{formatCurrency(totalAmount)}</p>
       </div>
+
+      {onEdit && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit(category)
+          }}
+          className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+        >
+          <Pencil size={18} weight="bold" />
+        </button>
+      )}
 
       <button
         onClick={(e) => {
