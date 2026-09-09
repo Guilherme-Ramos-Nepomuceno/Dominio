@@ -94,10 +94,10 @@ export function useInvoicesViewModel() {
             // cálculo pelo dia de fechamento do cartão, como antes.
             const monthTransactions: any[] = cardTransactions.filter((t) => {
                 if (t.invoiceId) return realInvoice ? t.invoiceId === realInvoice.id : getInvoiceMonth(t.date, card.closingDate) === selectedMonth
-                // Sem invoiceId: o backend só deixa de atribuir fatura quando a
-                // transação é do lado débito de um cartão combinado — nunca é
-                // fatura de crédito, então não entra aqui.
-                if (card.hasDebit) return false
+                // Sem invoiceId: só sabemos que é débito se a transação tem a tag
+                // explícita — não dá pra confiar cegamente na ausência de invoiceId
+                // (o backend em produção pode não estar atribuindo isso ainda).
+                if (card.hasDebit && t.paymentMethod === "debit") return false
                 return getInvoiceMonth(t.date, card.closingDate) === selectedMonth
             })
 

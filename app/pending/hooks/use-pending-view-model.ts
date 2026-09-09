@@ -49,9 +49,10 @@ export function usePendingViewModel() {
                 const card = cards.find((c) => c.id === t.cardId)
                 if (card?.hasCredit) {
                     // Cartão só-crédito: tudo é fatura. Cartão combinado: só o lado
-                    // crédito vai pra fatura (identificado pelo invoiceId, atribuído
-                    // pelo backend) — o lado débito continua pendência normal.
-                    if (!card.hasDebit || t.invoiceId) return false
+                    // crédito vai pra fatura — identificado pelo invoiceId (quando o
+                    // backend atribui) ou pela tag "credit" — o lado débito continua
+                    // pendência normal.
+                    if (!card.hasDebit || t.invoiceId || t.paymentMethod === "credit") return false
                 }
             }
             return true
