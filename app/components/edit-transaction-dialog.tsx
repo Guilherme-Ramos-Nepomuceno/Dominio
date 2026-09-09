@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, TagIcon, Heart, ArrowLeft, ArrowRight } from "@phosphor-icons/react"
+import { X, TagIcon, Heart, ArrowLeft, ArrowRight, CreditCard as CreditCardIcon } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
-import { getCategories, updateTransaction, moveTransactionInvoice } from "@/lib/storage"
-import type { Category, Transaction } from "@/lib/types"
+import { getCategories, getCards, updateTransaction, moveTransactionInvoice } from "@/lib/storage"
+import type { Category, Transaction, Card, PaymentMethod } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 
@@ -21,26 +21,35 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
   const { family } = useAccount()
   const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
   const [categories, setCategories] = useState<Category[]>([])
+  const [cards, setCards] = useState<Card[]>([])
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
   const [categoryId, setCategoryId] = useState("")
   const [date, setDate] = useState("")
   const [isCasal, setIsCasal] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("")
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (!transaction) return
     getCategories().then(setCategories)
+    getCards().then(setCards)
     setDescription(transaction.description)
     setAmount(formatCurrencyInput(Math.round(transaction.amount * 100).toString()))
     setCategoryId(transaction.categoryId)
     setDate(transaction.date.split("T")[0])
     setIsCasal(!!transaction.isCasal)
+    setPaymentMethod(transaction.paymentMethod ?? "")
   }, [transaction])
 
   if (!transaction) return null
 
   const filteredCategories = categories.filter((c) => c.type === transaction.type)
+  const selectedCard = cards.find((c) => c.id === transaction.cardId)
+  const isComboCard = !!selectedCard?.hasCredit && !!selectedCard?.hasDebit
+  // Fatura de credito so existe se o cartao tem credito e, num combinado,
+  // essa transacao especifica esta do lado credito.
+  const belongsToInvoice = transaction.type === "expense" && !!selectedCard?.hasCredit && (!selectedCard.hasDebit || paymentMethod === "credit")
 
   const handleAmountChange = (value: string) => {
     const onlyNumbers = value.replace(/\D/g, "")
@@ -51,6 +60,11 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
     const numAmount = parseCurrencyInput(amount)
     if (!description.trim() || isNaN(numAmount) || numAmount <= 0 || !categoryId || !date) {
       toast({ title: "Erro", description: "Preencha todos os campos corretamente.", variant: "destructive" })
+      return
+    }
+
+    if (isComboCard && !paymentMethod) {
+      toast({ title: "Erro", description: "Selecione se esta transação é no crédito ou no débito.", variant: "destructive" })
       return
     }
 
@@ -65,6 +79,7 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
         categoryId,
         date: dateObj.toISOString(),
         isCasal: transaction.type === "expense" ? isCasal : undefined,
+        paymentMethod: isComboCard ? (paymentMethod as PaymentMethod) : undefined,
       })
       toast({ title: "Transação atualizada!", variant: "success" })
       onSaved()
@@ -197,8 +212,45 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
           </button>
         )}
 
-        {/* Mover para fatura seguinte/anterior — só faz sentido pra despesa num cartão */}
-        {transaction.type === "expense" && transaction.cardId && (
+        {/* Cartão combinado (crédito + débito): permite corrigir de que lado é essa transação */}
+        {isComboCard && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2">
+              <CreditCardIcon size={16} weight="bold" />
+              Essa transação é no crédito ou no débito?
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("debit")}
+                className={cn(
+                  "p-3 rounded-[1vw] border-2 transition-all font-medium",
+                  paymentMethod === "debit"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground",
+                )}
+              >
+                Débito
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("credit")}
+                className={cn(
+                  "p-3 rounded-[1vw] border-2 transition-all font-medium",
+                  paymentMethod === "credit"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground",
+                )}
+              >
+                Crédito
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Mover para fatura seguinte/anterior — só faz sentido se a transação
+            realmente pertence a uma fatura de crédito */}
+        {belongsToInvoice && (
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Fatura</label>
             <div className="grid grid-cols-2 gap-3">
