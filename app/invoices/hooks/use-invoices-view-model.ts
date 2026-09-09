@@ -93,11 +93,11 @@ export function useInvoicesViewModel() {
             // seguinte/anterior"); lançamentos antigos sem invoiceId caem no
             // cálculo pelo dia de fechamento do cartão, como antes.
             const monthTransactions: any[] = cardTransactions.filter((t) => {
-                if (t.invoiceId && realInvoice) return t.invoiceId === realInvoice.id
-                // Sem invoiceId: cartão combinado só deve considerar aqui o lado
-                // crédito (débito não gera fatura) — invoiceId ausente + tag
-                // "debit" explícita é o único caso que sabemos ser débito.
-                if (card.hasDebit && t.paymentMethod === "debit") return false
+                if (t.invoiceId) return realInvoice ? t.invoiceId === realInvoice.id : getInvoiceMonth(t.date, card.closingDate) === selectedMonth
+                // Sem invoiceId: o backend só deixa de atribuir fatura quando a
+                // transação é do lado débito de um cartão combinado — nunca é
+                // fatura de crédito, então não entra aqui.
+                if (card.hasDebit) return false
                 return getInvoiceMonth(t.date, card.closingDate) === selectedMonth
             })
 

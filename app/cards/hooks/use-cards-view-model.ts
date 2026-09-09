@@ -103,11 +103,10 @@ export function useCardsViewModel() {
                         t.cardId === card.id &&
                         t.status !== "cancelled" &&
                         t.type === "expense" &&
-                        // Cartão combinado: débito não entra na fatura de crédito. Só
-                        // exclui quem tem a tag "debit" explícita — invoiceId ausente
-                        // sem tag (lançamento antigo, feito antes do cartão virar
-                        // combinado) é tratado como crédito, como o backend já fez.
-                        (!card.hasDebit || t.invoiceId || t.paymentMethod === "credit") &&
+                        // Cartão combinado: débito não entra na fatura de crédito — o
+                        // backend só deixa de atribuir invoiceId quando é do lado
+                        // débito, então a ausência dele já basta pra excluir.
+                        (!card.hasDebit || !!t.invoiceId) &&
                         getInvoiceMonth(t.date, card.closingDate) === currentInvoiceMonth,
                 )
                 spentAmount = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0)
@@ -122,9 +121,8 @@ export function useCardsViewModel() {
                             t.date.startsWith(currentMonth) &&
                             t.type === "expense" &&
                             // Cartão combinado: crédito não entra no gasto de débito —
-                            // se já tem invoiceId (fatura de crédito) ou tag "credit",
-                            // não conta aqui.
-                            (!card.hasCredit || (!t.invoiceId && t.paymentMethod !== "credit")),
+                            // se já tem invoiceId (fatura de crédito), não conta aqui.
+                            (!card.hasCredit || !t.invoiceId),
                     )
                     .reduce((sum, t) => sum + t.amount, 0)
             }
