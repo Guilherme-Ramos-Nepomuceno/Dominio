@@ -1,8 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import { TrashIcon, Pencil, TrendUp, TrendDown } from "@phosphor-icons/react"
 // Adicionamos esta importação para poder buscar o ícone pelo nome (string)
-import * as PhosphorIcons from "@phosphor-icons/react" 
+import * as PhosphorIcons from "@phosphor-icons/react"
 import type { Category, CategoryGoal } from "@/lib/types"
 import { formatCurrency } from "@/lib/date-utils"
 
@@ -28,69 +29,101 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
   // Se não encontrar, usa o Circle como fallback
   const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
 
+  // No mobile a lixeira só aparece arrastando a linha pra esquerda (ganha espaço
+  // horizontal) — no desktop ela some e volta a aparecer passando o mouse.
+  const [startX, setStartX] = useState<number | null>(null)
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const SWIPE_THRESHOLD = -60
+
+  const onTouchStart = (e: React.TouchEvent) => setStartX(e.targetTouches[0].clientX)
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (startX === null) return
+    const diff = e.targetTouches[0].clientX - startX
+    if (diff < 0) setSwipeOffset(Math.max(diff, -80))
+  }
+  const onTouchEnd = () => {
+    setSwipeOffset(swipeOffset < SWIPE_THRESHOLD ? -80 : 0)
+    setStartX(null)
+  }
+
   return (
-    <div
-      onClick={() => onClick?.(category)}
-      className="flex items-center gap-4 p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer"
-    >
-      
-      {/* Ícone da Categoria */}
-      <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
-        {/* @ts-ignore - Ignora erro de tipo do componente dinâmico */}
-        <CategoryIcon size={26} weight="duotone" />
+    <div className="relative overflow-hidden rounded-2xl group">
+      <div className="absolute inset-y-0 right-0 w-20 bg-destructive flex items-center justify-center rounded-r-2xl">
+        <button
+          onClick={() => onDelete(category.id)}
+          className="text-white w-full h-full flex items-center justify-center"
+        >
+          <TrashIcon size={20} weight="bold" />
+        </button>
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="font-semibold text-foreground">{category.name}</h3>
-          <Icon size={14} weight="bold" className={category.type === "income" ? "text-income" : "text-expense"} />
-          {goalPercentage > 0 && category.type === "expense" && (
-            <>
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary/10 text-primary">
-                Meta: {goalPercentage}%
-              </span>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  percentage > 100
-                    ? "bg-destructive/10 text-destructive"
-                    : percentage > 80
-                      ? "bg-yellow-500/10 text-yellow-600"
-                      : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {percentage.toFixed(0)}% gasto
-              </span>
-            </>
-          )}
+      <div
+        onClick={() => onClick?.(category)}
+        className="relative z-10 flex items-center gap-4 p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer"
+        style={{ transform: `translateX(${swipeOffset}px)`, transition: startX === null ? "transform 0.2s ease-out" : "none" }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Ícone da Categoria */}
+        <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
+          {/* @ts-ignore - Ignora erro de tipo do componente dinâmico */}
+          <CategoryIcon size={26} weight="duotone" />
         </div>
-        <p className="text-sm text-muted-foreground">{transactionCount} transações</p>
-      </div>
 
-      <div className="text-right">
-        <p className="text-lg font-bold text-foreground">{formatCurrency(totalAmount)}</p>
-      </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-semibold text-foreground">{category.name}</h3>
+            <Icon size={14} weight="bold" className={category.type === "income" ? "text-income" : "text-expense"} />
+            {goalPercentage > 0 && category.type === "expense" && (
+              <>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary/10 text-primary">
+                  Meta: {goalPercentage}%
+                </span>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    percentage > 100
+                      ? "bg-destructive/10 text-destructive"
+                      : percentage > 80
+                        ? "bg-yellow-500/10 text-yellow-600"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {percentage.toFixed(0)}% gasto
+                </span>
+              </>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">{transactionCount} transações</p>
+        </div>
 
-      {onEdit && (
+        <div className="text-right">
+          <p className="text-lg font-bold text-foreground">{formatCurrency(totalAmount)}</p>
+        </div>
+
+        {onEdit && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit(category)
+            }}
+            className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+          >
+            <Pencil size={18} weight="bold" />
+          </button>
+        )}
+
         <button
           onClick={(e) => {
             e.stopPropagation()
-            onEdit(category)
+            onDelete(category.id)
           }}
-          className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+          className="hidden md:flex opacity-0 group-hover:opacity-100 items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all shrink-0"
+          title="Excluir categoria"
         >
-          <Pencil size={18} weight="bold" />
+          <TrashIcon size={16} weight="bold" />
         </button>
-      )}
-
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onDelete(category.id)
-        }}
-        className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
-      >
-        <TrashIcon size={18} weight="bold" />
-      </button>
+      </div>
     </div>
   )
 }
