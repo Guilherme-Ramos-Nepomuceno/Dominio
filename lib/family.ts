@@ -88,3 +88,23 @@ export interface TransferToFamilyMemberDTO {
 export function transferToFamilyMember(dto: TransferToFamilyMemberDTO): Promise<{ success: boolean }> {
     return fetchApi("/transactions/transfer-to-family-member", { method: "POST", body: JSON.stringify(dto) })
 }
+
+export interface CreateTransactionForFamilyMemberDTO {
+    toMemberId: string
+    toCardId: string
+    amount: number
+    date: string
+    type: "income" | "expense"
+    description?: string
+}
+
+// Cria só a ponta do parceiro de uma transferência cuja outra ponta já
+// existe (ex: linha de extrato importada marcada como "Transferência" com
+// destino a conta de um familiar) — diferente de transferToFamilyMember, que
+// cria as duas pontas de uma vez.
+export function createTransactionForFamilyMember(dto: CreateTransactionForFamilyMemberDTO): Promise<{ success: boolean }> {
+    return fetchApi("/transactions/create-for-family-member", {
+        method: "POST",
+        body: JSON.stringify({ ...dto, type: dto.type === "income" ? "INCOME" : "EXPENSE" }),
+    })
+}

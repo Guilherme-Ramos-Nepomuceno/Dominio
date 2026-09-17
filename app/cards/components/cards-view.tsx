@@ -9,6 +9,7 @@ import { CardItem } from "./card-item"
 import { AddCardDialog } from "./add-card-dialog"
 import { EditCardDialog } from "./edit-card-dialog"
 import { MergeCardDialog } from "./merge-card-dialog"
+import { ImportStatementDialog } from "./import-statement-dialog"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,11 +34,14 @@ export function CardsView() {
         setEditingCard,
         mergingCard,
         setMergingCard,
+        importingCard,
+        setImportingCard,
         processedCards,
         confirmDeleteCard,
         handleCreateSuccess,
         handleSaveEdit,
         handleMerge,
+        loadData,
     } = useCardsViewModel()
     const { isReadOnly } = useAccount()
 
@@ -72,6 +76,7 @@ export function CardsView() {
                             onDelete={isReadOnly ? undefined : (id) => setCardToDelete(id)}
                             onEdit={isReadOnly ? undefined : (c) => setEditingCard(c)}
                             onMerge={isReadOnly ? undefined : (c) => setMergingCard(c)}
+                            onImport={isReadOnly ? undefined : (c) => setImportingCard(c)}
                             readOnly={isReadOnly}
                         />
                     ))}
@@ -99,7 +104,7 @@ export function CardsView() {
                     />
 
                     <EditCardDialog
-                        key={editingCard?.id ?? "none"}
+                        key={`edit-${editingCard?.id ?? "none"}`}
                         card={editingCard}
                         onSave={handleSaveEdit}
                         onClose={() => setEditingCard(null)}
@@ -110,6 +115,13 @@ export function CardsView() {
                         otherCards={processedCards.filter((c) => c.id !== mergingCard?.id)}
                         onMerge={handleMerge}
                         onClose={() => setMergingCard(null)}
+                    />
+
+                    <ImportStatementDialog
+                        key={`import-${importingCard?.id ?? "none"}`}
+                        card={importingCard}
+                        onImported={loadData}
+                        onClose={() => setImportingCard(null)}
                     />
                 </>
             )}
