@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Eye, EyeSlashIcon, TrashIcon, PiggyBank, Pencil, ArrowsLeftRight } from "@phosphor-icons/react"
+import { Eye, EyeSlashIcon, TrashIcon, PiggyBank, Pencil, ArrowsLeftRight, UploadSimple } from "@phosphor-icons/react"
 import type { Card, SavingsGoal } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 import { formatCurrency } from "@/lib/date-utils"
@@ -15,10 +15,11 @@ interface CardItemProps {
   onDelete?: (id: string) => void
   onEdit?: (card: Card) => void
   onMerge?: (card: Card) => void
+  onImport?: (card: Card) => void
   readOnly?: boolean
 }
 
-export function CardItem({ card, spent = 0, debitSpent = 0, balance, savingsGoals = [], onDelete, onEdit, onMerge, readOnly }: CardItemProps) {
+export function CardItem({ card, spent = 0, debitSpent = 0, balance, savingsGoals = [], onDelete, onEdit, onMerge, onImport, readOnly }: CardItemProps) {
   const [showNumber, setShowNumber] = useState(false)
   const BankIcon = getBankIcon(card.bankName)
   
@@ -51,6 +52,18 @@ export function CardItem({ card, spent = 0, debitSpent = 0, balance, savingsGoal
           
           {!readOnly && (
             <div className="flex items-center gap-1.5">
+              {onImport && card.bankName !== "cash" && (
+                <button
+                  onClick={(e) => {
+                      e.stopPropagation();
+                      onImport(card);
+                  }}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors z-20 cursor-pointer"
+                  title="Importar extrato"
+                >
+                  <UploadSimple size={16} className="text-white" weight="bold" />
+                </button>
+              )}
               {onMerge && (
                 <button
                   onClick={(e) => {

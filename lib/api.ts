@@ -1,4 +1,4 @@
-import { getActiveAccountSelection } from './active-account'
+import { getActiveAccountSelection, ACTIVE_ACCOUNT_KEY } from './active-account'
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'
 
@@ -33,7 +33,9 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
         headers.set('X-Account-Id', activeAccountId)
     }
 
-    if (!headers.has('Content-Type')) {
+    // FormData (upload de arquivo) precisa que o browser defina o Content-Type
+    // sozinho (inclui o boundary do multipart) — não define aqui.
+    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
         headers.set('Content-Type', 'application/json')
     }
 
@@ -47,6 +49,21 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     if (!response.ok) {
         const errorBody = await response.json().catch(() => null)
         const message = errorBody?.error || errorBody?.message || 'Não foi possível completar a operação.'
+
+        // Sessão expirada/token inválido numa chamada já autenticada (não a
+        // tentativa de login/cadastro em si, que trata o 401 como "credenciais
+        // erradas") — desloga e manda pra tela de login em vez de deixar a
+        // tela quebrar com uma exceção não tratada.
+        if (response.status === 401 && !endpoint.startsWith('/auth/') && typeof window !== 'undefined') {
+            localStorage.removeItem('finance-user-session')
+            localStorage.removeItem('finance-token')
+            localStorage.removeItem(ACTIVE_ACCOUNT_KEY)
+            window.dispatchEvent(new Event('auth-change'))
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login'
+            }
+        }
+
         throw new ApiError(response.status, message)
     }
 

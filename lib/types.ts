@@ -33,8 +33,31 @@ export interface Transaction {
   paymentMethod?: PaymentMethod // Só relevante p/ cartão combinado (crédito+débito)
   isCasal?: boolean // Marca uma despesa pessoal como do casal (aparece agregada na conta do casal)
   invoiceId?: string // Fatura (do cartão de crédito) em que essa despesa efetivamente entra
+  // Import de extrato: descrição crua do banco (preservada mesmo se `description`
+  // for editada) e id único do banco (FITID) — nulos em transações manuais.
+  originalDescription?: string
+  externalId?: string
   createdAt: string
   updatedAt: string
+}
+
+// Import de extrato (OFX/CSV) — uma linha parseada do arquivo, antes de confirmar.
+export interface ImportPreviewRow {
+  externalId: string
+  date: string
+  amount: number
+  type: TransactionType
+  originalDescription: string
+  suggestedDescription: string
+  suggestedCategoryId: string | null
+  isDuplicate: boolean
+  // Detectado por um sufixo "N/M" na descrição (ex: "Loja X 03/12").
+  installments?: number
+  currentInstallment?: number
+  // Pendência em aberto (mesmo cartão/conta e mês) que parece ser essa mesma
+  // conta — ex: recorrência do "Wellhub" pré-cadastrada. Se confirmado, ela é
+  // dada como paga em vez de criar uma transação nova.
+  pendingMatch: { id: string; description: string; amount: number } | null
 }
 
 export interface Invoice {

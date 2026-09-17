@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { getCards, getTransactions, getSavingsGoals, deleteCard, updateCard, mergeCards } from "@/lib/storage"
-import { getInvoiceMonth } from "@/lib/date-utils"
 import type { Card } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
@@ -14,6 +13,7 @@ export function useCardsViewModel() {
     const [cardToDelete, setCardToDelete] = useState<string | null>(null)
     const [editingCard, setEditingCard] = useState<Card | null>(null)
     const [mergingCard, setMergingCard] = useState<Card | null>(null)
+    const [importingCard, setImportingCard] = useState<Card | null>(null)
 
     const [loading, setLoading] = useState(true)
     const { toast } = useToast()
@@ -94,23 +94,22 @@ export function useCardsViewModel() {
             // Cartão combinado (crédito + débito) recebe os dois cálculos ao
             // mesmo tempo — antes era um if/else mutuamente exclusivo.
             if (card.hasCredit) {
-                // A fatura "atual" (ainda aberta) considera o dia de fechamento do
-                // cartão — se hoje já passou do fechamento, a fatura em aberto já é
-                // a do mês seguinte, então compras de hoje já entram nela.
-                const currentInvoiceMonth = getInvoiceMonth(new Date().toISOString(), card.closingDate)
-                const currentInvoiceTransactions = transactions.filter(
+                // Limite disponível é reduzido por TUDO que ainda não foi pago — a
+                // fatura do ciclo atual em aberto E qualquer fatura anterior já
+                // fechada mas vencida sem pagar. Não escopa por mês: uma fatura
+                // atrasada continua comprometendo o limite até ser paga de fato.
+                const pendingTransactions = transactions.filter(
                     (t) =>
                         t.cardId === card.id &&
-                        t.status !== "cancelled" &&
+                        t.status === "pending" &&
                         t.type === "expense" &&
                         // Cartão combinado: débito não entra na fatura de crédito. Só
                         // exclui quem tem a tag "debit" explícita — invoiceId sozinho
                         // não é confiável (o backend em produção pode não estar
                         // atribuindo isso ainda).
-                        (!card.hasDebit || t.invoiceId || t.paymentMethod === "credit") &&
-                        getInvoiceMonth(t.date, card.closingDate) === currentInvoiceMonth,
+                        (!card.hasDebit || t.invoiceId || t.paymentMethod === "credit"),
                 )
-                spentAmount = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0)
+                spentAmount = pendingTransactions.reduce((sum, t) => sum + t.amount, 0)
             }
             if (card.hasDebit) {
                 calculatedBalance = card.calculatedBalance ?? 0
@@ -151,10 +150,13 @@ export function useCardsViewModel() {
         setEditingCard,
         mergingCard,
         setMergingCard,
+        importingCard,
+        setImportingCard,
         processedCards,
         confirmDeleteCard,
         handleCreateSuccess,
         handleSaveEdit,
         handleMerge,
+        loadData,
     }
 }

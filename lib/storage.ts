@@ -9,8 +9,11 @@ import type {
   AppSettings,
   Card,
   TransactionStatus,
+  TransactionType,
+  PaymentMethod,
   BankName,
   Invoice,
+  ImportPreviewRow,
 } from "./types"
 import { fetchApi } from "./api"
 import { getActiveAccountSelection } from "./active-account"
@@ -289,6 +292,8 @@ function mapTransactionFromApi(t: any): Transaction {
     paymentMethod: t.paymentMethod ? (String(t.paymentMethod).toLowerCase() as Transaction["paymentMethod"]) : undefined,
     isCasal: !!t.isCasal,
     invoiceId: t.invoiceId ?? undefined,
+    originalDescription: t.originalDescription ?? undefined,
+    externalId: t.externalId ?? undefined,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -315,6 +320,64 @@ function mapTransactionToApi(t: Partial<Transaction>) {
 async function createTransactionApi(data: Partial<Transaction>): Promise<Transaction> {
   const created = await fetchApi("/transactions", { method: "POST", body: JSON.stringify(mapTransactionToApi(data)) })
   return mapTransactionFromApi(created)
+}
+
+// ---------------------------------------------------------------------------
+// Import de extrato (OFX)
+// ---------------------------------------------------------------------------
+
+export async function previewStatementImport(file: File, cardId: string, paymentMethod?: PaymentMethod): Promise<ImportPreviewRow[]> {
+  const form = new FormData()
+  form.append("file", file)
+  form.append("cardId", cardId)
+  if (paymentMethod) form.append("paymentMethod", paymentMethod.toUpperCase())
+
+  const rows = await fetchApi("/transactions/import/preview", { method: "POST", body: form })
+  return (rows || []).map((r: any) => ({
+    ...r,
+    type: String(r.type).toLowerCase() as TransactionType,
+  }))
+}
+
+export interface ConfirmImportRow {
+  externalId: string
+  date: string
+  amount: number
+  type: TransactionType
+  originalDescription: string
+  description: string
+  // Ausente quando `settlePendingId` está presente — a categoria já cadastrada
+  // na pendência é mantida, não é escolhida de novo.
+  categoryId?: string
+  installments?: number
+  currentInstallment?: number
+  // Id da pendência a dar baixa em vez de criar uma transação nova, quando o
+  // usuário confirma que esse lançamento do extrato é a mesma conta.
+  settlePendingId?: string
+}
+
+export interface ConfirmImportResult {
+  createdCount: number
+  settledCount: number
+  skippedCount: number
+  createdExternalIds: string[]
+  // Linhas com algum problema — se não estiver vazio, NADA foi salvo (o
+  // backend trata o lote como tudo ou nada, pra não importar pela metade).
+  rowErrors: Array<{ externalId: string; message: string }>
+}
+
+export async function confirmStatementImport(cardId: string, paymentMethod: PaymentMethod | undefined, rows: ConfirmImportRow[]): Promise<ConfirmImportResult> {
+  assertWritable()
+  const result = await fetchApi("/transactions/import/confirm", {
+    method: "POST",
+    body: JSON.stringify({
+      cardId,
+      paymentMethod: paymentMethod?.toUpperCase(),
+      rows: rows.map((r) => ({ ...r, type: r.type.toUpperCase() })),
+    }),
+  })
+  if (result.createdCount > 0 || result.settledCount > 0) notifyStorageUpdate()
+  return result
 }
 
 export async function getTransactions(): Promise<Transaction[]> {
