@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { X, UploadSimple, CreditCard as CreditCardIcon, WarningCircle, RepeatIcon, FileText, Question, CheckCircle, ArrowsLeftRight } from "@phosphor-icons/react"
+import { X, UploadSimple, CreditCard as CreditCardIcon, FileText, Question, CheckCircle, ArrowsLeftRight } from "@phosphor-icons/react"
 import type { Card, Category, ImportPreviewRow, PaymentMethod } from "@/lib/types"
 import { getCategories, getCards, getMemberCardsMapped, ensureSystemCategory, addTransaction, previewStatementImport, confirmStatementImport, type ConfirmImportRow } from "@/lib/storage"
 import { createTransactionForFamilyMember } from "@/lib/family"
@@ -10,30 +10,13 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 import { getCurrentUser } from "@/lib/auth"
+import type { ReviewRow } from "./import-review/types"
+import { ReviewStep } from "./import-review/review-step"
 
 interface ImportStatementDialogProps {
   card: Card | null
   onClose: () => void
   onImported: () => void
-}
-
-interface ReviewRow extends ImportPreviewRow {
-  include: boolean
-  description: string
-  categoryId: string
-  // Resposta do usuário pra "essa é a mesma conta da pendência X?" — undefined
-  // enquanto não decidido (só existe quando `pendingMatch` não é nulo).
-  settleDecision?: "yes" | "no"
-  // Só existem quando a categoria escolhida é "Transferência" (só faz
-  // sentido no lado débito — no crédito não existe "transferência entre
-  // cartões"). "" = uma das minhas próprias contas; caso contrário, id do
-  // membro da família dono da conta de destino/origem.
-  transferMemberId?: string
-  transferCardId?: string
-  // Preenchido depois de uma tentativa de importação que falhou pra essa
-  // linha (backend ou criação da ponta de transferência) — limpo assim que
-  // o usuário mexe em qualquer campo da linha.
-  rowError?: string
 }
 
 type Step = "select" | "reviewing"
@@ -73,7 +56,13 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
     setFiles([])
     setRows([])
     setMemberCardsCache({})
-    getCategories().then(setCategories)
+    // "Transferência" só nasce sozinha na primeira vez que uma transferência é
+    // salva (ensureSystemCategory lazy) — garante ela aqui antes pra pessoa
+    // conseguir escolhê-la manualmente durante a revisão do extrato.
+    Promise.all([
+      ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp"),
+      ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown"),
+    ]).then(() => getCategories().then(setCategories))
     getCards().then((all) => setOwnDebitCards(all.filter((c) => c.hasDebit && c.id !== card.id)))
   }, [card])
 
@@ -140,6 +129,9 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
           ...p,
           include: !p.isDuplicate,
           description: p.suggestedDescription,
+          // Já nasce com a sugestão do backend aplicada — quem sempre cai na
+          // mesma categoria já aparece direto no grupo certo. A pessoa só
+          // trabalha manualmente os itens que o backend não arriscou palpite.
           categoryId: p.suggestedCategoryId ?? "",
           settleDecision: undefined,
         })),
@@ -300,11 +292,130 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
     }
   }
 
-  const categoriesForType = (type: "income" | "expense") => categories.filter((c) => c.type === type)
+  // Bloco de conciliação com pendência — indicador colapsável dentro da linha
+  // (renderizado pelo ReviewStep/TransactionRow), não some da tela mesmo com
+  // as linhas ficando de uma altura só.
+  const renderPendingBlock = (row: ReviewRow) => {
+    if (!row.pendingMatch) return null
+    return (
+      <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
+        {row.settleDecision === "yes" && (
+          <p className="text-xs text-primary flex items-center justify-between gap-1.5">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle size={14} weight="fill" />
+              Vai dar baixa na pendência "{row.pendingMatch.description}" ({formatCurrency(row.pendingMatch.amount)})
+            </span>
+            <button
+              type="button"
+              onClick={() => updateRow(row.externalId, { settleDecision: undefined })}
+              className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0"
+            >
+              Trocar
+            </button>
+          </p>
+        )}
+        {row.settleDecision === "no" && (
+          <p className="text-xs text-muted-foreground flex items-center justify-between gap-1.5">
+            <span>Ok, vai importar como transação nova (não a pendência "{row.pendingMatch.description}").</span>
+            <button
+              type="button"
+              onClick={() => updateRow(row.externalId, { settleDecision: undefined })}
+              className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0"
+            >
+              Trocar
+            </button>
+          </p>
+        )}
+        {!row.settleDecision && (
+          <>
+            <p className="text-xs text-foreground flex items-start gap-1.5">
+              <Question size={14} weight="bold" className="text-primary shrink-0 mt-0.5" />
+              Essa é a pendência "{row.pendingMatch.description}" ({formatCurrency(row.pendingMatch.amount)}) já cadastrada?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => updateRow(row.externalId, { settleDecision: "yes" })}
+                disabled={!row.include}
+                className="py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                Sim, dar baixa
+              </button>
+              <button
+                type="button"
+                onClick={() => updateRow(row.externalId, { settleDecision: "no" })}
+                disabled={!row.include}
+                className="py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                Não, é outra
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // Bloco de conta de origem/destino — só aparece dentro do grupo da
+  // categoria "Transferência"/"Transferência Familiar" (isTransferRow só é
+  // true depois que a linha já tem essa categoria atribuída).
+  const renderTransferBlock = (row: ReviewRow) => {
+    if (row.settleDecision === "yes" || !isTransferRow(row)) return null
+    return (
+      <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
+        <p className="text-xs text-foreground flex items-center gap-1.5">
+          <ArrowsLeftRight size={14} weight="bold" className="text-primary shrink-0" />
+          {row.type === "expense" ? "Pra qual conta foi essa transferência?" : "De qual conta veio essa transferência?"}
+        </p>
+        {familyMembers.length > 0 && (
+          <select
+            value={row.transferMemberId ?? ""}
+            onChange={(e) => {
+              const memberId = e.target.value
+              updateRow(row.externalId, { transferMemberId: memberId, transferCardId: "" })
+              if (memberId) loadMemberCardsIfNeeded(memberId)
+            }}
+            disabled={!row.include}
+            className="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+          >
+            {/* "Transferência Familiar" já é, por definição, uma conta de
+                familiar — não faz sentido oferecer "minhas contas" aqui. */}
+            {isFamilyTransferRow(row) ? (
+              <option value="">Selecione o familiar...</option>
+            ) : (
+              <option value="">Minhas contas</option>
+            )}
+            {familyMembers.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        )}
+        <select
+          value={row.transferCardId ?? ""}
+          onChange={(e) => updateRow(row.externalId, { transferCardId: e.target.value })}
+          disabled={!row.include}
+          className={cn(
+            "w-full px-3 py-2 rounded-lg bg-card border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50",
+            row.include && !row.transferCardId ? "border-destructive" : "border-border",
+          )}
+        >
+          <option value="">Selecione a conta...</option>
+          {transferCardOptionsFor(row).map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-card w-full max-w-2xl rounded-t-3xl md:rounded-3xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+      <div
+        className={cn(
+          "bg-card w-full rounded-t-3xl md:rounded-3xl p-6 space-y-6 max-h-[92vh] overflow-y-auto transition-[max-width]",
+          step === "reviewing" ? "max-w-3xl" : "max-w-2xl",
+        )}
+      >
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-foreground">Importar Extrato</h2>
@@ -435,215 +546,20 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
         )}
 
         {step === "reviewing" && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {includedRows.length} de {rows.length} transações marcadas pra importar — confira nome e categoria antes de confirmar.
-            </p>
-
-            <div className="space-y-2">
-              {rows.map((row) => {
-                const wasRenamed = row.description.trim() !== row.originalDescription
-                return (
-                  <div
-                    key={row.externalId}
-                    className={cn(
-                      "rounded-[1vw] border p-3 space-y-2",
-                      row.rowError ? "border-destructive bg-destructive/5" : row.isDuplicate ? "border-border bg-muted/40" : "border-border bg-background",
-                    )}
-                  >
-                    {row.rowError && (
-                      <p className="text-xs text-destructive flex items-start gap-1.5">
-                        <WarningCircle size={14} weight="fill" className="shrink-0 mt-0.5" />
-                        {row.rowError}
-                      </p>
-                    )}
-                    <div className="flex items-start justify-between gap-3">
-                      <label className="flex items-center gap-2 shrink-0 pt-2.5">
-                        <input
-                          type="checkbox"
-                          checked={row.include}
-                          onChange={(e) => updateRow(row.externalId, { include: e.target.checked })}
-                          className="w-4 h-4 accent-primary"
-                        />
-                      </label>
-
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <input
-                          type="text"
-                          value={row.description}
-                          onChange={(e) => updateRow(row.externalId, { description: e.target.value })}
-                          disabled={!row.include}
-                          className="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-                        />
-                        {wasRenamed && (
-                          <p className="text-[11px] text-muted-foreground px-1">Banco: {row.originalDescription}</p>
-                        )}
-                        {!!row.installments && row.installments > 1 && (
-                          <p className="text-[11px] text-primary px-1 flex items-center gap-1">
-                            <RepeatIcon size={12} weight="bold" /> Parcela {row.currentInstallment}/{row.installments} detectada
-                          </p>
-                        )}
-                        {row.isDuplicate && (
-                          <p className="text-[11px] text-amber-500 px-1 flex items-center gap-1">
-                            <WarningCircle size={12} weight="fill" /> Já foi importada antes
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <p className={cn("font-bold tabular-nums", row.type === "expense" ? "text-expense" : "text-income")}>
-                          {row.type === "expense" ? "-" : "+"}{formatCurrency(row.amount)}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {new Date(row.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                        </p>
-                      </div>
-                    </div>
-
-                    {row.pendingMatch && (
-                      <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
-                        {row.settleDecision === "yes" && (
-                          <p className="text-xs text-primary flex items-center justify-between gap-1.5">
-                            <span className="flex items-center gap-1.5">
-                              <CheckCircle size={14} weight="fill" />
-                              Vai dar baixa na pendência "{row.pendingMatch.description}" ({formatCurrency(row.pendingMatch.amount)})
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => updateRow(row.externalId, { settleDecision: undefined })}
-                              className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0"
-                            >
-                              Trocar
-                            </button>
-                          </p>
-                        )}
-                        {row.settleDecision === "no" && (
-                          <p className="text-xs text-muted-foreground flex items-center justify-between gap-1.5">
-                            <span>Ok, vai importar como transação nova (não a pendência "{row.pendingMatch.description}").</span>
-                            <button
-                              type="button"
-                              onClick={() => updateRow(row.externalId, { settleDecision: undefined })}
-                              className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0"
-                            >
-                              Trocar
-                            </button>
-                          </p>
-                        )}
-                        {!row.settleDecision && (
-                          <>
-                            <p className="text-xs text-foreground flex items-start gap-1.5">
-                              <Question size={14} weight="bold" className="text-primary shrink-0 mt-0.5" />
-                              Essa é a pendência "{row.pendingMatch.description}" ({formatCurrency(row.pendingMatch.amount)}) já cadastrada?
-                            </p>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => updateRow(row.externalId, { settleDecision: "yes" })}
-                                disabled={!row.include}
-                                className="py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-                              >
-                                Sim, dar baixa
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => updateRow(row.externalId, { settleDecision: "no" })}
-                                disabled={!row.include}
-                                className="py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-muted transition-colors disabled:opacity-50"
-                              >
-                                Não, é outra
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {row.settleDecision !== "yes" && (
-                      <select
-                        value={row.categoryId}
-                        onChange={(e) => updateRow(row.externalId, { categoryId: e.target.value })}
-                        disabled={!row.include}
-                        className={cn(
-                          "w-full px-3 py-2 rounded-lg bg-card border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50",
-                          row.include && !row.categoryId ? "border-destructive" : "border-border",
-                        )}
-                      >
-                        <option value="">Selecione a categoria...</option>
-                        {categoriesForType(row.type).map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    )}
-
-                    {row.settleDecision !== "yes" && isTransferRow(row) && (
-                      <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
-                        <p className="text-xs text-foreground flex items-center gap-1.5">
-                          <ArrowsLeftRight size={14} weight="bold" className="text-primary shrink-0" />
-                          {row.type === "expense" ? "Pra qual conta foi essa transferência?" : "De qual conta veio essa transferência?"}
-                        </p>
-                        {familyMembers.length > 0 && (
-                          <select
-                            value={row.transferMemberId ?? ""}
-                            onChange={(e) => {
-                              const memberId = e.target.value
-                              updateRow(row.externalId, { transferMemberId: memberId, transferCardId: "" })
-                              if (memberId) loadMemberCardsIfNeeded(memberId)
-                            }}
-                            disabled={!row.include}
-                            className="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-                          >
-                            {/* "Transferência Familiar" já é, por definição, uma conta de
-                                familiar — não faz sentido oferecer "minhas contas" aqui. */}
-                            {isFamilyTransferRow(row) ? (
-                              <option value="">Selecione o familiar...</option>
-                            ) : (
-                              <option value="">Minhas contas</option>
-                            )}
-                            {familyMembers.map((m) => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                          </select>
-                        )}
-                        <select
-                          value={row.transferCardId ?? ""}
-                          onChange={(e) => updateRow(row.externalId, { transferCardId: e.target.value })}
-                          disabled={!row.include}
-                          className={cn(
-                            "w-full px-3 py-2 rounded-lg bg-card border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50",
-                            row.include && !row.transferCardId ? "border-destructive" : "border-border",
-                          )}
-                        >
-                          <option value="">Selecione a conta...</option>
-                          {transferCardOptionsFor(row).map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setStep("select")}
-                disabled={isSaving}
-                className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                Voltar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={isSaving || includedRows.length === 0}
-                className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {isSaving ? "Importando..." : `Importar ${includedRows.length} transaç${includedRows.length === 1 ? "ão" : "ões"}`}
-              </button>
-            </div>
-          </div>
+          <ReviewStep
+            rows={rows}
+            categories={categories}
+            updateRow={updateRow}
+            includedCount={includedRows.length}
+            totalCount={rows.length}
+            isSaving={isSaving}
+            canConfirm={!isSaving && includedRows.length > 0}
+            confirmLabel={isSaving ? "Importando..." : `Importar ${includedRows.length} transaç${includedRows.length === 1 ? "ão" : "ões"}`}
+            onBack={() => setStep("select")}
+            onConfirm={handleConfirm}
+            renderPendingBlock={renderPendingBlock}
+            renderTransferBlock={renderTransferBlock}
+          />
         )}
       </div>
     </div>
