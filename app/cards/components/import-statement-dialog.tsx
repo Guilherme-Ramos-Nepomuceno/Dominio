@@ -12,6 +12,7 @@ import { useAccount } from "@/components/account/account-context"
 import { getCurrentUser } from "@/lib/auth"
 import type { ReviewRow } from "./import-review/types"
 import { ReviewStep } from "./import-review/review-step"
+import { TransferMemberPicker, TransferCardPicker } from "./import-review/transfer-account-picker"
 
 interface ImportStatementDialogProps {
   card: Card | null
@@ -368,42 +369,24 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
           {row.type === "expense" ? "Pra qual conta foi essa transferência?" : "De qual conta veio essa transferência?"}
         </p>
         {familyMembers.length > 0 && (
-          <select
+          <TransferMemberPicker
+            members={familyMembers}
+            offerOwnAccounts={!isFamilyTransferRow(row)}
             value={row.transferMemberId ?? ""}
-            onChange={(e) => {
-              const memberId = e.target.value
+            disabled={!row.include}
+            onChange={(memberId) => {
               updateRow(row.externalId, { transferMemberId: memberId, transferCardId: "" })
               if (memberId) loadMemberCardsIfNeeded(memberId)
             }}
-            disabled={!row.include}
-            className="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-          >
-            {/* "Transferência Familiar" já é, por definição, uma conta de
-                familiar — não faz sentido oferecer "minhas contas" aqui. */}
-            {isFamilyTransferRow(row) ? (
-              <option value="">Selecione o familiar...</option>
-            ) : (
-              <option value="">Minhas contas</option>
-            )}
-            {familyMembers.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+          />
         )}
-        <select
+        <TransferCardPicker
+          options={transferCardOptionsFor(row)}
           value={row.transferCardId ?? ""}
-          onChange={(e) => updateRow(row.externalId, { transferCardId: e.target.value })}
           disabled={!row.include}
-          className={cn(
-            "w-full px-3 py-2 rounded-lg bg-card border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50",
-            row.include && !row.transferCardId ? "border-destructive" : "border-border",
-          )}
-        >
-          <option value="">Selecione a conta...</option>
-          {transferCardOptionsFor(row).map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+          hasError={row.include && !row.transferCardId}
+          onChange={(cardId) => updateRow(row.externalId, { transferCardId: cardId })}
+        />
       </div>
     )
   }
