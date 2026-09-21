@@ -463,6 +463,11 @@ export interface PluggyPendingTransaction {
   matchedInvoiceCardId?: string
   matchedInvoiceMonth?: string // "YYYY-MM"
   invoicePaymentDecision?: "yes" | "no"
+  // Detectado no sync: CPF/CNPJ ou número de conta de quem recebeu/enviou
+  // bate com uma conta já mapeada (minha ou de um familiar) — sugestão
+  // pré-preenchida pro seletor de transferência, sempre editável.
+  matchedTransferCardId?: string
+  matchedTransferMemberId?: string
 }
 
 function mapPluggyPendingFromApi(r: any): PluggyPendingTransaction {
