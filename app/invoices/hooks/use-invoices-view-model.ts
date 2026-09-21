@@ -76,12 +76,18 @@ export function useInvoicesViewModel() {
     // --- NOVA LÓGICA: PROJEÇÃO DE PARCELAS ---
     const cardInvoices = useMemo(() => {
         return cards.map((card) => {
-            // 1. Filtra transações deste cartão que são despesas (exclui canceladas)
+            // 1. Filtra transações deste cartão que são despesas (exclui canceladas).
+            // Em cartão combinado (crédito+débito), só a perna crédito compõe a
+            // fatura — exige a tag explícita "credit", não só "diferente de
+            // debit": uma transação sem paymentMethod (ex: transferência lançada
+            // manualmente pelo /transfer, sem passar pelo fluxo de cartão) não é
+            // fatura de cartão nenhuma e não pode contar aqui só por omissão.
             const cardTransactions = transactions.filter(
                 (t) =>
                     t.cardId === card.id &&
                     t.status !== "cancelled" &&
-                    categories.find((c) => c.id === t.categoryId)?.type === "expense"
+                    categories.find((c) => c.id === t.categoryId)?.type === "expense" &&
+                    (!card.hasDebit || t.paymentMethod === "credit")
             )
 
             const realInvoice = invoicesByCard[card.id]
@@ -94,10 +100,6 @@ export function useInvoicesViewModel() {
             // cálculo pelo dia de fechamento do cartão, como antes.
             const monthTransactions: any[] = cardTransactions.filter((t) => {
                 if (t.invoiceId) return realInvoice ? t.invoiceId === realInvoice.id : getInvoiceMonth(t.date, card.closingDate) === selectedMonth
-                // Sem invoiceId: só sabemos que é débito se a transação tem a tag
-                // explícita — não dá pra confiar cegamente na ausência de invoiceId
-                // (o backend em produção pode não estar atribuindo isso ainda).
-                if (card.hasDebit && t.paymentMethod === "debit") return false
                 return getInvoiceMonth(t.date, card.closingDate) === selectedMonth
             })
 
