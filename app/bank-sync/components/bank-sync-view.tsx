@@ -78,14 +78,20 @@ export function BankSyncView() {
   // Memoizado — com centenas de pendências, recriar esse array (e os
   // cálculos que dependem dele em ReviewStep) do zero a cada render, mesmo
   // quando `pendingRows` não mudou, é caro e desnecessário.
+  // `matchedTransferMemberId`/`matchedTransferCardId` (sugestão automática do
+  // sync, por CPF/número de conta) só valem como valor INICIAL — assim que a
+  // pessoa mexe no seletor, a escolha dela em `transferSelections` sempre
+  // vence (mesmo pra "limpar" de volta pra "Minhas contas", que é `""`, não
+  // `undefined` — por isso `??` cai pro match automático só quando ainda não
+  // existe nenhuma entrada local pra essa linha).
   const reviewRows: PluggyReviewRow[] = useMemo(
     () =>
       vm.pendingRows.map((r) => ({
         ...r,
         categoryId: r.categoryId ?? "",
         settleDecision: r.invoicePaymentDecision,
-        transferMemberId: transferSelections[r.externalId]?.transferMemberId,
-        transferCardId: transferSelections[r.externalId]?.transferCardId,
+        transferMemberId: transferSelections[r.externalId]?.transferMemberId ?? r.matchedTransferMemberId,
+        transferCardId: transferSelections[r.externalId]?.transferCardId ?? r.matchedTransferCardId,
       })),
     [vm.pendingRows, transferSelections],
   )
@@ -113,6 +119,15 @@ export function BankSyncView() {
     const all = await getMemberCardsMapped(memberId)
     setMemberCardsCache((prev) => ({ ...prev, [memberId]: all.filter((c) => c.hasDebit) }))
   }
+
+  // Pré-carrega os cartões de qualquer familiar já sugerido automaticamente
+  // pelo match de identidade — senão o seletor de cartão apareceria vazio até
+  // a pessoa mexer manualmente no seletor de familiar primeiro.
+  useEffect(() => {
+    const memberIds = new Set(vm.pendingRows.map((r) => r.matchedTransferMemberId).filter((id): id is string => !!id))
+    memberIds.forEach((id) => loadMemberCardsIfNeeded(id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vm.pendingRows])
 
   const transferCardOptionsFor = (row: PluggyReviewRow): Card[] => {
     if (row.transferMemberId) return memberCardsCache[row.transferMemberId] ?? []
