@@ -14,6 +14,11 @@ export interface Category {
   color: string
   type: TransactionType
   icon?: string
+  // Transferência entre contas / pagamento de fatura: dinheiro que sai de um
+  // lado e entra no outro sem representar receita/despesa real — excluída dos
+  // totais por essa flag em vez de comparar nome (só categorias de sistema,
+  // via ensureSystemCategory, marcam isso).
+  excludedFromTotals?: boolean
 }
 
 export interface Transaction {

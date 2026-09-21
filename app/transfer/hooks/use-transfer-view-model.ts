@@ -103,7 +103,7 @@ export function useTransferViewModel() {
             const toCard = cards.find((c) => c.id === toCardId)
 
             // Create expense transaction (money leaving from card)
-            const expenseCategoryId = await ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp")
+            const expenseCategoryId = await ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true)
             await addTransaction({
                 description: description || `Transferência para ${toCard?.name}`,
                 amount: numAmount,
@@ -115,7 +115,7 @@ export function useTransferViewModel() {
             })
 
             // Create income transaction (money entering to card)
-            const incomeCategoryId = await ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown")
+            const incomeCategoryId = await ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true)
             await addTransaction({
                 description: description || `Transferência de ${fromCard?.name}`,
                 amount: numAmount,

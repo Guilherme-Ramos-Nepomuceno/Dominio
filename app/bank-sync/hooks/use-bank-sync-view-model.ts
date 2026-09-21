@@ -46,8 +46,8 @@ export function useBankSyncViewModel() {
     // salva — garante ela aqui antes pra pessoa poder escolher na revisão,
     // igual ao import manual de extrato.
     await Promise.all([
-      ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp"),
-      ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown"),
+      ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
+      ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
     ])
     const [conn, cats, allCards, pending] = await Promise.all([
       getPluggyConnection(),
