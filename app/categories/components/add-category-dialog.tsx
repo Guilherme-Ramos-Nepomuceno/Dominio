@@ -25,7 +25,7 @@ interface AddCategoryDialogProps {
 
 // Categorias não têm mais cor própria na interface (ícones são monocromáticos em
 // todo o app) — este valor só preenche o campo obrigatório do backend.
-const DEFAULT_CATEGORY_COLOR = "#71717a"
+export const DEFAULT_CATEGORY_COLOR = "#71717a"
 
 export const ICON_OPTIONS = [
   { name: "Tag", Icon: Tag },

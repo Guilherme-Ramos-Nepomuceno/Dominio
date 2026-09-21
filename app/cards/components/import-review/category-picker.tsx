@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { CaretDown, MagnifyingGlass } from "@phosphor-icons/react"
+import { CaretDown, MagnifyingGlass, Plus } from "@phosphor-icons/react"
 import type { Category, TransactionType } from "@/lib/types"
 import { CategoryIcon } from "./category-icon"
+import { ICON_OPTIONS } from "@/app/categories/components/add-category-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { cn } from "@/lib/utils"
@@ -16,12 +17,19 @@ interface CategoryPickerProps {
   relevantTypes: Set<TransactionType>
   activeCategoryId: string
   onSelect: (categoryId: string) => void
+  /** Ausente = busca não oferece "criar categoria" (ex: tela sem permissão de escrita). */
+  onCreateCategory?: (type: TransactionType, name: string, icon: string) => Promise<Category>
 }
 
 const MAX_CHIPS = 6
 
-export function CategoryPicker({ categories, suggestionCounts, relevantTypes, activeCategoryId, onSelect }: CategoryPickerProps) {
+export function CategoryPicker({ categories, suggestionCounts, relevantTypes, activeCategoryId, onSelect, onCreateCategory }: CategoryPickerProps) {
   const [searchOpen, setSearchOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const [creatingType, setCreatingType] = useState<TransactionType | null>(null)
+  const [newName, setNewName] = useState("")
+  const [newIcon, setNewIcon] = useState(ICON_OPTIONS[0].name)
+  const [isCreating, setIsCreating] = useState(false)
 
   const byId = new Map(categories.map((c) => [c.id, c]))
   const ranked = [...suggestionCounts.entries()]
@@ -43,7 +51,32 @@ export function CategoryPicker({ categories, suggestionCounts, relevantTypes, ac
 
   const pick = (id: string) => {
     onSelect(id)
+    closeSearch()
+  }
+
+  const closeSearch = () => {
     setSearchOpen(false)
+    setCreatingType(null)
+    setNewName("")
+    setNewIcon(ICON_OPTIONS[0].name)
+    setSearch("")
+  }
+
+  const startCreating = (type: TransactionType) => {
+    setCreatingType(type)
+    setNewName(search)
+  }
+
+  const handleCreate = async () => {
+    const trimmed = newName.trim()
+    if (!creatingType || !trimmed || !onCreateCategory) return
+    setIsCreating(true)
+    try {
+      const created = await onCreateCategory(creatingType, trimmed, newIcon)
+      pick(created.id)
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   return (
@@ -67,7 +100,7 @@ export function CategoryPicker({ categories, suggestionCounts, relevantTypes, ac
           </button>
         ))}
 
-        <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+        <Popover open={searchOpen} onOpenChange={(open) => (open ? setSearchOpen(true) : closeSearch())}>
           <PopoverTrigger asChild>
             <button
               type="button"
@@ -92,32 +125,103 @@ export function CategoryPicker({ categories, suggestionCounts, relevantTypes, ac
               <CaretDown size={12} weight="bold" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 p-0 z-110" align="start">
-            <Command>
-              <CommandInput placeholder="Buscar categoria..." />
-              <CommandList>
-                <CommandEmpty>Nenhuma categoria encontrada.</CommandEmpty>
-                <CommandGroup heading="Despesas">
-                  {rest.filter((c) => c.type === "expense").map((c) => (
-                    // value único (id) — categorias de nome repetido em tipos diferentes
-                    // (ex: "Transferência" despesa e receita) faziam o cmdk destacar as
-                    // duas juntas no hover, já que ele identifica o item pelo `value`.
-                    <CommandItem key={c.id} value={c.id} keywords={[c.name]} onSelect={() => pick(c.id)}>
-                      <CategoryIcon category={c} size="sm" />
-                      {c.name}
-                    </CommandItem>
+          <PopoverContent className={cn("p-0 z-110", creatingType ? "w-80" : "w-64")} align="start">
+            {creatingType ? (
+              <div className="p-3 space-y-3">
+                <p className="text-xs font-medium text-foreground">
+                  Nova categoria de {creatingType === "expense" ? "despesa" : "receita"}
+                </p>
+                <input
+                  autoFocus
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  placeholder="Nome da categoria"
+                  className="w-full px-3 py-2 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <div className="grid grid-cols-8 gap-1">
+                  {ICON_OPTIONS.map(({ name: iconName, Icon }) => (
+                    <button
+                      key={iconName}
+                      type="button"
+                      onClick={() => setNewIcon(iconName)}
+                      className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                        newIcon === iconName
+                          ? "text-primary ring-2 ring-primary/40 scale-110"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Icon size={16} weight="duotone" />
+                    </button>
                   ))}
-                </CommandGroup>
-                <CommandGroup heading="Receitas">
-                  {rest.filter((c) => c.type === "income").map((c) => (
-                    <CommandItem key={c.id} value={c.id} keywords={[c.name]} onSelect={() => pick(c.id)}>
-                      <CategoryIcon category={c} size="sm" />
-                      {c.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setCreatingType(null)}
+                    className="flex-1 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!newName.trim() || isCreating}
+                    onClick={handleCreate}
+                    className="flex-1 py-1.5 rounded-md bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {isCreating ? "Criando..." : "Criar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Command>
+                <CommandInput value={search} onValueChange={setSearch} placeholder="Buscar categoria..." />
+                <CommandList>
+                  <CommandEmpty>Nenhuma categoria encontrada.</CommandEmpty>
+                  <CommandGroup heading="Despesas">
+                    {rest.filter((c) => c.type === "expense").map((c) => (
+                      // value único (id) — categorias de nome repetido em tipos diferentes
+                      // (ex: "Transferência" despesa e receita) faziam o cmdk destacar as
+                      // duas juntas no hover, já que ele identifica o item pelo `value`.
+                      <CommandItem key={c.id} value={c.id} keywords={[c.name]} onSelect={() => pick(c.id)}>
+                        <CategoryIcon category={c} size="sm" />
+                        {c.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Receitas">
+                    {rest.filter((c) => c.type === "income").map((c) => (
+                      <CommandItem key={c.id} value={c.id} keywords={[c.name]} onSelect={() => pick(c.id)}>
+                        <CategoryIcon category={c} size="sm" />
+                        {c.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+                {onCreateCategory && (
+                  <div className="flex border-t border-border">
+                    <button
+                      type="button"
+                      onClick={() => startCreating("expense")}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    >
+                      <Plus size={12} weight="bold" />
+                      Nova despesa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startCreating("income")}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors border-l border-border"
+                    >
+                      <Plus size={12} weight="bold" />
+                      Nova receita
+                    </button>
+                  </div>
+                )}
+              </Command>
+            )}
           </PopoverContent>
         </Popover>
       </div>

@@ -14,13 +14,15 @@ interface UncategorizedListProps {
   onRename: (externalId: string, description: string) => void
   onToggleInclude: (externalId: string, include: boolean) => void
   renderExtra?: (row: ReviewRow) => React.ReactNode
+  /** Sobrescreve a mensagem de "lista vazia" — ex: quando só sumiu porque o tipo ativo (receita/despesa) filtrou tudo, não porque terminou de verdade. */
+  emptyMessage?: string
 }
 
-export function UncategorizedList({ rows, activeCategoryId, activeCategory, onAssign, onRename, onToggleInclude, renderExtra }: UncategorizedListProps) {
+export function UncategorizedList({ rows, activeCategoryId, activeCategory, onAssign, onRename, onToggleInclude, renderExtra, emptyMessage }: UncategorizedListProps) {
   if (rows.length === 0) {
     return (
       <div className="rounded-[1vw] border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-        Tudo categorizado! Confira os grupos abaixo antes de importar.
+        {emptyMessage ?? "Tudo categorizado! Confira os grupos acima antes de importar."}
       </div>
     )
   }

@@ -22,7 +22,10 @@ interface CategoryGroupProps {
 }
 
 export function CategoryGroup({ category, rows, categories, onRename, onBulkRename, onMoveCategory, renderExtra }: CategoryGroupProps) {
-  const [expanded, setExpanded] = useState(true)
+  // Fechado por padrão — com o grupo agora aparecendo acima da fila "sem
+  // categoria", deixar tudo aberto de cara empurraria o que ainda falta
+  // fazer pra baixo da dobra.
+  const [expanded, setExpanded] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkName, setBulkName] = useState("")

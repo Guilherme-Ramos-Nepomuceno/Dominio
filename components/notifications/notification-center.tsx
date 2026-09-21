@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Bell, CalendarCheck, Warning } from "@phosphor-icons/react"
+import { Bell, CalendarCheck, Warning, Bank } from "@phosphor-icons/react"
 import { usePendingSummary } from "@/hooks/use-transactions"
+import { usePluggyPendingSummary } from "@/hooks/use-pluggy-pending"
 import { formatCurrency } from "@/lib/date-utils"
 import * as Popover from "@radix-ui/react-popover"
 
@@ -11,12 +12,13 @@ interface Notification {
     title: string
     message: string
     type: "warning" | "info"
-    date: string
-    amount: number
+    amount?: number
+    href: string
 }
 
 export function NotificationCenter() {
     const { items } = usePendingSummary()
+    const { count: pluggyPendingCount } = usePluggyPendingSummary()
     const [isOpen, setIsOpen] = useState(false)
     const [hasUnread, setHasUnread] = useState(false)
 
@@ -31,19 +33,31 @@ export function NotificationCenter() {
             title: isExpense ? "Conta pendente" : "Recebimento pendente",
             message: `${t.description}: ${label}.`,
             type: isOverdue ? "warning" : "info",
-            date: t.date,
             amount: t.amount,
+            href: "/pending",
         }
     })
+
+    // Uma linha só, agregada — a lista em si (que pode ter dezenas de itens de
+    // um sync grande) mora na própria página de sincronização, não aqui.
+    if (pluggyPendingCount > 0) {
+        notifications.push({
+            id: "pluggy-pending",
+            title: "Transações para revisar",
+            message: `${pluggyPendingCount} transaç${pluggyPendingCount === 1 ? "ão" : "ões"} da sincronização bancária esperando categorização.`,
+            type: "info",
+            href: "/bank-sync",
+        })
+    }
 
     useEffect(() => {
         if (notifications.length > 0) setHasUnread(true)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [items])
+    }, [items, pluggyPendingCount])
 
-    const handleNotificationClick = () => {
+    const handleNotificationClick = (href: string) => {
         setIsOpen(false)
-        window.location.href = "/pending"
+        window.location.href = href
     }
 
     return (
@@ -83,12 +97,18 @@ export function NotificationCenter() {
                             notifications.map((notif) => (
                                 <div
                                     key={notif.id}
-                                    onClick={handleNotificationClick}
+                                    onClick={() => handleNotificationClick(notif.href)}
                                     className="p-3 rounded-xl bg-background border border-border/50 hover:bg-muted/50 transition-colors flex gap-3 relative group cursor-pointer"
                                 >
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${notif.type === 'warning' ? 'bg-expense/10 text-expense' : 'bg-primary/10 text-primary'
                                         }`}>
-                                        {notif.type === 'warning' ? <Warning weight="fill" size={20} /> : <CalendarCheck weight="fill" size={20} />}
+                                        {notif.href === '/bank-sync' ? (
+                                            <Bank weight="fill" size={20} />
+                                        ) : notif.type === 'warning' ? (
+                                            <Warning weight="fill" size={20} />
+                                        ) : (
+                                            <CalendarCheck weight="fill" size={20} />
+                                        )}
                                     </div>
 
                                     <div className="flex-1 min-w-0">

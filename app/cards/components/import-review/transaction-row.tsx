@@ -23,6 +23,12 @@ export function TransactionRow({ row, onRename, disabled, leftSlot, rightSlot, c
   const [draft, setDraft] = useState(row.description)
   const wasRenamed = row.description.trim() !== row.originalDescription
 
+  const rowDate = new Date(row.date)
+  // Ano só aparece quando não é o ano corrente — sincronização da Pluggy traz
+  // até 12 meses de histórico, então uma linha de dezembro do ano passado sem
+  // ano junto ficava ambígua (parece do mês que vem, não do ano anterior).
+  const isPastYear = rowDate.getFullYear() !== new Date().getFullYear()
+
   const commit = () => {
     setIsEditing(false)
     const trimmed = draft.trim()
@@ -85,7 +91,7 @@ export function TransactionRow({ row, onRename, disabled, leftSlot, rightSlot, c
             {row.type === "expense" ? "-" : "+"}{formatCurrency(row.amount)}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {new Date(row.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+            {rowDate.toLocaleDateString("pt-BR", isPastYear ? { day: "2-digit", month: "2-digit", year: "numeric" } : { day: "2-digit", month: "2-digit" })}
           </p>
         </div>
 
