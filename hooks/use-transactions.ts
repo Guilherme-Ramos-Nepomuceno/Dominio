@@ -9,10 +9,13 @@ import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
 // "Transferência" nos dois lados do lançamento. Retiradas de reserva usam a mesma
 // categoria de entrada, mas devem seguir contando como receita (o dinheiro sai da
 // reserva e entra na conta corrente de fato), então são excluídas daqui.
+// "Pagamento de Fatura" (sincronização Pluggy) entra na mesma exclusão por um motivo
+// diferente: cada compra da fatura já conta como gasto na própria categoria (Alimentação,
+// Transporte...) — contar o pagamento agregado de novo aqui duplicaria o valor.
 export function isInternalTransfer(categories: Category[], t: Transaction): boolean {
   if (t.description?.startsWith("Retirada da reserva")) return false
   const category = categories.find((c) => c.id === t.categoryId)
-  return category?.name === "Transferência"
+  return category?.name === "Transferência" || category?.name === "Pagamento de Fatura"
 }
 
 export function useTransactions(selectedMonth?: string) {

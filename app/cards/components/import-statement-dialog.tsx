@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react"
 import { X, UploadSimple, CreditCard as CreditCardIcon, FileText, Question, CheckCircle, ArrowsLeftRight } from "@phosphor-icons/react"
-import type { Card, Category, ImportPreviewRow, PaymentMethod } from "@/lib/types"
-import { getCategories, getCards, getMemberCardsMapped, ensureSystemCategory, addTransaction, previewStatementImport, confirmStatementImport, type ConfirmImportRow } from "@/lib/storage"
+import type { Card, Category, ImportPreviewRow, PaymentMethod, TransactionType } from "@/lib/types"
+import { getCategories, getCards, getMemberCardsMapped, ensureSystemCategory, addCategory, addTransaction, previewStatementImport, confirmStatementImport, type ConfirmImportRow } from "@/lib/storage"
+import { DEFAULT_CATEGORY_COLOR } from "@/app/categories/components/add-category-dialog"
 import { createTransactionForFamilyMember } from "@/lib/family"
 import { formatCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
@@ -149,6 +150,14 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
     // Qualquer edição na linha limpa um erro de tentativa anterior — a menos
     // que a própria chamada esteja explicitamente marcando um erro novo.
     setRows((prev) => prev.map((r) => (r.externalId === externalId ? { ...r, rowError: undefined, ...updates } : r)))
+  }
+
+  const handleCreateCategory = async (type: TransactionType, name: string, icon: string) => {
+    // Categorias não têm cor própria na interface — mesma cor fixa usada em
+    // app/categories/add-category-dialog.tsx.
+    const created = await addCategory({ name, color: DEFAULT_CATEGORY_COLOR, type, icon })
+    setCategories((prev) => [...prev, created])
+    return created
   }
 
   const includedRows = rows.filter((r) => r.include)
@@ -542,6 +551,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
             onConfirm={handleConfirm}
             renderPendingBlock={renderPendingBlock}
             renderTransferBlock={renderTransferBlock}
+            onCreateCategory={handleCreateCategory}
           />
         )}
       </div>

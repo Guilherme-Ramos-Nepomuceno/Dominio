@@ -380,6 +380,184 @@ export async function confirmStatementImport(cardId: string, paymentMethod: Paym
   return result
 }
 
+// ---------------------------------------------------------------------------
+// Pluggy (open finance) — sincronização automática de extrato. Credencial é
+// por usuário (caminho gratuito "Meu Pluggy" só agrega contas do mesmo
+// titular), não uma credencial global do app. Ver app/bank-sync/.
+// ---------------------------------------------------------------------------
+
+export interface PluggyAccountMapping {
+  id: string
+  pluggyAccountId: string
+  cardId: string
+  paymentMethod?: PaymentMethod
+}
+
+export interface PluggyItemStatus {
+  id: string
+  pluggyItemId: string
+  lastSyncedAt: string | null
+  // Corte pra primeira sincronização desse item — só tem efeito enquanto
+  // `lastSyncedAt` ainda for null (senão o banco já sabe de onde continuar).
+  syncFromDate: string | null
+  accountMappings: PluggyAccountMapping[]
+}
+
+export interface PluggyConnectionStatus {
+  connected: boolean
+  items: PluggyItemStatus[]
+}
+
+export interface PluggyAccount {
+  id: string
+  name: string
+  type: string
+  subtype?: string
+  balance: number
+}
+
+// Já vem no formato que a tela de revisão (ReviewStep) sabe renderizar —
+// `isDuplicate`/`pendingMatch` sempre nesses valores porque o sync da Pluggy
+// não faz conciliação com pendência nem detecta duplicata do próprio lote
+// (isso já foi filtrado no backend antes de virar linha pendente).
+export interface PluggyPendingTransaction {
+  id: string
+  externalId: string
+  date: string
+  amount: number
+  type: TransactionType
+  originalDescription: string
+  suggestedDescription: string
+  suggestedCategoryId: string | null
+  description: string
+  categoryId: string | null
+  include: boolean
+  isDuplicate: false
+  pendingMatch: null
+  cardId: string
+  paymentMethod?: PaymentMethod
+  // Item da Pluggy (banco) de onde essa pendência veio — pra tela agrupar a
+  // revisão por banco em vez de misturar tudo numa lista só.
+  itemId: string
+  // Detectado no sync: parece ser o pagamento de uma fatura em aberto desse
+  // cartão/mês — confirmando, dá baixa nas compras em vez de criar uma
+  // despesa nova (senão duplicaria o gasto que as compras já registram).
+  matchedInvoiceCardId?: string
+  matchedInvoiceMonth?: string // "YYYY-MM"
+  invoicePaymentDecision?: "yes" | "no"
+}
+
+function mapPluggyPendingFromApi(r: any): PluggyPendingTransaction {
+  return {
+    ...r,
+    type: String(r.type).toLowerCase() as TransactionType,
+    paymentMethod: r.paymentMethod ? (String(r.paymentMethod).toLowerCase() as PaymentMethod) : undefined,
+    invoicePaymentDecision: r.invoicePaymentDecision ? (String(r.invoicePaymentDecision).toLowerCase() as "yes" | "no") : undefined,
+  }
+}
+
+export async function getPluggyConnection(): Promise<PluggyConnectionStatus> {
+  const raw = await fetchApi("/pluggy/connection")
+  return {
+    connected: raw.connected,
+    items: (raw.items || []).map((item: any) => ({
+      ...item,
+      accountMappings: (item.accountMappings || []).map((m: any) => ({
+        ...m,
+        paymentMethod: m.paymentMethod ? (String(m.paymentMethod).toLowerCase() as PaymentMethod) : undefined,
+      })),
+    })),
+  }
+}
+
+export async function savePluggyCredentials(clientId: string, clientSecret: string): Promise<void> {
+  assertWritable()
+  await fetchApi("/pluggy/connection", { method: "POST", body: JSON.stringify({ clientId, clientSecret }) })
+}
+
+export async function addPluggyItem(pluggyItemId: string, syncFromDate?: string): Promise<PluggyItemStatus> {
+  assertWritable()
+  return fetchApi("/pluggy/items", { method: "POST", body: JSON.stringify({ pluggyItemId, syncFromDate }) })
+}
+
+// `syncFromDate: null` limpa o corte. `discardExistingBefore: true` também
+// apaga pendências já geradas por um sync anterior, datadas antes do corte —
+// não mexe em transações que já viraram de verdade.
+export async function updatePluggyItemSyncFrom(
+  itemId: string,
+  syncFromDate: string | null,
+  discardExistingBefore?: boolean,
+): Promise<PluggyItemStatus> {
+  assertWritable()
+  return fetchApi(`/pluggy/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ syncFromDate, discardExistingBefore }),
+  })
+}
+
+export async function listPluggyAccounts(itemId: string): Promise<PluggyAccount[]> {
+  return fetchApi(`/pluggy/items/${itemId}/accounts`)
+}
+
+export async function mapPluggyAccount(itemId: string, pluggyAccountId: string, cardId: string, paymentMethod?: PaymentMethod): Promise<void> {
+  assertWritable()
+  await fetchApi(`/pluggy/items/${itemId}/accounts/map`, {
+    method: "POST",
+    body: JSON.stringify({ pluggyAccountId, cardId, paymentMethod: paymentMethod?.toUpperCase() }),
+  })
+}
+
+export async function syncPluggyTransactions(): Promise<{ created: number; skipped: number }> {
+  assertWritable()
+  const result = await fetchApi("/pluggy/sync", { method: "POST" })
+  // Nenhuma Transaction real muda aqui ainda (só cria pendências pra revisar),
+  // mas o sino de notificação escuta esse mesmo evento pra reconferir a
+  // contagem — mais simples que inventar um evento paralelo só pra isso.
+  notifyStorageUpdate()
+  return result
+}
+
+export async function getPluggyPending(): Promise<PluggyPendingTransaction[]> {
+  const rows = await fetchApi("/pluggy/pending")
+  return (rows || []).map(mapPluggyPendingFromApi)
+}
+
+export async function updatePluggyPending(
+  id: string,
+  updates: { description?: string; categoryId?: string | null; include?: boolean; invoicePaymentDecision?: "yes" | "no" | null },
+): Promise<PluggyPendingTransaction> {
+  assertWritable()
+  const body: Record<string, unknown> = { ...updates }
+  // `?.toUpperCase()` engoliria um `null` explícito (reset da decisão) como
+  // se o campo nem tivesse sido enviado — só transforma quando a chave
+  // realmente veio no update, preservando o null nesse caso.
+  if ("invoicePaymentDecision" in updates) {
+    body.invoicePaymentDecision = updates.invoicePaymentDecision ? updates.invoicePaymentDecision.toUpperCase() : null
+  }
+  const row = await fetchApi(`/pluggy/pending/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+  return mapPluggyPendingFromApi(row)
+}
+
+export interface ConfirmPluggyPendingResult {
+  createdCount: number
+  settledCount: number
+  skippedCount: number
+  createdExternalIds: string[]
+  rowErrors: Array<{ pendingId: string; message: string }>
+}
+
+export async function confirmPluggyPending(ids: string[]): Promise<ConfirmPluggyPendingResult> {
+  assertWritable()
+  const result = await fetchApi("/pluggy/pending/confirm", { method: "POST", body: JSON.stringify({ ids }) })
+  if (result.createdCount > 0) notifyStorageUpdate()
+  return result
+}
+
+export async function getPluggyPendingCount(): Promise<number> {
+  const result = await fetchApi("/pluggy/pending/count")
+  return result.count
+}
+
 export async function getTransactions(): Promise<Transaction[]> {
   const ctx = getActiveAccountSelection()
   const raw = ctx.type === "partner" ? await familyApi.getMemberTransactions(ctx.id) : await fetchApi("/transactions")

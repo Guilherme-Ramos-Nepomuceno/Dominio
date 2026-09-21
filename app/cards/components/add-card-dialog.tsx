@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { XIcon } from "@phosphor-icons/react"
 import { addCard } from "@/lib/storage"
-import type { BankName, CardKind } from "@/lib/types"
+import type { BankName, Card, CardKind } from "@/lib/types"
 import { bankLogos, bankColors } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
@@ -13,7 +13,9 @@ import { useToast } from "@/hooks/use-toast"
 interface AddCardDialogProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: () => void
+  // Recebe o cartão recém-criado — útil pra quem abriu o diálogo já sabendo o
+  // que vai fazer com ele (ex: selecioná-lo automaticamente em algum picker).
+  onSuccess: (card: Card) => void
 }
 
 const KIND_OPTIONS: { value: CardKind; label: string }[] = [
@@ -70,7 +72,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
 
     setIsSubmitting(true)
     try {
-      await addCard({
+      const created = await addCard({
         name,
         lastDigits,
         bankName,
@@ -91,7 +93,7 @@ export function AddCardDialog({ isOpen, onClose, onSuccess }: AddCardDialogProps
       setLimit("")
       setDueDate("10")
       setClosingDate("3")
-      onSuccess()
+      onSuccess(created)
       onClose()
     } catch (error: any) {
       toast({
