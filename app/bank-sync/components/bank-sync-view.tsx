@@ -135,7 +135,7 @@ export function BankSyncView() {
     const nextCardId = patch.transferCardId ?? row.transferCardId
     const needsFamilySwap = row.categoryId === transferCategoryIdFor(row.type) && !!nextMemberId && !!nextCardId
     if (needsFamilySwap) {
-      ensureSystemCategory("Transferência Familiar", row.type, "#3b82f6", "UsersThree").then((categoryId) => {
+      ensureSystemCategory("Transferência Familiar", row.type, "#3b82f6", "UsersThree", false).then((categoryId) => {
         vm.updatePendingRow(row.externalId, { categoryId })
       })
     }
@@ -303,7 +303,7 @@ export function BankSyncView() {
             description,
           })
         }
-        return ensureSystemCategory("Transferência", oppositeType, "#3b82f6", oppositeType === "expense" ? "HandArrowUp" : "HandArrowDown").then(
+        return ensureSystemCategory("Transferência", oppositeType, "#3b82f6", oppositeType === "expense" ? "HandArrowUp" : "HandArrowDown", true).then(
           (categoryId) =>
             addTransaction({
               description,

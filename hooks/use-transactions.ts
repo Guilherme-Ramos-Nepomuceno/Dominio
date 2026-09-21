@@ -12,10 +12,13 @@ import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
 // "Pagamento de Fatura" (sincronização Pluggy) entra na mesma exclusão por um motivo
 // diferente: cada compra da fatura já conta como gasto na própria categoria (Alimentação,
 // Transporte...) — contar o pagamento agregado de novo aqui duplicaria o valor.
+// Checagem é pela flag `excludedFromTotals`, não pelo nome da categoria — nome é frágil
+// (acento, maiúscula, ou uma categoria homônima que o próprio usuário tenha criado antes
+// dessa flag existir quebrava o match).
 export function isInternalTransfer(categories: Category[], t: Transaction): boolean {
   if (t.description?.startsWith("Retirada da reserva")) return false
   const category = categories.find((c) => c.id === t.categoryId)
-  return category?.name === "Transferência" || category?.name === "Pagamento de Fatura"
+  return !!category?.excludedFromTotals
 }
 
 export function useTransactions(selectedMonth?: string) {

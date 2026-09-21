@@ -183,7 +183,7 @@ export function TransactionForm() {
       return
     }
 
-    ensureSystemCategory(target.name, type, target.color, target.icon).then((id) => {
+    ensureSystemCategory(target.name, type, target.color, target.icon, false).then((id) => {
       getCategories().then(setCategories)
       setCategoryId(id)
     })

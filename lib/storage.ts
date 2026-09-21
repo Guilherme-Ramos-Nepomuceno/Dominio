@@ -91,6 +91,7 @@ function mapCategoryFromApi(c: any): Category {
     color: c.color,
     type: String(c.type).toLowerCase() as Category["type"],
     icon: c.icon ?? undefined,
+    excludedFromTotals: !!c.excludedFromTotals,
   }
 }
 
@@ -100,6 +101,7 @@ function mapCategoryToApi(c: Partial<Category>) {
   if (c.color !== undefined) body.color = c.color
   if (c.type !== undefined) body.type = c.type.toUpperCase()
   if (c.icon !== undefined) body.icon = c.icon
+  if (c.excludedFromTotals !== undefined) body.excludedFromTotals = c.excludedFromTotals
   return body
 }
 
@@ -155,11 +157,27 @@ export async function deleteCategory(id: string): Promise<void> {
 
 // Encontra (ou cria) uma categoria de sistema pelo nome+tipo — usado para transações
 // internas (transferências, aportes em reservas) já que o backend gera ids próprios.
-async function ensureSystemCategory(name: string, type: Category["type"], color: string, icon: string): Promise<string> {
+async function ensureSystemCategory(
+  name: string,
+  type: Category["type"],
+  color: string,
+  icon: string,
+  // "Transferência"/"Pagamento de Fatura" saem dos totais (dinheiro só mudou de
+  // conta); "Transferência Familiar" NÃO sai (dinheiro saiu/entrou de verdade
+  // da conta da pessoa) — cada chamador decide explicitamente, sem default,
+  // pra não arriscar marcar a categoria errada.
+  excludedFromTotals: boolean,
+): Promise<string> {
   const categories = await getCategories()
   const existing = categories.find((c) => c.name === name && c.type === type)
-  if (existing) return existing.id
-  const created = await addCategory({ name, color, type, icon })
+  if (existing) {
+    // Pode ter sido criada manualmente antes de excludedFromTotals existir —
+    // conserta a flag em vez de deixar essa categoria escapando da exclusão
+    // dos totais de receita/despesa.
+    if (!!existing.excludedFromTotals !== excludedFromTotals) await updateCategory(existing.id, { excludedFromTotals })
+    return existing.id
+  }
+  const created = await addCategory({ name, color, type, icon, excludedFromTotals })
   return created.id
 }
 

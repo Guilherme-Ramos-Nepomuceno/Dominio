@@ -62,8 +62,8 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
     // salva (ensureSystemCategory lazy) — garante ela aqui antes pra pessoa
     // conseguir escolhê-la manualmente durante a revisão do extrato.
     Promise.all([
-      ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp"),
-      ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown"),
+      ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
+      ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
     ]).then(() => getCategories().then(setCategories))
     getCards().then((all) => setOwnDebitCards(all.filter((c) => c.hasDebit && c.id !== card.id)))
   }, [card])
@@ -196,8 +196,8 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
       const familyTransferRows = includedRows.filter(needsFamilyCategorySwap)
       const familyTransferCategoryId = familyTransferRows.length > 0
         ? {
-            expense: await ensureSystemCategory("Transferência Familiar", "expense", "#3b82f6", "UsersThree"),
-            income: await ensureSystemCategory("Transferência Familiar", "income", "#3b82f6", "UsersThree"),
+            expense: await ensureSystemCategory("Transferência Familiar", "expense", "#3b82f6", "UsersThree", false),
+            income: await ensureSystemCategory("Transferência Familiar", "income", "#3b82f6", "UsersThree", false),
           }
         : null
 
@@ -253,7 +253,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
                 description,
               })
             }
-            return ensureSystemCategory("Transferência", oppositeType, "#3b82f6", oppositeType === "expense" ? "HandArrowUp" : "HandArrowDown").then(
+            return ensureSystemCategory("Transferência", oppositeType, "#3b82f6", oppositeType === "expense" ? "HandArrowUp" : "HandArrowDown", true).then(
               (categoryId) =>
                 addTransaction({
                   description,
