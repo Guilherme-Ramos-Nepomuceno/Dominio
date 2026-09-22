@@ -3,18 +3,12 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice } from "@/lib/storage"
 import { getInvoiceMonth } from "@/lib/date-utils"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { Card, Transaction, Category, Invoice } from "@/lib/types"
 
 export function useInvoicesViewModel() {
     const [cards, setCards] = useState<Card[]>([])
-
-    // Garante que o mês atual seja gerado corretamente
-    const getSafeCurrentMonth = () => {
-        const now = new Date()
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-    }
-
-    const [selectedMonth, setSelectedMonth] = useState(getSafeCurrentMonth())
+    const { selectedMonth, setSelectedMonth } = useSelectedMonth()
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
     const [partialAmount, setPartialAmount] = useState("")

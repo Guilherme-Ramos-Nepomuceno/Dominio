@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { AccountProvider } from "@/components/account/account-context"
+import { SelectedMonthProvider } from "@/lib/selected-month-context"
 import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
@@ -40,7 +41,9 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${fontSans.className} ${fontSans.variable} antialiased`}>
         <AuthGuard>
-          <AccountProvider>{children}</AccountProvider>
+          <AccountProvider>
+            <SelectedMonthProvider>{children}</SelectedMonthProvider>
+          </AccountProvider>
         </AuthGuard>
         <Toaster />
         <Analytics />

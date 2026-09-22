@@ -3,15 +3,32 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useMonthData, isInternalTransfer } from "@/hooks/use-transactions"
 import { useFamilyTotals } from "@/hooks/use-family-totals"
-import { getCurrentMonth, isSameMonth, getInvoiceMonth } from "@/lib/date-utils"
+import { isSameMonth, getInvoiceMonth } from "@/lib/date-utils"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import { setSettings, getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 import type { CategoryAlert } from "@/app/types/category"
 import type { AppSettings, Category, Card, Transaction } from "@/lib/types"
 
+export interface StatsFilters {
+    search: string
+    categoryId: string // "all" ou id da categoria
+    cardId: string // "all" ou id do cartão
+    paymentMethod: "all" | "debit" | "credit"
+    status: "all" | "paid" | "open"
+}
+
+const DEFAULT_FILTERS: StatsFilters = {
+    search: "",
+    categoryId: "all",
+    cardId: "all",
+    paymentMethod: "all",
+    status: "all",
+}
+
 export function useStatsViewModel() {
-    const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
-    const [filterType, setFilterType] = useState<"all" | "credit">("all")
+    const { selectedMonth, setSelectedMonth } = useSelectedMonth()
+    const [filters, setFilters] = useState<StatsFilters>(DEFAULT_FILTERS)
     const [viewMode, setViewMode] = useState<"casal" | "familia">("casal")
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
 
@@ -49,40 +66,59 @@ export function useStatsViewModel() {
         window.location.reload()
     }
 
+    // Pool "Geral": mesmo critério de sempre — mês pela data da própria transação.
+    // O gráfico "Fluxo de Gastos" já soma pendentes (ex: ocorrências futuras de
+    // recorrência) no total do mês — essa lista precisa incluir essas mesmas
+    // transações, senão meses futuros aparecem com valor no gráfico mas lista vazia.
+    const generalPool = useMemo(
+        () => allTransactions.filter((t) => t.status !== "cancelled" && isSameMonth(t.date, selectedMonth + "-01")),
+        [allTransactions, selectedMonth],
+    )
+
+    // Pool "Fatura": mês pelo fechamento do cartão, não pela data da compra —
+    // cada parcela já é sua própria transação, com data e valor corretos
+    // (addTransaction já cria uma linha por parcela). Cartão combinado
+    // (crédito + débito): só o lado marcado como crédito entra na fatura.
+    const creditPool = useMemo(() => {
+        const creditCardIds = cards.filter((c) => c.hasCredit).map((c) => c.id)
+        return allTransactions.filter((t) => {
+            if (t.status === "cancelled") return false
+            if (!t.cardId || !creditCardIds.includes(t.cardId)) return false
+            const card = cards.find((c) => c.id === t.cardId)
+            if (card?.hasDebit && t.paymentMethod !== "credit") return false
+            return getInvoiceMonth(t.date, card?.closingDate) === selectedMonth
+        })
+    }, [allTransactions, cards, selectedMonth])
+
+    const isCreditTransactionId = useMemo(() => new Set(creditPool.map((t) => t.id)), [creditPool])
+
     const transactionsToDisplay = useMemo(() => {
-        if (filterType === "all") {
-            // O gráfico "Fluxo de Gastos" já soma pendentes (ex: ocorrências futuras de
-            // recorrência) no total do mês — a lista "Geral" precisa incluir essas mesmas
-            // transações, senão meses futuros aparecem com valor no gráfico mas lista vazia.
-            return allTransactions.filter((t) => t.status !== "cancelled" && isSameMonth(t.date, selectedMonth + "-01"))
+        const { search, categoryId, cardId, paymentMethod, status } = filters
+
+        let pool: Transaction[]
+        if (paymentMethod === "credit") {
+            pool = creditPool
+        } else if (paymentMethod === "debit") {
+            pool = generalPool.filter((t) => !isCreditTransactionId.has(t.id))
+        } else {
+            const merged = new Map(generalPool.map((t) => [t.id, t]))
+            creditPool.forEach((t) => merged.set(t.id, t))
+            pool = Array.from(merged.values())
         }
 
-        if (filterType === "credit") {
-            const creditTransactions: any[] = []
-            const creditCards = cards.filter(c => c.hasCredit)
-            const creditCardIds = creditCards.map(c => c.id)
-            // Cartão combinado (crédito + débito): só o lado marcado como crédito
-            // entra na projeção de fatura — o lado débito não é fatura.
-            const allCreditHistory = allTransactions.filter(t => {
-                if (!t.cardId || !creditCardIds.includes(t.cardId)) return false
-                const card = cards.find(c => c.id === t.cardId)
-                if (card?.hasDebit) return t.paymentMethod === "credit"
-                return true
-            })
-            // Cada parcela já é sua própria transação, com data e valor corretos
-            // (addTransaction já cria uma linha por parcela) — não precisa (e não
-            // deve) recalcular mês/valor aqui. O mês da fatura considera o dia de
-            // fechamento do cartão (compra feita naquele dia ou depois já é da
-            // fatura do mês seguinte).
-            allCreditHistory.forEach(t => {
-                if (t.status === 'paid' || t.status === 'cancelled') return
-                const card = cards.find(c => c.id === t.cardId)
-                if (getInvoiceMonth(t.date, card?.closingDate) === selectedMonth) creditTransactions.push(t)
-            })
-            return creditTransactions
-        }
-        return []
-    }, [filterType, selectedMonth, cards, allTransactions])
+        return pool.filter((t) => {
+            if (status === "paid" && t.status !== "paid") return false
+            if (status === "open" && t.status === "paid") return false
+            if (categoryId !== "all" && t.categoryId !== categoryId) return false
+            if (cardId !== "all" && t.cardId !== cardId) return false
+            if (search.trim()) {
+                const q = search.trim().toLowerCase()
+                const categoryName = categories.find((c) => c.id === t.categoryId)?.name?.toLowerCase() ?? ""
+                if (!t.description?.toLowerCase().includes(q) && !categoryName.includes(q)) return false
+            }
+            return true
+        })
+    }, [filters, generalPool, creditPool, isCreditTransactionId, categories])
 
     const groupedTransactions = useMemo(() => {
         const getLocalDateKey = (date: Date) => date.toLocaleDateString('sv-SE')
@@ -139,8 +175,8 @@ export function useStatsViewModel() {
     return {
         selectedMonth,
         setSelectedMonth,
-        filterType,
-        setFilterType,
+        filters,
+        setFilters,
         viewMode,
         setViewMode,
         isCoupleAccount,

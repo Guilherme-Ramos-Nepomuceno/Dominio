@@ -3,11 +3,11 @@
 import { useState } from "react"
 import { useTotalBalance } from "@/hooks/use-transactions"
 import { useFamilyHomeData } from "@/hooks/use-family-home-data"
-import { getCurrentMonth } from "@/lib/date-utils"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { PeriodType } from "@/lib/types"
 
 export function useHomeViewModel() {
-    const [selectedMonth] = useState(getCurrentMonth())
+    const { selectedMonth } = useSelectedMonth()
     const [period, setPeriod] = useState<PeriodType>("week")
     const [viewMode, setViewMode] = useState<"casal" | "familia">("casal")
 

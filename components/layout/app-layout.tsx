@@ -6,14 +6,17 @@ import { DesktopNav } from "./desktop-nav"
 
 interface AppLayoutProps {
   children: ReactNode
+  /** Mostra o seletor de mês no cabeçalho mobile fixo (Home, Stats, Categoria, Fatura). */
+  showMonthFilter?: boolean
 }
 
 // Add imports
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { AccountSwitcher } from "@/components/account/account-switcher"
+import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { usePathname } from "next/navigation"
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout({ children, showMonthFilter = false }: AppLayoutProps) {
   const pathname = usePathname()
   // Hide header on login page if needed, although AuthGuard handles it.
 
@@ -22,13 +25,16 @@ export function AppLayout({ children }: AppLayoutProps) {
       <DesktopNav />
 
       {/* Mobile Top Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-md border-b border-border z-40 flex items-center px-4 justify-between gap-3">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-md border-b border-border z-40 flex items-center px-4 justify-between gap-2">
         <div className="flex items-center gap-2 shrink-0">
           <NotificationCenter />
           <h1 className="font-bold text-lg text-foreground">Dominio</h1>
         </div>
-        <div className="flex-1 max-w-[55%]">
-          <AccountSwitcher />
+        <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+          {showMonthFilter && <MonthHeaderSelector className="shrink-0" />}
+          <div className={showMonthFilter ? "flex-1 max-w-[42%]" : "flex-1 max-w-[55%]"}>
+            <AccountSwitcher />
+          </div>
         </div>
       </div>
 
