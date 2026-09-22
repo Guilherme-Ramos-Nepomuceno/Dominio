@@ -8,6 +8,10 @@ export interface ChartDataPoint {
   value: number
   label: string
   fullDate: string
+  // YYYY-MM-DD (sv-SE) do dia que essa barra representa — usado pra filtrar
+  // as transações desse dia ao clicar, sem depender de reparsear `fullDate`
+  // (que é só texto formatado pra exibição, ex: "02 set").
+  dateStr?: string
 }
 
 interface MiniBarChartProps {
@@ -15,13 +19,15 @@ interface MiniBarChartProps {
   color: string
   height?: number
   className?: string
+  onBarClick?: (point: ChartDataPoint) => void
 }
 
 export function MiniBarChart({
   data = [],
   color,
   height = 100,
-  className
+  className,
+  onBarClick,
 }: MiniBarChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
@@ -64,7 +70,10 @@ export function MiniBarChart({
               className="flex-1 h-full flex flex-col justify-end group relative min-w-0"
               onMouseEnter={() => setHoveredIndex(index)}
               onMouseLeave={() => setHoveredIndex(null)}
-              onClick={() => setHoveredIndex(isHovered ? null : index)}
+              onClick={() => {
+                setHoveredIndex(isHovered ? null : index)
+                if (item.dateStr) onBarClick?.(item)
+              }}
             >
               
               {/* ÁREA DA BARRA */}

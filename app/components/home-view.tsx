@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { CircularBalance } from "./circular-balance"
@@ -16,12 +17,26 @@ export function HomeView() {
         period,
         setPeriod,
         balanceData,
+        selectedMonth,
         viewMode,
         setViewMode,
         isCoupleAccount,
         isLoading,
         cards,
     } = useHomeViewModel()
+
+    // Dia clicado numa barra do gráfico (Receitas ou Despesas) — filtra
+    // "Transações recentes" pra esse dia; clicar de novo na mesma barra, ou
+    // no link "Ver mais recentes", desfaz.
+    const [selectedDay, setSelectedDay] = useState<string | null>(null)
+    const dayTransactions = selectedDay
+        ? (balanceData.allTransactions ?? balanceData.transactions).filter(
+              (t: any) => new Date(t.date).toLocaleDateString("sv-SE") === selectedDay,
+          )
+        : balanceData.transactions
+    const selectedDayLabel = selectedDay
+        ? selectedDay.split("-").slice(1).reverse().join("/")
+        : undefined
 
     return (
         <AppLayout showMonthFilter>
@@ -59,12 +74,18 @@ export function HomeView() {
                             expense={balanceData.expense}
                             transactions={balanceData.transactions}
                             allTransactions={balanceData.allTransactions}
+                            selectedMonth={selectedMonth}
                             period={period}
                             onPeriodChange={setPeriod}
+                            onDayClick={(dateStr) => setSelectedDay((prev) => (prev === dateStr ? null : dateStr))}
                         />
 
                         {/* Recent Transactions */}
-                        <RecentTransactions transactions={balanceData.transactions} />
+                        <RecentTransactions
+                            transactions={dayTransactions}
+                            filterLabel={selectedDayLabel}
+                            onClearFilter={() => setSelectedDay(null)}
+                        />
 
                         {/* Recent Transfers */}
                         <RecentTransfers transfers={balanceData.transfers} cards={cards} />
