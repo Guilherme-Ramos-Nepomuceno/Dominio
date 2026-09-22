@@ -40,27 +40,38 @@ export function useFamilyTotals(selectedMonth: string, enabled: boolean) {
 
         const [year, month] = selectedMonth.split("-").map(Number)
         let cancelled = false
-        setLoadingFamilyTotals(true)
 
-        Promise.all(personalMembers.map((member) => getMemberMonthData(member.id, year, month)))
-            .then((results) => {
-                if (cancelled) return
-                const perMember = results.map((data, i) => ({
-                    member: personalMembers[i],
-                    income: data.income,
-                    expense: data.expense,
-                    balance: data.balance,
-                }))
-                setFamilyTotals({
-                    income: perMember.reduce((sum, m) => sum + m.income, 0),
-                    expense: perMember.reduce((sum, m) => sum + m.expense, 0),
-                    balance: perMember.reduce((sum, m) => sum + m.balance, 0),
-                    perMember,
+        const load = () => {
+            setLoadingFamilyTotals(true)
+            return Promise.all(personalMembers.map((member) => getMemberMonthData(member.id, year, month)))
+                .then((results) => {
+                    if (cancelled) return
+                    const perMember = results.map((data, i) => ({
+                        member: personalMembers[i],
+                        income: data.income,
+                        expense: data.expense,
+                        balance: data.balance,
+                    }))
+                    setFamilyTotals({
+                        income: perMember.reduce((sum, m) => sum + m.income, 0),
+                        expense: perMember.reduce((sum, m) => sum + m.expense, 0),
+                        balance: perMember.reduce((sum, m) => sum + m.balance, 0),
+                        perMember,
+                    })
                 })
-            })
-            .finally(() => { if (!cancelled) setLoadingFamilyTotals(false) })
+                .finally(() => { if (!cancelled) setLoadingFamilyTotals(false) })
+        }
 
-        return () => { cancelled = true }
+        load()
+
+        // Mesmo motivo do use-family-home-data: cancelar/editar um lançamento
+        // dispara esse evento em vez de recarregar a página, e sem o listener
+        // o total combinado do casal aqui também ficava parado no valor antigo.
+        window.addEventListener("storage-update", load)
+        return () => {
+            cancelled = true
+            window.removeEventListener("storage-update", load)
+        }
     }, [enabled, isCoupleAccount, personalMembers, selectedMonth])
 
     return { isCoupleAccount, familyTotals, loadingFamilyTotals }
