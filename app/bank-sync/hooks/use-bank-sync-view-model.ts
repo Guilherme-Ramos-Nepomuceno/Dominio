@@ -154,7 +154,10 @@ export function useBankSyncViewModel() {
     }
   }
 
-  const updatePendingRow = (externalId: string, updates: { description?: string; categoryId?: string; include?: boolean; invoicePaymentDecision?: "yes" | "no" | null }) => {
+  const updatePendingRow = (
+    externalId: string,
+    updates: { description?: string; categoryId?: string; include?: boolean; invoicePaymentDecision?: "yes" | "no" | null; duplicateDecision?: "yes" | "no" | null },
+  ) => {
     const row = pendingRows.find((r) => r.externalId === externalId)
     if (!row) return
 
@@ -162,9 +165,10 @@ export function useBankSyncViewModel() {
     // "sem decisão" já é `undefined`. Só mexe nessa chave se ela realmente
     // veio no update (senão um edit de descrição, por exemplo, apagaria sem
     // querer uma decisão já salva).
-    const { invoicePaymentDecision, ...rest } = updates
+    const { invoicePaymentDecision, duplicateDecision, ...rest } = updates
     const localPatch: Partial<PluggyPendingTransaction> = { ...rest }
     if ("invoicePaymentDecision" in updates) localPatch.invoicePaymentDecision = invoicePaymentDecision ?? undefined
+    if ("duplicateDecision" in updates) localPatch.duplicateDecision = duplicateDecision ?? undefined
     setPendingRows((prev) => prev.map((r) => (r.externalId === externalId ? { ...r, ...localPatch } : r)))
     updatePluggyPending(row.id, updates).catch((error: any) => {
       toast({ title: "Não foi possível salvar a edição", description: error.message, variant: "destructive" })
@@ -182,7 +186,11 @@ export function useBankSyncViewModel() {
           variant: "destructive",
         })
       } else {
-        toast({ title: "Importado!", description: `${result.createdCount} transaç${result.createdCount === 1 ? "ão" : "ões"} confirmada${result.createdCount === 1 ? "" : "s"}.`, variant: "success" })
+        const parts = [
+          result.createdCount > 0 ? `${result.createdCount} nova${result.createdCount === 1 ? "" : "s"}` : "",
+          result.linkedCount > 0 ? `${result.linkedCount} vinculada${result.linkedCount === 1 ? "" : "s"} a lançamento já existente` : "",
+        ].filter(Boolean)
+        toast({ title: "Confirmado!", description: `${parts.join(", ") || "Nada a importar"}.`, variant: "success" })
       }
       await loadAll()
       // Devolve o resultado pra tela poder criar a ponta espelhada de
