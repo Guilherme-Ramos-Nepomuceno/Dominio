@@ -270,9 +270,12 @@ export function BankSyncView() {
   const selectedBank = banks.find((b) => b.itemId === selectedItemId) ?? null
 
   const handleUpdateRow = (externalId: string, updates: Partial<ReviewRow>) => {
-    const patch: { description?: string; categoryId?: string; include?: boolean } = {}
+    const patch: { description?: string; categoryId?: string | null; include?: boolean } = {}
     if (updates.description !== undefined) patch.description = updates.description
-    if (updates.categoryId !== undefined) patch.categoryId = updates.categoryId
+    // "" localmente significa "sem categoria" (convenção do ReviewRow), mas o
+    // backend só aceita um id de verdade ou `null` explícito — string vazia
+    // cai no `min(1)` do validador e derruba o PATCH com ValidationException.
+    if (updates.categoryId !== undefined) patch.categoryId = updates.categoryId || null
     if (updates.include !== undefined) patch.include = updates.include
     vm.updatePendingRow(externalId, patch)
   }

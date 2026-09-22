@@ -156,7 +156,7 @@ export function useBankSyncViewModel() {
 
   const updatePendingRow = (
     externalId: string,
-    updates: { description?: string; categoryId?: string; include?: boolean; invoicePaymentDecision?: "yes" | "no" | null; duplicateDecision?: "yes" | "no" | null },
+    updates: { description?: string; categoryId?: string | null; include?: boolean; invoicePaymentDecision?: "yes" | "no" | null; duplicateDecision?: "yes" | "no" | null },
   ) => {
     const row = pendingRows.find((r) => r.externalId === externalId)
     if (!row) return
