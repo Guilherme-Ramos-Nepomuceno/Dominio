@@ -2,7 +2,8 @@
 
 import { MagnifyingGlass, Wallet, CreditCard, Circle, CheckCircle } from "@phosphor-icons/react"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CategoryFilterPicker } from "./category-filter-picker"
+import { CardFilterPicker } from "./card-filter-picker"
 import { cn } from "@/lib/utils"
 import type { Category, Card } from "@/lib/types"
 import type { StatsFilters } from "../hooks/use-stats-view-model"
@@ -62,33 +63,8 @@ export function AnalyticsFilterBar({ filters, onChange, categories, cards, class
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Select value={filters.categoryId} onValueChange={(value) => set("categoryId", value)}>
-                    <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todas as categorias</SelectItem>
-                        {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                                {category.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={filters.cardId} onValueChange={(value) => set("cardId", value)}>
-                    <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Cartão" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todos os cartões</SelectItem>
-                        {cards.map((card) => (
-                            <SelectItem key={card.id} value={card.id}>
-                                {card.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <CategoryFilterPicker categories={categories} value={filters.categoryId} onChange={(value) => set("categoryId", value)} />
+                <CardFilterPicker cards={cards} value={filters.cardId} onChange={(value) => set("cardId", value)} />
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
