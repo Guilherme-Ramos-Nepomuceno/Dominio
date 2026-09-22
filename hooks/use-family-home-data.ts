@@ -47,38 +47,49 @@ export function useFamilyHomeData(selectedMonth: string, enabled: boolean) {
         if (!enabled || !isCoupleAccount || personalMembers.length === 0) return
 
         let cancelled = false
-        setLoading(true)
 
-        Promise.all([
-            getTransactions(),
-            getCategories(),
-            getSavingsGoals(),
-            getCards(),
-            ...personalMembers.map((m) => getMemberTransactionsMapped(m.id)),
-            ...personalMembers.map((m) => getMemberSavingsMapped(m.id)),
-            ...personalMembers.map((m) => getMemberCardsMapped(m.id)),
-        ])
-            .then((results) => {
-                if (cancelled) return
-                const [ownTransactions, ownCategories, ownSavings, ownCards, ...rest] = results as [
-                    Transaction[],
-                    Category[],
-                    SavingsGoal[],
-                    Card[],
-                    ...Transaction[][],
-                ]
-                const memberTransactions = rest.slice(0, personalMembers.length) as unknown as Transaction[][]
-                const memberSavings = rest.slice(personalMembers.length, personalMembers.length * 2) as unknown as SavingsGoal[][]
-                const memberCards = rest.slice(personalMembers.length * 2) as unknown as Card[][]
+        const load = () => {
+            setLoading(true)
+            return Promise.all([
+                getTransactions(),
+                getCategories(),
+                getSavingsGoals(),
+                getCards(),
+                ...personalMembers.map((m) => getMemberTransactionsMapped(m.id)),
+                ...personalMembers.map((m) => getMemberSavingsMapped(m.id)),
+                ...personalMembers.map((m) => getMemberCardsMapped(m.id)),
+            ])
+                .then((results) => {
+                    if (cancelled) return
+                    const [ownTransactions, ownCategories, ownSavings, ownCards, ...rest] = results as [
+                        Transaction[],
+                        Category[],
+                        SavingsGoal[],
+                        Card[],
+                        ...Transaction[][],
+                    ]
+                    const memberTransactions = rest.slice(0, personalMembers.length) as unknown as Transaction[][]
+                    const memberSavings = rest.slice(personalMembers.length, personalMembers.length * 2) as unknown as SavingsGoal[][]
+                    const memberCards = rest.slice(personalMembers.length * 2) as unknown as Card[][]
 
-                setAllTransactions(dedupeById([ownTransactions, ...memberTransactions].flat()))
-                setCategories(ownCategories)
-                setSavingsGoals(dedupeById([ownSavings, ...memberSavings].flat()))
-                setCards(dedupeById([ownCards, ...memberCards].flat()))
-            })
-            .finally(() => { if (!cancelled) setLoading(false) })
+                    setAllTransactions(dedupeById([ownTransactions, ...memberTransactions].flat()))
+                    setCategories(ownCategories)
+                    setSavingsGoals(dedupeById([ownSavings, ...memberSavings].flat()))
+                    setCards(dedupeById([ownCards, ...memberCards].flat()))
+                })
+                .finally(() => { if (!cancelled) setLoading(false) })
+        }
 
-        return () => { cancelled = true }
+        load()
+
+        // Sem isso, cancelar/editar um lançamento (que dispara esse evento em
+        // vez de recarregar a página inteira) deixava o total combinado do
+        // casal parado no valor antigo até a próxima navegação remontar o hook.
+        window.addEventListener("storage-update", load)
+        return () => {
+            cancelled = true
+            window.removeEventListener("storage-update", load)
+        }
     }, [enabled, isCoupleAccount, personalMembers, selectedMonth])
 
     const totals = useMemo(
