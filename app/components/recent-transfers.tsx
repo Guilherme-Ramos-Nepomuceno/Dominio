@@ -32,6 +32,7 @@ export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: R
     getType: (t) => t.type,
     getAmount: (t) => t.amount,
     getTimestamp: (t) => new Date(t.createdAt).getTime(),
+    getCardId: (t) => t.cardId ?? t.id,
   })
 
   const items = [

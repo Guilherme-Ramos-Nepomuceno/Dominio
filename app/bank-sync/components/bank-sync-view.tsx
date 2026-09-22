@@ -65,7 +65,7 @@ export function BankSyncView() {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [addCardForAccount, setAddCardForAccount] = useState<{ itemId: string; pluggyAccountId: string } | null>(null)
   const [mappingDraft, setMappingDraft] = useState<Record<string, { cardId: string; paymentMethod: PaymentMethod | "" }>>({})
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   // Confirmar é tudo-ou-nada por lado (débito e crédito são grupos separados
   // no backend) — filtrar a lista por lado deixa terminar um de cada vez em
   // vez de ver os dois misturados, e o "Confirmar" só manda o lado visível.
@@ -89,7 +89,7 @@ export function BankSyncView() {
   // deixado em "Débito" escondia tudo ao entrar num banco só-crédito.
   useEffect(() => {
     setSideFilter("all")
-  }, [selectedItemId])
+  }, [selectedGroupKey])
 
   const familyMembers = family?.members?.filter((m) => m.accountType === "PERSONAL" && m.id !== currentUserId) ?? []
 
@@ -195,6 +195,7 @@ export function BankSyncView() {
       getType: (r) => r.type,
       getAmount: (r) => r.amount,
       getTimestamp: (r) => new Date(r.date).getTime(),
+      getCardId: (r) => r.cardId,
     })
     return { pairs, pairedExternalIds: new Set(pairs.flatMap((p) => [p.from.externalId, p.to.externalId])) }
   }, [reviewRows, transferCategoryIds])
@@ -222,28 +223,28 @@ export function BankSyncView() {
     }
   }
 
-  const bankLabelForItem = (itemId: string) => {
-    const item = vm.connection?.items.find((i) => i.id === itemId)
-    const mappedCards = (item?.accountMappings ?? [])
-      .map((m) => vm.cards.find((c) => c.id === m.cardId))
-      .filter((c): c is Card => !!c)
-    if (mappedCards.length === 0) return { label: item?.pluggyItemId.slice(0, 8) ?? "Banco", bankName: undefined }
-    return { label: Array.from(new Set(mappedCards.map((c) => c.name))).join(" + "), bankName: mappedCards[0].bankName }
+  const bankLabelForCard = (cardId: string) => {
+    const card = vm.cards.find((c) => c.id === cardId)
+    return { label: card?.name ?? "Banco", bankName: card?.bankName }
   }
 
-  // Agrupa a fila de revisão por banco (item da Pluggy) — em vez de misturar
-  // centenas de transações de bancos diferentes numa lista só, cada banco vê
-  // as próprias pendências e o próprio progresso de categorização.
+  // Agrupa a fila de revisão por cartão (não só por banco/item da Pluggy) —
+  // um mesmo login pode ter várias contas mapeadas que NÃO são o mesmo
+  // cartão (ex: conta corrente + poupança), então agrupar só por item
+  // misturava elas como se fossem uma coisa só. Cartão combinado (débito +
+  // crédito no mesmo Card) continua junto, já que as duas pontas mapeiam
+  // pro mesmo cardId.
   const banks = useMemo(() => {
-    const byItem = new Map<string, PluggyReviewRow[]>()
+    const byCard = new Map<string, { itemId: string; cardId: string; rows: PluggyReviewRow[] }>()
     for (const row of reviewRows) {
       // Já aparece na seção "Transferências identificadas" acima — não mostra
       // de novo dentro do banco (senão a mesma movimentação apareceria duas
       // vezes na tela).
       if (pairedExternalIds.has(row.externalId)) continue
-      const list = byItem.get(row.itemId) ?? []
-      list.push(row)
-      byItem.set(row.itemId, list)
+      const key = `${row.itemId}:${row.cardId}`
+      const group = byCard.get(key) ?? { itemId: row.itemId, cardId: row.cardId, rows: [] }
+      group.rows.push(row)
+      byCard.set(key, group)
     }
     // Pagamento de fatura ou vínculo com transferência já existente
     // confirmados contam como "pronto" mesmo sem categoria — nenhum dos
@@ -251,9 +252,9 @@ export function BankSyncView() {
     // serem confirmados.
     const isDone = (r: PluggyReviewRow) => !!r.categoryId || r.settleDecision === "yes" || r.duplicateDecision === "yes"
 
-    return Array.from(byItem.entries()).map(([itemId, rows]) => {
+    return Array.from(byCard.entries()).map(([key, { itemId, cardId, rows }]) => {
       const done = rows.filter(isDone).length
-      const { label, bankName } = bankLabelForItem(itemId)
+      const { label, bankName } = bankLabelForCard(cardId)
       // Confirmar é tudo-ou-nada por lado (débito/crédito são grupos
       // separados no backend) — mostra o progresso quebrado por lado quando o
       // banco tem os dois, pra dar pra ver qual lado ainda falta terminar
@@ -262,12 +263,11 @@ export function BankSyncView() {
       const creditRows = rows.filter((r) => !isRowDebitSide(r))
       const debit = { done: debitRows.filter(isDone).length, total: debitRows.length }
       const credit = { done: creditRows.filter(isDone).length, total: creditRows.length }
-      return { itemId, rows, done, total: rows.length, label, bankName, debit, credit }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      return { key, itemId, cardId, rows, done, total: rows.length, label, bankName, debit, credit }
     })
-  }, [reviewRows, vm.connection, vm.cards, pairedExternalIds])
+  }, [reviewRows, vm.cards, pairedExternalIds])
 
-  const selectedBank = banks.find((b) => b.itemId === selectedItemId) ?? null
+  const selectedBank = banks.find((b) => b.key === selectedGroupKey) ?? null
 
   const handleUpdateRow = (externalId: string, updates: Partial<ReviewRow>) => {
     const patch: { description?: string; categoryId?: string | null; include?: boolean } = {}
@@ -587,16 +587,41 @@ export function BankSyncView() {
               const accounts = vm.accountsByItem[item.id]
               const mappedAccountIds = new Set(item.accountMappings.map((m) => m.pluggyAccountId))
               const unmapped = accounts?.filter((a) => !mappedAccountIds.has(a.id)) ?? []
+              // Cartões mapeados nesse item — pra lembrar qual cartão (e de qual
+              // banco) o corte de sincronização abaixo afeta, em vez de só o id
+              // opaco da Pluggy.
+              const mappedCards = item.accountMappings
+                .map((m) => vm.cards.find((c) => c.id === m.cardId))
+                .filter((c): c is Card => !!c)
+              const mappedCardNames = Array.from(new Set(mappedCards.map((c) => c.name)))
+              const itemBankName = mappedCards[0]?.bankName
+              const ItemBankIcon = itemBankName ? getBankIcon(itemBankName) : Bank
 
               return (
                 <div key={item.id} className="rounded-lg border border-border p-3 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{item.pluggyItemId}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.accountMappings.length} conta{item.accountMappings.length === 1 ? "" : "s"} mapeada{item.accountMappings.length === 1 ? "" : "s"}
-                        {item.lastSyncedAt && ` — última sincronização ${new Date(item.lastSyncedAt).toLocaleString("pt-BR")}`}
-                      </p>
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      {mappedCardNames.length > 0 && (
+                        <div className="flex flex-col items-center gap-0.5 shrink-0 mt-0.5">
+                          <div
+                            className="w-8 h-8 rounded-lg flex items-center justify-center"
+                            style={{ backgroundColor: (itemBankName ? bankColors[itemBankName] : "#71717a") + "20" }}
+                          >
+                            <ItemBankIcon size={16} weight="bold" style={{ color: itemBankName ? bankColors[itemBankName] : "#71717a" }} />
+                          </div>
+                          {itemBankName && <span className="text-[9px] text-muted-foreground">{bankLogos[itemBankName]}</span>}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {mappedCardNames.length > 0 ? mappedCardNames.join(" + ") : item.pluggyItemId}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{item.pluggyItemId}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.accountMappings.length} conta{item.accountMappings.length === 1 ? "" : "s"} mapeada{item.accountMappings.length === 1 ? "" : "s"}
+                          {item.lastSyncedAt && ` — última sincronização ${new Date(item.lastSyncedAt).toLocaleString("pt-BR")}`}
+                        </p>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -832,9 +857,9 @@ export function BankSyncView() {
                 const percent = bank.total === 0 ? 0 : (bank.done / bank.total) * 100
                 return (
                   <button
-                    key={bank.itemId}
+                    key={bank.key}
                     type="button"
-                    onClick={() => setSelectedItemId(bank.itemId)}
+                    onClick={() => setSelectedGroupKey(bank.key)}
                     className="w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:border-primary/50 transition-colors text-left"
                   >
                     <div
@@ -847,7 +872,10 @@ export function BankSyncView() {
                       <p className="text-sm font-medium text-foreground truncate">{bank.label}</p>
                       {/* Confirmar é tudo-ou-nada por lado — mostra débito e
                           crédito separados quando o banco tem os dois, pra dar
-                          pra ver qual lado falta terminar. */}
+                          pra ver qual lado falta terminar. Quando só sobrou um
+                          lado nessa revisão (o outro já foi todo pareado ou
+                          confirmado), especifica qual é em vez de deixar o
+                          texto genérico sem dizer se é débito ou crédito. */}
                       {bank.debit.total > 0 && bank.credit.total > 0 ? (
                         <div className="flex items-center gap-2.5 mt-0.5">
                           <span className="text-[11px] text-muted-foreground flex items-center gap-1">
@@ -859,6 +887,16 @@ export function BankSyncView() {
                             {bank.credit.done}/{bank.credit.total}
                           </span>
                         </div>
+                      ) : bank.debit.total > 0 ? (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Wallet size={11} weight="bold" />
+                          Débito: {bank.debit.done} de {bank.debit.total} categorizadas
+                        </p>
+                      ) : bank.credit.total > 0 ? (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <CreditCard size={11} weight="bold" />
+                          Crédito: {bank.credit.done} de {bank.credit.total} categorizadas
+                        </p>
                       ) : (
                         <p className="text-xs text-muted-foreground">{bank.done} de {bank.total} categorizadas</p>
                       )}
@@ -876,7 +914,7 @@ export function BankSyncView() {
             <div className="flex items-center gap-3 mb-4">
               <button
                 type="button"
-                onClick={() => setSelectedItemId(null)}
+                onClick={() => setSelectedGroupKey(null)}
                 className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
                 title="Voltar pros bancos"
               >
@@ -929,7 +967,7 @@ export function BankSyncView() {
                 // nesse banco — filtrando por lado, confirmar um não deve
                 // fechar o outro que ainda está pendente.
                 const remaining = selectedBank.total - rows.length
-                if (remaining <= 0) setSelectedItemId(null)
+                if (remaining <= 0) setSelectedGroupKey(null)
                 else setSideFilter("all")
               }}
               renderPendingBlock={renderPendingBlock}
