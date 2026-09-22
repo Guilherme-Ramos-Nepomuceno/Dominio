@@ -10,7 +10,7 @@ import { AddCardDialog } from "@/app/cards/components/add-card-dialog"
 import { TransferCardPicker, TransferMemberPicker } from "@/app/cards/components/import-review/transfer-account-picker"
 import { ProgressRing } from "./progress-ring"
 import { MonthYearPicker } from "./month-year-picker"
-import { getBankIcon, bankColors } from "@/lib/bank-icons"
+import { getBankIcon, bankColors, bankLogos } from "@/lib/bank-icons"
 import { formatCurrency } from "@/lib/date-utils"
 import { pairTransfers } from "@/lib/pair-transfers"
 import type { Card, PaymentMethod, TransactionType } from "@/lib/types"
@@ -749,7 +749,9 @@ export function BankSyncView() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">{fromCard?.name ?? "Conta"}</p>
-                        {fromOwner && <p className="text-[10px] text-muted-foreground truncate">{fromOwner}</p>}
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {[fromCard ? bankLogos[fromCard.bankName] : undefined, fromOwner].filter(Boolean).join(" · ")}
+                        </p>
                       </div>
                     </div>
 
@@ -764,7 +766,9 @@ export function BankSyncView() {
                     <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">{toCard?.name ?? "Conta"}</p>
-                        {toOwner && <p className="text-[10px] text-muted-foreground truncate">{toOwner}</p>}
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {[toCard ? bankLogos[toCard.bankName] : undefined, toOwner].filter(Boolean).join(" · ")}
+                        </p>
                       </div>
                       <div
                         className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"

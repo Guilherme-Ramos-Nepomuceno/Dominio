@@ -52,13 +52,13 @@ export function TransferMemberPicker({ members, offerOwnAccounts, value, onChang
   )
 }
 
-function cardKindLabel(card: Card) {
+export function cardKindLabel(card: Card) {
   const kindLabel = card.kind === "checking" ? "Conta Corrente" : card.kind === "savings" ? "Conta Poupança" : null
   const capabilityLabel = card.hasCredit && card.hasDebit ? "Crédito + Débito" : card.hasCredit ? "Crédito" : "Débito"
   return kindLabel ?? capabilityLabel
 }
 
-function CardBankIcon({ card, size = "md" }: { card: Card; size?: "sm" | "md" }) {
+export function CardBankIcon({ card, size = "md" }: { card: Card; size?: "sm" | "md" }) {
   const Icon = getBankIcon(card.bankName)
   const box = size === "sm" ? "w-6 h-6" : "w-8 h-8"
   return (

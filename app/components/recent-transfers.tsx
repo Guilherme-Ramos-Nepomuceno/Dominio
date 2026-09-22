@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { formatCurrency } from "@/lib/date-utils"
 import { getCards } from "@/lib/storage"
 import type { Card, Transaction } from "@/lib/types"
-import { getBankIcon } from "@/lib/bank-icons"
+import { getBankIcon, bankLogos } from "@/lib/bank-icons"
 import { pairTransfers } from "@/lib/pair-transfers"
 import { ArrowsLeftRight } from "@phosphor-icons/react"
 
@@ -90,9 +90,10 @@ export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: R
                 >
                   <FromIcon size={16} color={fromCard?.color ?? "#6B7280"} weight="fill" />
                 </div>
-                <span className="text-xs font-medium text-foreground truncate">
-                  {fromCard?.name ?? "Conta removida"}
-                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{fromCard?.name ?? "Conta removida"}</p>
+                  {fromCard && <p className="text-[10px] text-muted-foreground truncate">{bankLogos[fromCard.bankName]}</p>}
+                </div>
               </div>
 
               <div className="flex flex-col items-center gap-1 shrink-0 px-1">
@@ -106,9 +107,10 @@ export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: R
               </div>
 
               <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
-                <span className="text-xs font-medium text-foreground truncate">
-                  {toCard?.name ?? "Conta removida"}
-                </span>
+                <div className="min-w-0 text-right">
+                  <p className="text-xs font-medium text-foreground truncate">{toCard?.name ?? "Conta removida"}</p>
+                  {toCard && <p className="text-[10px] text-muted-foreground truncate">{bankLogos[toCard.bankName]}</p>}
+                </div>
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                   style={{ backgroundColor: (toCard?.color ?? "#6B7280") + "20" }}
