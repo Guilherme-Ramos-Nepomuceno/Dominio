@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CreditCardIcon, ReceiptIcon, CheckCircle, CalendarIcon, PencilSimple, ArrowLeft, ArrowRight } from "@phosphor-icons/react"
+import { CreditCardIcon, ReceiptIcon, CheckCircle, CalendarIcon, PencilSimple, ArrowLeft, ArrowRight, Info } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { PageHeader } from "@/components/ui/page-header"
@@ -193,6 +193,18 @@ export function InvoicesView() {
 
                             {selectedInvoice && (
                                 <div className="space-y-4">
+                                    {selectedInvoice.totalPending > 0 && (
+                                        <div className="bg-primary/5 rounded-2xl border border-primary/20 p-4 flex gap-3">
+                                            <Info size={20} weight="fill" className="text-primary shrink-0 mt-0.5" />
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-medium text-foreground">Compras recentes podem demorar a aparecer</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Os bancos levam em média de 1 a 3 dias úteis para confirmar uma compra no cartão — enquanto isso, ela aparece como "processando" no app do banco e ainda não chega aqui. Sincronize de novo depois desse prazo se alguma compra estiver faltando.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {selectedInvoice.totalPending > 0 && (
                                         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
                                             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
