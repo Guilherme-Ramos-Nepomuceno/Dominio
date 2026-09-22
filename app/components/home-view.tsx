@@ -1,6 +1,7 @@
 "use client"
 
 import { AppLayout } from "@/components/layout/app-layout"
+import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { CircularBalance } from "./circular-balance"
 import { IncomeExpenseCards } from "./income-expense-cards"
 import { RecentTransactions } from "./recent-transactions"
@@ -23,8 +24,13 @@ export function HomeView() {
     } = useHomeViewModel()
 
     return (
-        <AppLayout>
+        <AppLayout showMonthFilter>
             <div className="space-y-6">
+                {/* No mobile o seletor de mês mora no cabeçalho fixo (AppLayout); aqui só aparece no desktop. */}
+                <div className="hidden md:flex items-center justify-end">
+                    <MonthHeaderSelector />
+                </div>
+
                 {isCoupleAccount && <CasalFamiliaToggle viewMode={viewMode} onChange={setViewMode} />}
 
                 {isLoading ? (

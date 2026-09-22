@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Plus, Folders } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
+import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { CategoryItem } from "./category-item"
 import { AddCategoryDialog } from "./add-category-dialog"
 import { EditCategoryDialog } from "./edit-category-dialog"
@@ -35,8 +36,16 @@ export function CategoriesView() {
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
 
     return (
-        <AppLayout>
-            <PageHeader title="Categorias" subtitle="Gerencie suas categorias de receitas e despesas" />
+        <AppLayout showMonthFilter>
+            <PageHeader
+                title="Categorias"
+                subtitle="Gerencie suas categorias de receitas e despesas"
+                action={
+                    <div className="hidden md:block">
+                        <MonthHeaderSelector />
+                    </div>
+                }
+            />
 
             {/* Filter Tabs */}
             <div className="flex justify-center mb-6">

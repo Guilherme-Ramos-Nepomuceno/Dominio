@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
-import { PeriodSelector } from "@/components/ui/period-selector"
+import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
 import type { Invoice } from "@/lib/types"
 import { useInvoicesViewModel } from "../hooks/use-invoices-view-model"
@@ -95,7 +95,6 @@ export function InvoicesView() {
         isMoving,
         cards,
         selectedMonth,
-        setSelectedMonth,
         selectedCardId,
         setSelectedCardId,
         partialAmount,
@@ -113,15 +112,17 @@ export function InvoicesView() {
     } = useInvoicesViewModel()
 
     return (
-        <AppLayout>
+        <AppLayout showMonthFilter>
             <div className="min-h-screen bg-background">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
-                    <PageHeader title="Faturas de Cartão" subtitle="Gerencie seus pagamentos de crédito" />
-
-                    <PeriodSelector
-                        selectedMonth={selectedMonth}
-                        onMonthChange={setSelectedMonth}
-                        className="mb-6"
+                    <PageHeader
+                        title="Faturas de Cartão"
+                        subtitle="Gerencie seus pagamentos de crédito"
+                        action={
+                            <div className="hidden md:block">
+                                <MonthHeaderSelector />
+                            </div>
+                        }
                     />
 
                     {loading ? (

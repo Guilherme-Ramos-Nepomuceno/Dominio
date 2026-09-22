@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { getCategories, getTransactions, deleteCategory, updateCategory, getSettings } from "@/lib/storage"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { Category } from "@/lib/types"
 
 export function useCategoriesViewModel() {
+    const { selectedMonth } = useSelectedMonth()
     const [categories, setLocalCategories] = useState<Category[]>([])
     const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -25,8 +27,7 @@ export function useCategoriesViewModel() {
 
         const currentCategoryGoals = settings.categoryGoals || []
         setCategoryGoals(currentCategoryGoals)
-        const currentMonth = new Date().toISOString().slice(0, 7)
-        const monthlyTransactions = transactions.filter(t => t.date.startsWith(currentMonth))
+        const monthlyTransactions = transactions.filter(t => t.date.startsWith(selectedMonth))
         const globalSpendingGoal = settings.spendingGoal || 0
 
         const stats: Record<string, { total: number; count: number; percentage: number }> = {}
@@ -56,7 +57,7 @@ export function useCategoriesViewModel() {
         })
 
         setCategoryStats(stats)
-    }, [])
+    }, [selectedMonth])
 
     useEffect(() => {
         loadCategories().finally(() => setLoading(false))

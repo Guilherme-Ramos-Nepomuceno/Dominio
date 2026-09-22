@@ -4,11 +4,12 @@ import { useState } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { StackedBarChart } from "./stacked-bar-chart"
-import { PeriodSelector } from "@/components/ui/period-selector"
+import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
+import { AnalyticsFilterBar } from "./analytics-filter-bar"
 import { formatMonth, formatCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
-import { CreditCard, Wallet, Circle, Heart, RepeatIcon } from "@phosphor-icons/react"
+import { CreditCard, Wallet, Circle, Heart, RepeatIcon, CheckCircle } from "@phosphor-icons/react"
 import { EditTransactionDialog } from "@/app/components/edit-transaction-dialog"
 import { CasalFamiliaToggle } from "@/app/components/casal-familia-toggle"
 import { FamilyTotalsView } from "@/app/components/family-totals-view"
@@ -31,8 +32,8 @@ export function StatsView() {
     const {
         selectedMonth,
         setSelectedMonth,
-        filterType,
-        setFilterType,
+        filters,
+        setFilters,
         viewMode,
         setViewMode,
         isCoupleAccount,
@@ -142,7 +143,7 @@ export function StatsView() {
                                         Recorrente
                                     </span>
                                 )}
-                                {card && filterType === 'credit' && <span className="text-[10px] text-muted-foreground flex items-center gap-1">• {card.name}</span>}
+                                {card && filters.paymentMethod === 'credit' && <span className="text-[10px] text-muted-foreground flex items-center gap-1">• {card.name}</span>}
                             </div>
                         </div>
                         {hasCoupleAccount && transaction.type === "expense" && (
@@ -161,9 +162,13 @@ export function StatsView() {
                     <div className="text-right flex items-center gap-4">
                         <div>
                             <p className="text-lg font-bold text-foreground tabular-nums">{transaction.type === "expense" ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
-                            {filterType === 'credit' && (
+                            {filters.paymentMethod === 'credit' && (
                                 <div className="flex justify-end mt-1">
-                                    <span className="text-[10px] text-amber-500 flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded-full"><Circle size={8} weight="fill" />Fatura Aberta</span>
+                                    {transaction.status === 'paid' ? (
+                                        <span className="text-[10px] text-income flex items-center gap-1 bg-income/10 px-1.5 py-0.5 rounded-full"><CheckCircle size={10} weight="fill" />Paga</span>
+                                    ) : (
+                                        <span className="text-[10px] text-amber-500 flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded-full"><Circle size={8} weight="fill" />Fatura Aberta</span>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -177,9 +182,16 @@ export function StatsView() {
     }
 
     return (
-        <AppLayout>
-            <PeriodSelector selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} className="mb-4" />
-            <PageHeader title={formatMonth(selectedMonth)} subtitle="Análise detalhada dos seus gastos" />
+        <AppLayout showMonthFilter>
+            <PageHeader
+                title={formatMonth(selectedMonth)}
+                subtitle="Análise detalhada dos seus gastos"
+                action={
+                    <div className="hidden md:block">
+                        <MonthHeaderSelector />
+                    </div>
+                }
+            />
 
             {isCoupleAccount && <CasalFamiliaToggle viewMode={viewMode} onChange={setViewMode} />}
 
@@ -189,7 +201,7 @@ export function StatsView() {
                 </div>
             ) : (
                 <>
-            {categoryAlerts.length > 0 && filterType === 'all' && (
+            {categoryAlerts.length > 0 && filters.paymentMethod === 'all' && (
                 <div className="mb-6 space-y-2">
                     {categoryAlerts.map((alert, idx) => (
                         <div key={idx} className="rounded-[1vw] bg-expense/10 border border-expense/30 p-4">
@@ -203,16 +215,13 @@ export function StatsView() {
                 <StackedBarChart currentMonth={selectedMonth} onThresholdChange={handleThresholdChange} onMonthChange={setSelectedMonth} />
             </div>
 
-            <div className="flex justify-center mb-6">
-                <div className="bg-card p-1 rounded-xl border border-border inline-flex shadow-sm">
-                    <button onClick={() => setFilterType("all")} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all", filterType === "all" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-                        <Wallet size={16} weight={filterType === "all" ? "fill" : "regular"} /> Geral
-                    </button>
-                    <button onClick={() => setFilterType("credit")} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all", filterType === "credit" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-                        <CreditCard size={16} weight={filterType === "credit" ? "fill" : "regular"} /> Fatura Pendente
-                    </button>
-                </div>
-            </div>
+            <AnalyticsFilterBar
+                filters={filters}
+                onChange={setFilters}
+                categories={categories}
+                cards={cards}
+                className="mb-6"
+            />
 
             <div className="space-y-8 pb-10">
                 {loading ? (
@@ -244,9 +253,9 @@ export function StatsView() {
                 ) : (
                     <div className="rounded-2xl bg-card p-12 text-center border border-border/50 flex flex-col items-center justify-center gap-4">
                         <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                            {filterType === 'credit' ? <CreditCard size={32} className="text-muted-foreground" /> : <Wallet size={32} className="text-muted-foreground" />}
+                            {filters.paymentMethod === 'credit' ? <CreditCard size={32} className="text-muted-foreground" /> : <Wallet size={32} className="text-muted-foreground" />}
                         </div>
-                        <p className="text-muted-foreground font-medium">{filterType === 'credit' ? "Nenhuma despesa pendente na fatura deste mês." : "Nenhuma transação neste período."}</p>
+                        <p className="text-muted-foreground font-medium">{filters.paymentMethod === 'credit' ? "Nenhuma transação encontrada na fatura deste mês." : "Nenhuma transação encontrada para esse filtro."}</p>
                     </div>
                 )}
             </div>
