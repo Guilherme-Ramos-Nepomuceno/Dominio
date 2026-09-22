@@ -228,6 +228,13 @@ export function BankSyncView() {
     return { label: card?.name ?? "Banco", bankName: card?.bankName }
   }
 
+  // Pagamento de fatura ou vínculo com transferência já existente confirmados
+  // contam como "pronto" mesmo sem categoria — nenhum dos dois vira uma
+  // transação nova, então não precisam de categoria pra serem confirmados.
+  // Uma linha comum só está pronta quando categorizada — se não estiver, a
+  // confirmação vai deixá-la de fora e ela continua na fila pra depois.
+  const isDone = (r: PluggyReviewRow) => !!r.categoryId || r.settleDecision === "yes" || r.duplicateDecision === "yes"
+
   // Agrupa a fila de revisão por cartão (não só por banco/item da Pluggy) —
   // um mesmo login pode ter várias contas mapeadas que NÃO são o mesmo
   // cartão (ex: conta corrente + poupança), então agrupar só por item
@@ -246,11 +253,6 @@ export function BankSyncView() {
       group.rows.push(row)
       byCard.set(key, group)
     }
-    // Pagamento de fatura ou vínculo com transferência já existente
-    // confirmados contam como "pronto" mesmo sem categoria — nenhum dos
-    // dois vira uma transação nova, então não precisam de categoria pra
-    // serem confirmados.
-    const isDone = (r: PluggyReviewRow) => !!r.categoryId || r.settleDecision === "yes" || r.duplicateDecision === "yes"
 
     return Array.from(byCard.entries()).map(([key, { itemId, cardId, rows }]) => {
       const done = rows.filter(isDone).length
@@ -521,7 +523,9 @@ export function BankSyncView() {
       ? selectedBank.rows
       : selectedBank.rows.filter((r) => (sideFilter === "debit" ? isRowDebitSide(r) : !isRowDebitSide(r)))
     : []
-  const includedInSelected = visibleBankRows.filter((r) => r.include).length
+  // Só o que já está pronto (categorizado, ou pagamento de fatura/duplicata
+  // já decidido) é realmente confirmado agora — o resto fica na fila.
+  const includedInSelected = visibleBankRows.filter((r) => r.include && isDone(r)).length
   const hasBothSides = !!selectedBank && selectedBank.debit.total > 0 && selectedBank.credit.total > 0
 
   return (
