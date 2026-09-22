@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { MiniBarChart, type ChartDataPoint } from "./mini-bar-chart"
-import { formatCurrency, getInvoiceMonth } from "@/lib/date-utils"
+import { formatCurrency, getInvoiceMonth, getCurrentMonth } from "@/lib/date-utils"
 import type { PeriodType, Card, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { CreditCard, Wallet, Circle } from "@phosphor-icons/react"
@@ -15,8 +15,17 @@ interface IncomeExpenseCardsProps {
   // Histórico completo (sem recorte de mês) usado pelo gráfico semanal, para que dias
   // de uma semana que cai em dois meses diferentes não fiquem zerados.
   allTransactions?: any[]
+  // "Semanal" mostra os últimos 7 dias reais a partir de hoje — só faz
+  // sentido enquanto esse for o mês selecionado; navegando pra outro mês o
+  // toggle correspondente some (quem decide trocar pra "Mensal" nesse caso é
+  // o hook do Home, aqui só escondemos a opção).
+  selectedMonth?: string
   period: PeriodType
   onPeriodChange: (period: PeriodType) => void
+  // Clicar numa barra (receita ou despesa) avisa o Home pra filtrar
+  // "Transações recentes" pelo dia daquela barra — clicar de novo na mesma
+  // barra desfaz (o Home decide isso, aqui só repassa o dia clicado).
+  onDayClick?: (dateStr: string) => void
 }
 
 export function IncomeExpenseCards({
@@ -24,9 +33,12 @@ export function IncomeExpenseCards({
   expense,
   transactions = [],
   allTransactions,
+  selectedMonth,
   period,
   onPeriodChange,
+  onDayClick,
 }: IncomeExpenseCardsProps) {
+  const isCurrentMonth = !selectedMonth || selectedMonth === getCurrentMonth()
   const weekChartSource = period === "week" && allTransactions ? allTransactions : transactions
   const [expenseView, setExpenseView] = useState<"all" | "credit">("all")
 
@@ -113,10 +125,13 @@ export function IncomeExpenseCards({
         dataPoints.push({ dateStr: formatDateLocalYYYYMMDD(d), dateObj: d })
       }
     } else {
-      const targetMonth = period === "month" ? now.getMonth() : now.getMonth() - 1
-      let targetYear = now.getFullYear()
-      let adjustedMonth = targetMonth;
-      if (targetMonth < 0) { adjustedMonth = 11; targetYear = targetYear - 1; }
+      // Mês/ano do gráfico seguem o mês selecionado no cabeçalho (não
+      // necessariamente o mês real de hoje) — senão "Mensal" de outubro
+      // mostraria os dias de setembro por baixo dos rótulos.
+      const [targetYear, targetMonth1Based] = selectedMonth
+        ? selectedMonth.split("-").map(Number)
+        : [now.getFullYear(), now.getMonth() + 1]
+      const adjustedMonth = targetMonth1Based - 1
       const daysInMonth = new Date(targetYear, adjustedMonth + 1, 0).getDate()
 
       for (let i = 1; i <= daysInMonth; i++) {
@@ -142,7 +157,7 @@ export function IncomeExpenseCards({
         }
         const fullDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(dateObj);
         
-        return { value: totalValue, label: label, fullDate: fullDate }
+        return { value: totalValue, label: label, fullDate: fullDate, dateStr }
       })
     }
 
@@ -150,39 +165,56 @@ export function IncomeExpenseCards({
         incomeChartData: processTransactions(weekChartSource, "income"),
         expenseChartData: processTransactions(processedExpenseTransactions, "expense")
     }
-  }, [weekChartSource, processedExpenseTransactions, period])
+  }, [weekChartSource, processedExpenseTransactions, period, selectedMonth])
+
+  // O número grande precisa bater com o que as barras mostram — o gráfico
+  // sempre usa "hoje - 6 dias" (ou o mês civil atual/anterior), independente
+  // do mês navegado no cabeçalho, enquanto `income`/`expense` (props) são
+  // escopados pelo mês selecionado ali. Sem isso, navegar pra um mês sem
+  // dados zera o número mas as barras continuam mostrando os dias reais.
+  const displayedIncomeValue = useMemo(
+    () => incomeChartData.reduce((sum, d) => sum + d.value, 0),
+    [incomeChartData],
+  )
+  const finalDisplayedExpenseValue = expenseView === "all"
+    ? expenseChartData.reduce((sum, d) => sum + d.value, 0)
+    : displayedExpenseValue
 
   return (
     <div className="space-y-4 mt-4">
-      {/* Seletor Deslizante (Semana/Mês) */}
-      <div className="flex justify-center">
-        <div className="relative grid grid-cols-2 bg-card p-1 rounded-lg border border-white/5 w-50">
-            <div 
-              className={cn(
-                "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-foreground rounded-md shadow-sm transition-transform duration-300 ease-in-out",
-                period === "month" ? "translate-x-full" : "translate-x-0"
-              )}
-            />
-            <button
-                onClick={() => onPeriodChange("week")}
+      {/* Seletor Deslizante (Semana/Mês) — "Semanal" só existe no mês atual
+          (mostra os últimos 7 dias reais); navegando pra outro mês só sobra
+          "Mensal", então nem faz sentido mostrar um toggle de uma opição só. */}
+      {isCurrentMonth ? (
+        <div className="flex justify-center">
+          <div className="relative grid grid-cols-2 bg-card p-1 rounded-lg border border-white/5 w-50">
+              <div
                 className={cn(
-                "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
-                period === "week" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+                  "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-foreground rounded-md shadow-sm transition-transform duration-300 ease-in-out",
+                  period === "month" ? "translate-x-full" : "translate-x-0"
                 )}
-            >
-                Semanal
-            </button>
-            <button
-                onClick={() => onPeriodChange("month")}
-                className={cn(
-                "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
-                period === "month" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
-                )}
-            >
-                Mensal
-            </button>
+              />
+              <button
+                  onClick={() => onPeriodChange("week")}
+                  className={cn(
+                  "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+                  period === "week" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+                  )}
+              >
+                  Semanal
+              </button>
+              <button
+                  onClick={() => onPeriodChange("month")}
+                  className={cn(
+                  "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+                  period === "month" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+                  )}
+              >
+                  Mensal
+              </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         
@@ -205,12 +237,12 @@ export function IncomeExpenseCards({
               <div className="flex flex-col justify-end h-15">
                   <div>
                     <p className="text-3xl font-bold text-text-primary tracking-tight">
-                      {formatCurrency(income)}
+                      {formatCurrency(displayedIncomeValue)}
                     </p>
                   </div>
               </div>
               <div className="w-[55%] pb-1">
-                 <MiniBarChart data={incomeChartData} color="#A3E635" height={80} />
+                 <MiniBarChart data={incomeChartData} color="#A3E635" height={80} onBarClick={(p) => p.dateStr && onDayClick?.(p.dateStr)} />
               </div>
            </div>
         </div>
@@ -256,7 +288,7 @@ export function IncomeExpenseCards({
               <div className="flex flex-col justify-end h-15">
                   <div>
                     <p className="text-3xl font-bold text-text-primary tracking-tight transition-all key={expenseView}">
-                      {formatCurrency(displayedExpenseValue)}
+                      {formatCurrency(finalDisplayedExpenseValue)}
                     </p>
                     {expenseView === 'credit' && (
                         <p className="text-[10px] text-amber-500 flex items-center gap-1 mt-1">
@@ -267,10 +299,11 @@ export function IncomeExpenseCards({
                   </div>
               </div>
               <div className="w-[55%] pb-1">
-                <MiniBarChart 
-                    data={expenseChartData} 
-                    color={expenseView === 'credit' ? "#F59E0B" : "#F87171"} 
-                    height={80} 
+                <MiniBarChart
+                    data={expenseChartData}
+                    color={expenseView === 'credit' ? "#F59E0B" : "#F87171"}
+                    height={80}
+                    onBarClick={(p) => p.dateStr && onDayClick?.(p.dateStr)}
                 />
               </div>
           </div>

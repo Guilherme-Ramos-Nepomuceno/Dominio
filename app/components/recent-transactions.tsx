@@ -12,9 +12,14 @@ import { EditTransactionDialog } from "./edit-transaction-dialog"
 interface RecentTransactionsProps {
   transactions: Transaction[]
   maxItems?: number
+  // Preenchido quando a lista veio de um clique no gráfico (filtrando por
+  // dia) em vez do "mais recentes" padrão — troca o título e mostra um jeito
+  // de voltar, além de clicar de novo na mesma barra no gráfico.
+  filterLabel?: string
+  onClearFilter?: () => void
 }
 
-export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransactionsProps) {
+export function RecentTransactions({ transactions, maxItems = 5, filterLabel, onClearFilter }: RecentTransactionsProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
@@ -26,7 +31,7 @@ export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransac
 
   const sortedTransactions = [...transactions]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, maxItems)
+    .slice(0, filterLabel ? undefined : maxItems)
 
   if (transactions.length === 0) {
     return (
@@ -34,15 +39,33 @@ export function RecentTransactions({ transactions, maxItems = 5 }: RecentTransac
         <div className="inline-flex p-4 rounded-full bg-muted/50 mb-4">
           <PhosphorIcons.Receipt size={32} weight="light" className="text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma transação ainda</h3>
-        <p className="text-sm text-muted-foreground">Comece adicionando uma nova transação</p>
+        <h3 className="text-lg font-semibold text-foreground mb-2">
+          {filterLabel ? `Nada em ${filterLabel}` : "Nenhuma transação ainda"}
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          {filterLabel ? "Sem transações nesse dia." : "Comece adicionando uma nova transação"}
+        </p>
+        {filterLabel && onClearFilter && (
+          <button type="button" onClick={onClearFilter} className="mt-3 text-xs font-medium text-primary hover:underline">
+            Ver as mais recentes
+          </button>
+        )}
       </div>
     )
   }
 
   return (
     <div className="rounded-[20px] bg-card p-6 shadow-sm border border-border/50">
-      <h3 className="text-lg font-semibold text-foreground mb-4">Transações Recentes</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-foreground">
+          {filterLabel ? `Transações de ${filterLabel}` : "Transações Recentes"}
+        </h3>
+        {filterLabel && onClearFilter && (
+          <button type="button" onClick={onClearFilter} className="text-xs font-medium text-primary hover:underline shrink-0">
+            Ver mais recentes
+          </button>
+        )}
+      </div>
 
       <div className="space-y-3">
         {sortedTransactions.map((transaction) => {
