@@ -5,6 +5,7 @@ import { formatCurrency } from "@/lib/date-utils"
 import { getCards } from "@/lib/storage"
 import type { Card, Transaction } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
+import { pairTransfers } from "@/lib/pair-transfers"
 import { ArrowsLeftRight } from "@phosphor-icons/react"
 
 interface RecentTransfersProps {
@@ -14,46 +15,6 @@ interface RecentTransfersProps {
   // qualquer um dos dois parceiros — passe a lista já consolidada aqui em vez de
   // deixar buscar sozinho (que só traria os cartões da conta ativa no momento).
   cards?: Card[]
-}
-
-interface TransferPair {
-  from: Transaction
-  to: Transaction
-}
-
-// Cada transferência é gravada como duas transações independentes (saída na conta
-// de origem, entrada na de destino), sem nenhum vínculo direto entre elas — então
-// para exibir "de qual conta saiu / para qual conta foi" numa única linha, pareamos
-// aqui pelo valor + pelo createdAt mais próximo entre uma despesa e uma receita.
-function pairTransfers(transfers: Transaction[]): { pairs: TransferPair[]; unmatched: Transaction[] } {
-  const expenses = transfers.filter((t) => t.type === "expense")
-  const incomes = transfers.filter((t) => t.type === "income").slice()
-
-  const pairs: TransferPair[] = []
-  const unmatchedExpenses: Transaction[] = []
-
-  for (const expense of expenses) {
-    let bestIndex = -1
-    let bestDiff = Infinity
-
-    incomes.forEach((income, index) => {
-      if (income.amount !== expense.amount) return
-      const diff = Math.abs(new Date(income.createdAt).getTime() - new Date(expense.createdAt).getTime())
-      if (diff < bestDiff) {
-        bestDiff = diff
-        bestIndex = index
-      }
-    })
-
-    if (bestIndex >= 0) {
-      pairs.push({ from: expense, to: incomes[bestIndex] })
-      incomes.splice(bestIndex, 1)
-    } else {
-      unmatchedExpenses.push(expense)
-    }
-  }
-
-  return { pairs, unmatched: [...unmatchedExpenses, ...incomes] }
 }
 
 export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: RecentTransfersProps) {
@@ -67,7 +28,11 @@ export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: R
 
   if (transfers.length === 0) return null
 
-  const { pairs, unmatched } = pairTransfers(transfers)
+  const { pairs, unmatched } = pairTransfers(transfers, {
+    getType: (t) => t.type,
+    getAmount: (t) => t.amount,
+    getTimestamp: (t) => new Date(t.createdAt).getTime(),
+  })
 
   const items = [
     ...pairs.map((pair) => ({ kind: "pair" as const, pair, date: pair.from.date })),

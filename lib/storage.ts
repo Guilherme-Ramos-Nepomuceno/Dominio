@@ -468,6 +468,13 @@ export interface PluggyPendingTransaction {
   // pré-preenchida pro seletor de transferência, sempre editável.
   matchedTransferCardId?: string
   matchedTransferMemberId?: string
+  // Detectado no sync: parece ser a mesma transferência já lançada manualmente
+  // antes (mesmo cartão + valor + data próxima, sem externalId ainda) —
+  // confirmando, só vincula na transação existente em vez de duplicar.
+  matchedManualTransactionId?: string
+  matchedManualTransactionDescription?: string
+  matchedManualTransactionDate?: string
+  duplicateDecision?: "yes" | "no"
 }
 
 function mapPluggyPendingFromApi(r: any): PluggyPendingTransaction {
@@ -476,6 +483,7 @@ function mapPluggyPendingFromApi(r: any): PluggyPendingTransaction {
     type: String(r.type).toLowerCase() as TransactionType,
     paymentMethod: r.paymentMethod ? (String(r.paymentMethod).toLowerCase() as PaymentMethod) : undefined,
     invoicePaymentDecision: r.invoicePaymentDecision ? (String(r.invoicePaymentDecision).toLowerCase() as "yes" | "no") : undefined,
+    duplicateDecision: r.duplicateDecision ? (String(r.duplicateDecision).toLowerCase() as "yes" | "no") : undefined,
   }
 }
 
@@ -547,7 +555,13 @@ export async function getPluggyPending(): Promise<PluggyPendingTransaction[]> {
 
 export async function updatePluggyPending(
   id: string,
-  updates: { description?: string; categoryId?: string | null; include?: boolean; invoicePaymentDecision?: "yes" | "no" | null },
+  updates: {
+    description?: string
+    categoryId?: string | null
+    include?: boolean
+    invoicePaymentDecision?: "yes" | "no" | null
+    duplicateDecision?: "yes" | "no" | null
+  },
 ): Promise<PluggyPendingTransaction> {
   assertWritable()
   const body: Record<string, unknown> = { ...updates }
@@ -557,6 +571,9 @@ export async function updatePluggyPending(
   if ("invoicePaymentDecision" in updates) {
     body.invoicePaymentDecision = updates.invoicePaymentDecision ? updates.invoicePaymentDecision.toUpperCase() : null
   }
+  if ("duplicateDecision" in updates) {
+    body.duplicateDecision = updates.duplicateDecision ? updates.duplicateDecision.toUpperCase() : null
+  }
   const row = await fetchApi(`/pluggy/pending/${id}`, { method: "PATCH", body: JSON.stringify(body) })
   return mapPluggyPendingFromApi(row)
 }
@@ -564,6 +581,7 @@ export async function updatePluggyPending(
 export interface ConfirmPluggyPendingResult {
   createdCount: number
   settledCount: number
+  linkedCount: number
   skippedCount: number
   createdExternalIds: string[]
   rowErrors: Array<{ pendingId: string; message: string }>

@@ -11,6 +11,8 @@ import { TransferCardPicker, TransferMemberPicker } from "@/app/cards/components
 import { ProgressRing } from "./progress-ring"
 import { MonthYearPicker } from "./month-year-picker"
 import { getBankIcon, bankColors } from "@/lib/bank-icons"
+import { formatCurrency } from "@/lib/date-utils"
+import { pairTransfers } from "@/lib/pair-transfers"
 import type { Card, PaymentMethod, TransactionType } from "@/lib/types"
 import { getMemberCardsMapped, ensureSystemCategory, addTransaction, type ConfirmPluggyPendingResult } from "@/lib/storage"
 import { createTransactionForFamilyMember } from "@/lib/family"
@@ -30,6 +32,12 @@ type PluggyReviewRow = ReviewRow & {
   paymentMethod?: PaymentMethod
   matchedInvoiceCardId?: string
   matchedInvoiceMonth?: string
+  matchedTransferCardId?: string
+  matchedTransferMemberId?: string
+  matchedManualTransactionId?: string
+  matchedManualTransactionDescription?: string
+  matchedManualTransactionDate?: string
+  duplicateDecision?: "yes" | "no"
 }
 
 interface TransferSelection {
@@ -156,6 +164,54 @@ export function BankSyncView() {
     }
   }
 
+  // Transferências já categorizadas (por sugestão automática de identidade ou
+  // escolha manual) — pareadas por valor + data mais próxima entre uma despesa
+  // e uma receita, pra mostrar "Banco X -> Banco Y" numa linha só em vez de
+  // duas soltas e idênticas em bancos diferentes. Mesmo pareamento da Home
+  // (lib/pair-transfers.ts).
+  const transferCategoryIds = useMemo(() => {
+    const ids = [transferCategoryIdFor("expense"), transferCategoryIdFor("income"), familyTransferCategoryIdFor("expense"), familyTransferCategoryIdFor("income")]
+    return new Set(ids.filter((id): id is string => !!id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vm.categories])
+
+  const { pairs: transferPairs, pairedExternalIds } = useMemo(() => {
+    // Uma linha com match de duplicata ainda pendente de decisão fica de fora
+    // daqui — precisa passar pelo bloco "já lancei isso na mão?" primeiro
+    // (confirmar como par novo criaria uma transação a mais em vez de só
+    // vincular na existente).
+    const candidates = reviewRows.filter((r) => r.categoryId && transferCategoryIds.has(r.categoryId) && !r.matchedManualTransactionId)
+    const { pairs } = pairTransfers(candidates, {
+      getType: (r) => r.type,
+      getAmount: (r) => r.amount,
+      getTimestamp: (r) => new Date(r.date).getTime(),
+    })
+    return { pairs, pairedExternalIds: new Set(pairs.flatMap((p) => [p.from.externalId, p.to.externalId])) }
+  }, [reviewRows, transferCategoryIds])
+
+  // Cartões de todo mundo já carregado (meus + familiares cujas contas já
+  // foram buscadas) — usado só pra desenhar ícone/nome do banco no par de
+  // transferência, não pra oferecer como opção de destino.
+  const allKnownCards = useMemo(() => [...vm.cards, ...Object.values(memberCardsCache).flat()], [vm.cards, memberCardsCache])
+  const cardOwnerLabel = (cardId: string) => {
+    if (vm.cards.some((c) => c.id === cardId)) return undefined
+    return familyMembers.find((m) => memberCardsCache[m.id]?.some((c) => c.id === cardId))?.name ?? undefined
+  }
+
+  const [confirmingPairKey, setConfirmingPairKey] = useState<string | null>(null)
+  const confirmTransferPair = async (pair: { from: PluggyReviewRow; to: PluggyReviewRow }) => {
+    const key = `${pair.from.id}:${pair.to.id}`
+    setConfirmingPairKey(key)
+    try {
+      // As duas pernas já vieram sincronizadas de contas mapeadas de verdade —
+      // confirmar as duas já basta, sem precisar criar nenhuma ponta espelhada
+      // (isso só é necessário quando só um dos lados está conectado à Pluggy).
+      await vm.confirmPending([pair.from.id, pair.to.id])
+    } finally {
+      setConfirmingPairKey(null)
+    }
+  }
+
   const bankLabelForItem = (itemId: string) => {
     const item = vm.connection?.items.find((i) => i.id === itemId)
     const mappedCards = (item?.accountMappings ?? [])
@@ -171,20 +227,25 @@ export function BankSyncView() {
   const banks = useMemo(() => {
     const byItem = new Map<string, PluggyReviewRow[]>()
     for (const row of reviewRows) {
+      // Já aparece na seção "Transferências identificadas" acima — não mostra
+      // de novo dentro do banco (senão a mesma movimentação apareceria duas
+      // vezes na tela).
+      if (pairedExternalIds.has(row.externalId)) continue
       const list = byItem.get(row.itemId) ?? []
       list.push(row)
       byItem.set(row.itemId, list)
     }
     return Array.from(byItem.entries()).map(([itemId, rows]) => {
-      // Pagamento de fatura confirmado conta como "pronto" mesmo sem
-      // categoria — não vai virar uma transação nova, então não precisa de
-      // categoria nenhuma pra ser confirmado.
-      const done = rows.filter((r) => !!r.categoryId || r.settleDecision === "yes").length
+      // Pagamento de fatura ou vínculo com transferência já existente
+      // confirmados contam como "pronto" mesmo sem categoria — nenhum dos
+      // dois vira uma transação nova, então não precisam de categoria pra
+      // serem confirmados.
+      const done = rows.filter((r) => !!r.categoryId || r.settleDecision === "yes" || r.duplicateDecision === "yes").length
       const { label, bankName } = bankLabelForItem(itemId)
       return { itemId, rows, done, total: rows.length, label, bankName }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     })
-  }, [reviewRows, vm.connection, vm.cards])
+  }, [reviewRows, vm.connection, vm.cards, pairedExternalIds])
 
   const selectedBank = banks.find((b) => b.itemId === selectedItemId) ?? null
 
@@ -261,6 +322,81 @@ export function BankSyncView() {
       </div>
     )
   }
+
+  // Sugestão detectada no sync ("essa transferência já foi lançada na mão
+  // antes?") — mesmo padrão Sim/Não do bloco de fatura, só que confirmando
+  // aqui não cria uma transação nova: só vincula na já existente.
+  const renderDuplicateMatchBlock = (row: ReviewRow) => {
+    const r = row as PluggyReviewRow
+    if (!r.matchedManualTransactionId) return null
+
+    const existingDescription = r.matchedManualTransactionDescription ?? "uma transação já registrada"
+    const existingDate = r.matchedManualTransactionDate
+      ? new Date(r.matchedManualTransactionDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : undefined
+    const reset = () => vm.updatePendingRow(r.externalId, { duplicateDecision: null })
+
+    if (r.duplicateDecision === "yes") {
+      return (
+        <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5">
+          <p className="text-xs text-primary flex items-center justify-between gap-1.5">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle size={14} weight="fill" />
+              Vai vincular a "{existingDescription}"{existingDate && ` (${existingDate})`}, sem duplicar
+            </span>
+            <button type="button" onClick={reset} className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0">
+              Trocar
+            </button>
+          </p>
+        </div>
+      )
+    }
+
+    if (r.duplicateDecision === "no") {
+      return (
+        <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5">
+          <p className="text-xs text-muted-foreground flex items-center justify-between gap-1.5">
+            <span>Ok, vai importar como uma transação nova.</span>
+            <button type="button" onClick={reset} className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0">
+              Trocar
+            </button>
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
+        <p className="text-xs text-foreground flex items-start gap-1.5">
+          <Question size={14} weight="bold" className="text-primary shrink-0 mt-0.5" />
+          Essa parece ser a transferência "{existingDescription}"{existingDate && ` (${existingDate})`} que você já lançou na mão. Vincular em vez de duplicar?
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => vm.updatePendingRow(r.externalId, { duplicateDecision: "yes" })}
+            className="py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors"
+          >
+            Sim, vincular
+          </button>
+          <button
+            type="button"
+            onClick={() => vm.updatePendingRow(r.externalId, { duplicateDecision: "no" })}
+            className="py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-muted transition-colors"
+          >
+            Não, é outra
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Combina os dois blocos de sugestão automática num só — cada linha só
+  // deveria bater com um dos dois na prática (fatura é despesa batendo com o
+  // total pendente do cartão, duplicata é qualquer transferência batendo com
+  // um lançamento manual antigo), mas se as duas coincidirem, a de fatura
+  // ganha prioridade por ser mais específica.
+  const renderPendingBlock = (row: ReviewRow) => renderInvoicePaymentBlock(row) ?? renderDuplicateMatchBlock(row)
 
   // Bloco de conta de origem/destino — só aparece dentro do grupo da
   // categoria "Transferência"/"Transferência Familiar" (mesmo bloco do import
@@ -579,6 +715,80 @@ export function BankSyncView() {
           </section>
         )}
 
+        {/* Transferências identificadas — pares de contas já mapeadas, prontos
+            pra confirmar de uma vez, sem precisar entrar em cada banco. */}
+        {transferPairs.length > 0 && !selectedBank && (
+          <section className="rounded-[1vw] border border-border bg-card p-5 space-y-3">
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <ArrowsLeftRight size={18} weight="bold" className="text-primary" />
+              Transferências identificadas
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Já reconhecemos essas movimentações entre contas — confirme de uma vez, sem precisar categorizar nada.
+            </p>
+            <div className="space-y-2">
+              {transferPairs.map((pair) => {
+                const { from, to } = pair
+                const fromCard = allKnownCards.find((c) => c.id === from.cardId)
+                const toCard = allKnownCards.find((c) => c.id === to.cardId)
+                const FromIcon = fromCard ? getBankIcon(fromCard.bankName) : ArrowsLeftRight
+                const ToIcon = toCard ? getBankIcon(toCard.bankName) : ArrowsLeftRight
+                const fromOwner = cardOwnerLabel(from.cardId)
+                const toOwner = cardOwnerLabel(to.cardId)
+                const key = `${from.id}:${to.id}`
+                const isConfirming = confirmingPairKey === key
+
+                return (
+                  <div key={key} className="flex items-center gap-2 p-3 rounded-lg border border-border bg-background">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: (fromCard ? bankColors[fromCard.bankName] : "#71717a") + "20" }}
+                      >
+                        <FromIcon size={16} weight="fill" style={{ color: fromCard ? bankColors[fromCard.bankName] : "#71717a" }} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{fromCard?.name ?? "Conta"}</p>
+                        {fromOwner && <p className="text-[10px] text-muted-foreground truncate">{fromOwner}</p>}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-0.5 shrink-0 px-1">
+                      <ArrowsLeftRight size={16} weight="bold" className="text-muted-foreground" />
+                      <p className="text-xs font-bold text-foreground whitespace-nowrap">{formatCurrency(from.amount)}</p>
+                      <p className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {new Date(from.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{toCard?.name ?? "Conta"}</p>
+                        {toOwner && <p className="text-[10px] text-muted-foreground truncate">{toOwner}</p>}
+                      </div>
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: (toCard ? bankColors[toCard.bankName] : "#71717a") + "20" }}
+                      >
+                        <ToIcon size={16} weight="fill" style={{ color: toCard ? bankColors[toCard.bankName] : "#71717a" }} />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isConfirming}
+                      onClick={() => confirmTransferPair(pair)}
+                      className="ml-2 shrink-0 px-3 py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {isConfirming ? "..." : "Confirmar"}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Pendências de revisão — separadas por banco */}
         {banks.length > 0 && !selectedBank && (
           <section className="rounded-[1vw] border border-border bg-card p-5 space-y-3">
@@ -641,7 +851,7 @@ export function BankSyncView() {
                 if (result) await createTransferMirrorLegs(rows, result)
                 setSelectedItemId(null)
               }}
-              renderPendingBlock={renderInvoicePaymentBlock}
+              renderPendingBlock={renderPendingBlock}
               renderTransferBlock={renderTransferBlock}
               onCreateCategory={vm.createCategory}
             />
