@@ -66,6 +66,10 @@ export function BankSyncView() {
   const [addCardForAccount, setAddCardForAccount] = useState<{ itemId: string; pluggyAccountId: string } | null>(null)
   const [mappingDraft, setMappingDraft] = useState<Record<string, { cardId: string; paymentMethod: PaymentMethod | "" }>>({})
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  // Confirmar é tudo-ou-nada por lado (débito e crédito são grupos separados
+  // no backend) — filtrar a lista por lado deixa terminar um de cada vez em
+  // vez de ver os dois misturados, e o "Confirmar" só manda o lado visível.
+  const [sideFilter, setSideFilter] = useState<"all" | "debit" | "credit">("all")
   // Destino de transferência — só existe localmente enquanto a pessoa revisa
   // (igual ao import de OFX), nunca é salvo na PluggyPendingTransaction.
   const [transferSelections, setTransferSelections] = useState<Record<string, TransferSelection>>({})
@@ -80,6 +84,12 @@ export function BankSyncView() {
   useEffect(() => {
     setCurrentUserId(getCurrentUser()?.id ?? null)
   }, [])
+
+  // Volta pra "os dois lados" sempre que troca de banco — senão um filtro
+  // deixado em "Débito" escondia tudo ao entrar num banco só-crédito.
+  useEffect(() => {
+    setSideFilter("all")
+  }, [selectedItemId])
 
   const familyMembers = family?.members?.filter((m) => m.accountType === "PERSONAL" && m.id !== currentUserId) ?? []
 
@@ -503,7 +513,13 @@ export function BankSyncView() {
   }
 
   const hasMappedAccounts = (vm.connection?.items ?? []).some((i) => i.accountMappings.length > 0)
-  const includedInSelected = selectedBank ? selectedBank.rows.filter((r) => r.include).length : 0
+  const visibleBankRows = selectedBank
+    ? sideFilter === "all"
+      ? selectedBank.rows
+      : selectedBank.rows.filter((r) => (sideFilter === "debit" ? isRowDebitSide(r) : !isRowDebitSide(r)))
+    : []
+  const includedInSelected = visibleBankRows.filter((r) => r.include).length
+  const hasBothSides = !!selectedBank && selectedBank.debit.total > 0 && selectedBank.credit.total > 0
 
   return (
     <AppLayout>
@@ -863,37 +879,55 @@ export function BankSyncView() {
               >
                 <CaretLeft size={18} weight="bold" />
               </button>
-              <div className="flex-1 min-w-0">
-                <h2 className="font-semibold text-foreground truncate">{selectedBank.label}</h2>
-                {selectedBank.debit.total > 0 && selectedBank.credit.total > 0 && (
-                  <div className="flex items-center gap-2.5 mt-0.5">
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Wallet size={11} weight="bold" />
-                      Débito {selectedBank.debit.done}/{selectedBank.debit.total}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <CreditCard size={11} weight="bold" />
-                      Crédito {selectedBank.credit.done}/{selectedBank.credit.total}
-                    </span>
-                  </div>
-                )}
-              </div>
+              <h2 className="font-semibold text-foreground flex-1 min-w-0 truncate">{selectedBank.label}</h2>
               <ProgressRing percent={selectedBank.total === 0 ? 0 : (selectedBank.done / selectedBank.total) * 100} size={36} strokeWidth={3} />
             </div>
+
+            {hasBothSides && (
+              <div className="flex items-center gap-1.5 mb-4 -mt-1">
+                {(
+                  [
+                    { key: "all" as const, label: "Tudo", count: selectedBank.total },
+                    { key: "debit" as const, label: "Débito", count: selectedBank.debit.total, icon: Wallet, done: selectedBank.debit.done },
+                    { key: "credit" as const, label: "Crédito", count: selectedBank.credit.total, icon: CreditCard, done: selectedBank.credit.done },
+                  ]
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSideFilter(opt.key)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+                      sideFilter === opt.key ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {opt.icon && <opt.icon size={12} weight="bold" />}
+                    {opt.label}
+                    <span className="text-[10px] opacity-70">{opt.key === "all" ? opt.count : `${opt.done}/${opt.count}`}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <ReviewStep
-              rows={selectedBank.rows}
+              rows={visibleBankRows}
               categories={vm.categories}
               updateRow={handleUpdateRow}
               includedCount={includedInSelected}
-              totalCount={selectedBank.total}
+              totalCount={visibleBankRows.length}
               isSaving={vm.isConfirming}
               canConfirm={!vm.isConfirming && includedInSelected > 0}
               confirmLabel={vm.isConfirming ? "Confirmando..." : `Confirmar ${includedInSelected} transaç${includedInSelected === 1 ? "ão" : "ões"}`}
               onConfirm={async () => {
-                const rows = selectedBank.rows
+                const rows = visibleBankRows
                 const result = await vm.confirmPending(rows.map((r) => r.id))
                 if (result) await createTransferMirrorLegs(rows, result)
-                setSelectedItemId(null)
+                // Só volta pra lista de bancos se não sobrou nada pra revisar
+                // nesse banco — filtrando por lado, confirmar um não deve
+                // fechar o outro que ainda está pendente.
+                const remaining = selectedBank.total - rows.length
+                if (remaining <= 0) setSelectedItemId(null)
+                else setSideFilter("all")
               }}
               renderPendingBlock={renderPendingBlock}
               renderTransferBlock={renderTransferBlock}
