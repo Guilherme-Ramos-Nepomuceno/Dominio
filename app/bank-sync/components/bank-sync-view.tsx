@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bank, Plus, ArrowsClockwise, CheckCircle, CaretLeft, Question, ArrowsLeftRight } from "@phosphor-icons/react"
+import { Bank, Plus, ArrowsClockwise, CheckCircle, CaretLeft, Question, ArrowsLeftRight, Wallet, CreditCard } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { ReviewStep } from "@/app/cards/components/import-review/review-step"
@@ -235,14 +235,24 @@ export function BankSyncView() {
       list.push(row)
       byItem.set(row.itemId, list)
     }
+    // Pagamento de fatura ou vínculo com transferência já existente
+    // confirmados contam como "pronto" mesmo sem categoria — nenhum dos
+    // dois vira uma transação nova, então não precisam de categoria pra
+    // serem confirmados.
+    const isDone = (r: PluggyReviewRow) => !!r.categoryId || r.settleDecision === "yes" || r.duplicateDecision === "yes"
+
     return Array.from(byItem.entries()).map(([itemId, rows]) => {
-      // Pagamento de fatura ou vínculo com transferência já existente
-      // confirmados contam como "pronto" mesmo sem categoria — nenhum dos
-      // dois vira uma transação nova, então não precisam de categoria pra
-      // serem confirmados.
-      const done = rows.filter((r) => !!r.categoryId || r.settleDecision === "yes" || r.duplicateDecision === "yes").length
+      const done = rows.filter(isDone).length
       const { label, bankName } = bankLabelForItem(itemId)
-      return { itemId, rows, done, total: rows.length, label, bankName }
+      // Confirmar é tudo-ou-nada por lado (débito/crédito são grupos
+      // separados no backend) — mostra o progresso quebrado por lado quando o
+      // banco tem os dois, pra dar pra ver qual lado ainda falta terminar
+      // antes de conseguir confirmar ele.
+      const debitRows = rows.filter(isRowDebitSide)
+      const creditRows = rows.filter((r) => !isRowDebitSide(r))
+      const debit = { done: debitRows.filter(isDone).length, total: debitRows.length }
+      const credit = { done: creditRows.filter(isDone).length, total: creditRows.length }
+      return { itemId, rows, done, total: rows.length, label, bankName, debit, credit }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     })
   }, [reviewRows, vm.connection, vm.cards, pairedExternalIds])
@@ -816,7 +826,23 @@ export function BankSyncView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{bank.label}</p>
-                      <p className="text-xs text-muted-foreground">{bank.done} de {bank.total} categorizadas</p>
+                      {/* Confirmar é tudo-ou-nada por lado — mostra débito e
+                          crédito separados quando o banco tem os dois, pra dar
+                          pra ver qual lado falta terminar. */}
+                      {bank.debit.total > 0 && bank.credit.total > 0 ? (
+                        <div className="flex items-center gap-2.5 mt-0.5">
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Wallet size={11} weight="bold" />
+                            {bank.debit.done}/{bank.debit.total}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <CreditCard size={11} weight="bold" />
+                            {bank.credit.done}/{bank.credit.total}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{bank.done} de {bank.total} categorizadas</p>
+                      )}
                     </div>
                     <ProgressRing percent={percent} size={40} strokeWidth={3.5} />
                   </button>
@@ -837,7 +863,21 @@ export function BankSyncView() {
               >
                 <CaretLeft size={18} weight="bold" />
               </button>
-              <h2 className="font-semibold text-foreground flex-1 min-w-0 truncate">{selectedBank.label}</h2>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-semibold text-foreground truncate">{selectedBank.label}</h2>
+                {selectedBank.debit.total > 0 && selectedBank.credit.total > 0 && (
+                  <div className="flex items-center gap-2.5 mt-0.5">
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Wallet size={11} weight="bold" />
+                      Débito {selectedBank.debit.done}/{selectedBank.debit.total}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <CreditCard size={11} weight="bold" />
+                      Crédito {selectedBank.credit.done}/{selectedBank.credit.total}
+                    </span>
+                  </div>
+                )}
+              </div>
               <ProgressRing percent={selectedBank.total === 0 ? 0 : (selectedBank.done / selectedBank.total) * 100} size={36} strokeWidth={3} />
             </div>
             <ReviewStep
