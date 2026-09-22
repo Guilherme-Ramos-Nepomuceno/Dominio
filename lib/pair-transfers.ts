@@ -13,11 +13,16 @@ export interface PairTransfersOptions<T> {
   getType: (item: T) => "income" | "expense"
   getAmount: (item: T) => number
   getTimestamp: (item: T) => number
+  // Opcional: quando informado, nunca pareia duas pontas do MESMO cartão —
+  // débito pagando o crédito do próprio cartão combinado é pagamento de
+  // fatura, não uma transferência entre contas, mesmo que o valor bata por
+  // coincidência com outra movimentação qualquer.
+  getCardId?: (item: T) => string
 }
 
 export function pairTransfers<T>(
   items: T[],
-  { getType, getAmount, getTimestamp }: PairTransfersOptions<T>,
+  { getType, getAmount, getTimestamp, getCardId }: PairTransfersOptions<T>,
 ): { pairs: TransferPair<T>[]; unmatched: T[] } {
   const expenses = items.filter((t) => getType(t) === "expense")
   const incomes = items.filter((t) => getType(t) === "income").slice()
@@ -30,6 +35,7 @@ export function pairTransfers<T>(
     let bestDiff = Infinity
 
     incomes.forEach((income, index) => {
+      if (getCardId && getCardId(income) === getCardId(expense)) return
       if (getAmount(income) !== getAmount(expense)) return
       const diff = Math.abs(getTimestamp(income) - getTimestamp(expense))
       if (diff < bestDiff) {
