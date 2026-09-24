@@ -63,6 +63,8 @@ export interface MemberMonthData {
     expense: number
     balance: number
     transactionCount: number
+    pendingInvoiceTotal: number
+    pendingInvoiceByCard: Array<{ cardId: string; name: string; bankName: string; total: number }>
 }
 
 export function getMemberMonthData(memberId: string, year: number, month: number): Promise<MemberMonthData> {

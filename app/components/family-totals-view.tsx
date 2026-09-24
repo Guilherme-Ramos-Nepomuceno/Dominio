@@ -39,10 +39,16 @@ export function FamilyTotalsView({ loading, totals }: { loading: boolean; totals
                     <span className="text-sm font-semibold text-foreground">Saldo</span>
                     <span className="text-lg font-bold text-foreground tabular-nums">{formatCurrency(totals.balance)}</span>
                 </div>
+                {totals.pendingInvoiceTotal > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Fatura pendente (dos dois)</span>
+                        <span className="text-lg font-bold text-amber-500 tabular-nums">{formatCurrency(totals.pendingInvoiceTotal)}</span>
+                    </div>
+                )}
             </div>
 
             <div className="space-y-3">
-                {totals.perMember.map(({ member, income, expense, balance }) => (
+                {totals.perMember.map(({ member, income, expense, balance, pendingInvoiceTotal }) => (
                     <div key={member.id} className="rounded-[20px] bg-card p-5 border border-border/50">
                         <div className="flex items-center gap-2 mb-3">
                             <User size={18} className="text-muted-foreground" />
@@ -62,6 +68,12 @@ export function FamilyTotalsView({ loading, totals }: { loading: boolean; totals
                                 <p className="text-sm font-bold text-foreground tabular-nums">{formatCurrency(balance)}</p>
                             </div>
                         </div>
+                        {pendingInvoiceTotal > 0 && (
+                            <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Fatura pendente</span>
+                                <span className="text-sm font-bold text-amber-500 tabular-nums">{formatCurrency(pendingInvoiceTotal)}</span>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>

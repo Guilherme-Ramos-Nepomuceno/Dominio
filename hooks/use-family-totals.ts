@@ -9,12 +9,14 @@ export interface FamilyMemberTotal {
     income: number
     expense: number
     balance: number
+    pendingInvoiceTotal: number
 }
 
 export interface FamilyTotals {
     income: number
     expense: number
     balance: number
+    pendingInvoiceTotal: number
     perMember: FamilyMemberTotal[]
 }
 
@@ -51,11 +53,13 @@ export function useFamilyTotals(selectedMonth: string, enabled: boolean) {
                         income: data.income,
                         expense: data.expense,
                         balance: data.balance,
+                        pendingInvoiceTotal: data.pendingInvoiceTotal,
                     }))
                     setFamilyTotals({
                         income: perMember.reduce((sum, m) => sum + m.income, 0),
                         expense: perMember.reduce((sum, m) => sum + m.expense, 0),
                         balance: perMember.reduce((sum, m) => sum + m.balance, 0),
+                        pendingInvoiceTotal: perMember.reduce((sum, m) => sum + m.pendingInvoiceTotal, 0),
                         perMember,
                     })
                 })
