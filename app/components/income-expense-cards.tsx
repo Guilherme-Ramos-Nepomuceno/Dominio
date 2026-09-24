@@ -25,7 +25,12 @@ interface IncomeExpenseCardsProps {
   // Clicar numa barra (receita ou despesa) avisa o Home pra filtrar
   // "Transações recentes" pelo dia daquela barra — clicar de novo na mesma
   // barra desfaz (o Home decide isso, aqui só repassa o dia clicado).
-  onDayClick?: (dateStr: string) => void
+  // Manda também as transações daquele dia já filtradas da fonte CERTA — a
+  // aba "Fatura Pendente" mostra transações PENDENTES (projeção da fatura
+  // aberta), que não existem nas listas de pagas que o Home usa pro "mais
+  // recentes"; se o Home tentasse re-filtrar sozinho por dateStr, não achava
+  // nada mesmo com a barra visivelmente maior que zero.
+  onDayClick?: (dateStr: string, transactionsForDay: any[]) => void
 }
 
 export function IncomeExpenseCards({
@@ -242,7 +247,15 @@ export function IncomeExpenseCards({
                   </div>
               </div>
               <div className="w-[55%] pb-1">
-                 <MiniBarChart data={incomeChartData} color="#A3E635" height={80} onBarClick={(p) => p.dateStr && onDayClick?.(p.dateStr)} />
+                 <MiniBarChart
+                    data={incomeChartData}
+                    color="#A3E635"
+                    height={80}
+                    onBarClick={(p) => {
+                      if (!p.dateStr) return
+                      onDayClick?.(p.dateStr, weekChartSource.filter((t) => new Date(t.date).toLocaleDateString("sv-SE") === p.dateStr))
+                    }}
+                 />
               </div>
            </div>
         </div>
@@ -303,7 +316,10 @@ export function IncomeExpenseCards({
                     data={expenseChartData}
                     color={expenseView === 'credit' ? "#F59E0B" : "#F87171"}
                     height={80}
-                    onBarClick={(p) => p.dateStr && onDayClick?.(p.dateStr)}
+                    onBarClick={(p) => {
+                      if (!p.dateStr) return
+                      onDayClick?.(p.dateStr, processedExpenseTransactions.filter((t) => new Date(t.date).toLocaleDateString("sv-SE") === p.dateStr))
+                    }}
                 />
               </div>
           </div>
