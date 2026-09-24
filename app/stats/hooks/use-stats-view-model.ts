@@ -75,22 +75,35 @@ export function useStatsViewModel() {
         [allTransactions, selectedMonth],
     )
 
+    // Se essa transação é do "lado crédito" (entra em fatura) — não depende
+    // de mês nenhum, só de cartão+paymentMethod. Precisa ficar separado do
+    // pool de fatura porque esse é escopado pelo MÊS DE FECHAMENTO, enquanto
+    // o pool geral (usado pro "Débito") é escopado pela data da própria
+    // transação — perto da virada do cartão, duas transações do mesmo mês
+    // civil podem cair em faturas diferentes, então excluir do "Débito" só
+    // quem está no pool de fatura DESSE mês deixava vazar transação de
+    // crédito de um mês vizinho pro "Débito".
+    const isCreditSideTransaction = useCallback(
+        (t: Transaction) => {
+            const card = cards.find((c) => c.id === t.cardId)
+            if (!card?.hasCredit) return false
+            if (card.hasDebit) return t.paymentMethod === "credit"
+            return true
+        },
+        [cards],
+    )
+
     // Pool "Fatura": mês pelo fechamento do cartão, não pela data da compra —
     // cada parcela já é sua própria transação, com data e valor corretos
-    // (addTransaction já cria uma linha por parcela). Cartão combinado
-    // (crédito + débito): só o lado marcado como crédito entra na fatura.
+    // (addTransaction já cria uma linha por parcela).
     const creditPool = useMemo(() => {
-        const creditCardIds = cards.filter((c) => c.hasCredit).map((c) => c.id)
         return allTransactions.filter((t) => {
             if (t.status === "cancelled") return false
-            if (!t.cardId || !creditCardIds.includes(t.cardId)) return false
+            if (!isCreditSideTransaction(t)) return false
             const card = cards.find((c) => c.id === t.cardId)
-            if (card?.hasDebit && t.paymentMethod !== "credit") return false
             return getInvoiceMonth(t.date, card?.closingDate) === selectedMonth
         })
-    }, [allTransactions, cards, selectedMonth])
-
-    const isCreditTransactionId = useMemo(() => new Set(creditPool.map((t) => t.id)), [creditPool])
+    }, [allTransactions, cards, selectedMonth, isCreditSideTransaction])
 
     const transactionsToDisplay = useMemo(() => {
         const { search, categoryId, cardId, paymentMethod, status } = filters
@@ -99,7 +112,7 @@ export function useStatsViewModel() {
         if (paymentMethod === "credit") {
             pool = creditPool
         } else if (paymentMethod === "debit") {
-            pool = generalPool.filter((t) => !isCreditTransactionId.has(t.id))
+            pool = generalPool.filter((t) => !isCreditSideTransaction(t))
         } else {
             const merged = new Map(generalPool.map((t) => [t.id, t]))
             creditPool.forEach((t) => merged.set(t.id, t))
@@ -118,7 +131,7 @@ export function useStatsViewModel() {
             }
             return true
         })
-    }, [filters, generalPool, creditPool, isCreditTransactionId, categories])
+    }, [filters, generalPool, creditPool, isCreditSideTransaction, categories])
 
     const groupedTransactions = useMemo(() => {
         const getLocalDateKey = (date: Date) => date.toLocaleDateString('sv-SE')
