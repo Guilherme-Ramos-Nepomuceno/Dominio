@@ -263,7 +263,7 @@ export function StackedBarChart({
                   )}
                   style={{ bottom: `calc(${(monthData.total / maxValue) * 100}% + 8px)` }}
               >
-                  <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-3 py-3 shadow-2xl max-h-64 overflow-y-auto">
+                  <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-3 py-3 shadow-2xl">
                       <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2 pb-2 border-b border-white/10">
                           {monthData.label} · Total {formatCurrency(monthData.total)}
                       </p>
