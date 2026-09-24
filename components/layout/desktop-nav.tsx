@@ -15,6 +15,7 @@ import {
   RepeatIcon,
   ClockIcon,
   ReceiptIcon,
+  CalendarCheckIcon,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/savings", icon: PiggyBankIcon, label: "Reservas" },
   { href: "/recurring", icon: RepeatIcon, label: "Recorrentes" },
   { href: "/pending", icon: ClockIcon, label: "Pendentes" },
+  { href: "/month-closing", icon: CalendarCheckIcon, label: "Fechamento" },
   { href: "/invoices", icon: ReceiptIcon, label: "Faturas" },
   { href: "/settings", icon: GearIcon, label: "Configurações" },
 ]

@@ -11,6 +11,7 @@ import {
     PlusIcon,
     ClockIcon,
     ReceiptIcon,
+    CalendarCheckIcon,
 } from "@phosphor-icons/react"
 
 export function useAllMenusViewModel() {
@@ -22,6 +23,7 @@ export function useAllMenusViewModel() {
         { href: "/savings", icon: PiggyBankIcon, label: "Reservas", description: "Acompanhe suas economias" },
         { href: "/recurring", icon: RepeatIcon, label: "Recorrentes", description: "Dívidas e parcelas" },
         { href: "/pending", icon: ClockIcon, label: "Pendentes", description: "Transações agendadas" },
+        { href: "/month-closing", icon: CalendarCheckIcon, label: "Fechamento", description: "Tudo que vence no mês seguinte" },
         { href: "/invoices", icon: ReceiptIcon, label: "Faturas", description: "Pagamento de faturas de crédito" },
         { href: "/settings", icon: GearIcon, label: "Configurações", description: "Personalize o app" },
         { href: "/new", icon: PlusIcon, label: "Nova Transação", description: "Registre receitas e despesas" },

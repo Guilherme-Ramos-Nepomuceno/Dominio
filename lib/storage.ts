@@ -18,6 +18,7 @@ import type {
 import { fetchApi } from "./api"
 import { getActiveAccountSelection } from "./active-account"
 import * as familyApi from "./family"
+import type { MemberMonthData } from "./family"
 
 // Categorias criadas automaticamente na primeira vez que uma conta (pessoal ou do casal)
 // não tem nenhuma categoria ainda — o backend não vem com nada pré-cadastrado.
@@ -610,6 +611,31 @@ export async function getTransactions(): Promise<Transaction[]> {
 export async function getMemberTransactionsMapped(memberId: string): Promise<Transaction[]> {
   const raw = await familyApi.getMemberTransactions(memberId)
   return (raw || []).map(mapTransactionFromApi)
+}
+
+// Totais pré-calculados de um mês (receita/despesa/saldo + fatura pendente
+// de cartão + pendências sem cartão) — mesmo endpoint que a visão "Total da
+// Família" já usa por membro, aqui pra própria conta ativa.
+export async function getMonthData(year: number, month: number): Promise<MemberMonthData> {
+  return fetchApi(`/stats/month-data/${year}/${month}`)
+}
+
+export interface CardInvoiceResult {
+  card: { id: string; name: string; bankName: string; lastDigits: string; color: string; limit: number | null; dueDate: number | null }
+  // Vem cru do backend (enums em maiúsculo: "EXPENSE"/"PENDING"), sem passar
+  // pelo mapTransactionFromApi — quem consome já sabe disso (ver
+  // income-expense-cards.tsx).
+  transactions: any[]
+  total: number
+  totalPending: number
+  pendingCount: number
+}
+
+// Fatura por cartão de um mês — já resolve pelo invoiceId de cada transação
+// quando existe (respeita "mover pra fatura seguinte/anterior"), com o dia
+// de fechamento como fallback só pra quem nunca foi movido.
+export async function getCardInvoices(year: number, month: number): Promise<CardInvoiceResult[]> {
+  return fetchApi(`/stats/card-invoices/${year}/${month}`)
 }
 
 export async function addTransaction(
