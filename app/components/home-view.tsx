@@ -25,17 +25,17 @@ export function HomeView() {
         cards,
     } = useHomeViewModel()
 
-    // Dia clicado numa barra do gráfico (Receitas ou Despesas) — filtra
-    // "Transações recentes" pra esse dia; clicar de novo na mesma barra, ou
-    // no link "Ver mais recentes", desfaz.
-    const [selectedDay, setSelectedDay] = useState<string | null>(null)
-    const dayTransactions = selectedDay
-        ? (balanceData.allTransactions ?? balanceData.transactions).filter(
-              (t: any) => new Date(t.date).toLocaleDateString("sv-SE") === selectedDay,
-          )
-        : balanceData.transactions
+    // Dia clicado numa barra do gráfico (Receitas ou Despesas, incluindo a
+    // aba "Fatura Pendente") — filtra "Transações recentes" pra esse dia;
+    // clicar de novo na mesma barra, ou no link "Ver mais recentes", desfaz.
+    // As transações já vêm prontas do IncomeExpenseCards (não são
+    // re-filtradas aqui) porque "Fatura Pendente" mostra transações
+    // PENDENTES, que não existem nas listas de pagas que o Home usa — só o
+    // componente do gráfico sabe de qual fonte aquela barra específica veio.
+    const [selectedDay, setSelectedDay] = useState<{ dateStr: string; transactions: any[] } | null>(null)
+    const dayTransactions = selectedDay ? selectedDay.transactions : balanceData.transactions
     const selectedDayLabel = selectedDay
-        ? selectedDay.split("-").slice(1).reverse().join("/")
+        ? selectedDay.dateStr.split("-").slice(1).reverse().join("/")
         : undefined
 
     return (
@@ -77,7 +77,9 @@ export function HomeView() {
                             selectedMonth={selectedMonth}
                             period={period}
                             onPeriodChange={setPeriod}
-                            onDayClick={(dateStr) => setSelectedDay((prev) => (prev === dateStr ? null : dateStr))}
+                            onDayClick={(dateStr, transactionsForDay) =>
+                                setSelectedDay((prev) => (prev?.dateStr === dateStr ? null : { dateStr, transactions: transactionsForDay }))
+                            }
                         />
 
                         {/* Recent Transactions */}
