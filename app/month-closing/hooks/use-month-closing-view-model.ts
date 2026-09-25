@@ -19,6 +19,9 @@ export interface CardlessPendingItem {
     amount: number
     date: string
     categoryName: string
+    installments: number | null
+    currentInstallment: number | null
+    recurrence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "NONE"
     memberName?: string
 }
 
@@ -27,7 +30,28 @@ export interface MonthClosingData {
     pendingInvoiceTotal: number
     cardlessPendingTotal: number
     cardsBreakdown: CardInvoiceTotal[]
-    cardlessItems: CardlessPendingItem[]
+    // "Fora de fatura de cartão" quebrado em três grupos — parcela e
+    // recorrência são mecanismos diferentes de gerar a mesma linha (débito)
+    // todo mês, então cada um ganha sua própria caixinha (igual um cartão);
+    // o resto (lançamento avulso, tipo um boleto pontual) fica solto.
+    installmentItems: CardlessPendingItem[]
+    recurringItems: CardlessPendingItem[]
+    otherItems: CardlessPendingItem[]
+}
+
+const isInstallment = (item: CardlessPendingItem) => !!item.installments && item.installments > 1
+const isRecurring = (item: CardlessPendingItem) => item.recurrence !== "NONE"
+
+function groupCardlessItems(items: CardlessPendingItem[]) {
+    const installmentItems: CardlessPendingItem[] = []
+    const recurringItems: CardlessPendingItem[] = []
+    const otherItems: CardlessPendingItem[] = []
+    for (const item of items) {
+        if (isInstallment(item)) installmentItems.push(item)
+        else if (isRecurring(item)) recurringItems.push(item)
+        else otherItems.push(item)
+    }
+    return { installmentItems, recurringItems, otherItems }
 }
 
 function nextMonth(): { year: number; month: number; label: string } {
@@ -79,7 +103,7 @@ export function useMonthClosingViewModel() {
                         pendingInvoiceTotal,
                         cardlessPendingTotal,
                         cardsBreakdown,
-                        cardlessItems,
+                        ...groupCardlessItems(cardlessItems),
                     })
                 } else {
                     const result = await getMonthData(year, month)
@@ -92,7 +116,7 @@ export function useMonthClosingViewModel() {
                         pendingInvoiceTotal: result.pendingInvoiceTotal ?? 0,
                         cardlessPendingTotal: result.cardlessPendingTotal ?? 0,
                         cardsBreakdown: result.pendingInvoiceByCard ?? [],
-                        cardlessItems: result.cardlessPending ?? [],
+                        ...groupCardlessItems(result.cardlessPending ?? []),
                     })
                 }
             } finally {

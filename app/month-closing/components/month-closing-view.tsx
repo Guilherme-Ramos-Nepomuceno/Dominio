@@ -1,13 +1,41 @@
 "use client"
 
-import { CalendarCheck, Receipt } from "@phosphor-icons/react"
+import { CalendarCheck, Receipt, Stack, ArrowsClockwise } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { CasalFamiliaToggle } from "@/app/components/casal-familia-toggle"
 import { formatCurrency } from "@/lib/date-utils"
 import { getBankIcon, bankColors } from "@/lib/bank-icons"
 import type { BankName } from "@/lib/types"
-import { useMonthClosingViewModel } from "../hooks/use-month-closing-view-model"
+import { useMonthClosingViewModel, type CardlessPendingItem } from "../hooks/use-month-closing-view-model"
+
+// Caixinha agregada (ícone + rótulo + total), no mesmo estilo de uma linha
+// de cartão — usada tanto pra "Parcelas" quanto pra "Recorrentes".
+function GroupSummaryRow({
+    icon: Icon,
+    label,
+    items,
+}: {
+    icon: typeof Stack
+    label: string
+    items: CardlessPendingItem[]
+}) {
+    const total = items.reduce((sum, item) => sum + item.amount, 0)
+    return (
+        <div className="flex items-center gap-3 p-4 rounded-[1vw] bg-card border border-border/50">
+            <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                <Icon size={18} weight="bold" className="text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{label}</p>
+                <p className="text-xs text-muted-foreground">
+                    {items.length} pendência{items.length === 1 ? "" : "s"}
+                </p>
+            </div>
+            <p className="font-bold text-sm text-expense tabular-nums shrink-0">{formatCurrency(total)}</p>
+        </div>
+    )
+}
 
 export function MonthClosingView() {
     const { monthLabel, isCoupleAccount, viewMode, setViewMode, data, isLoading, grandTotal } = useMonthClosingViewModel()
@@ -22,7 +50,11 @@ export function MonthClosingView() {
         )
     }
 
-    const hasNothing = data.cardsBreakdown.length === 0 && data.cardlessItems.length === 0
+    const hasNothing =
+        data.cardsBreakdown.length === 0 &&
+        data.installmentItems.length === 0 &&
+        data.recurringItems.length === 0 &&
+        data.otherItems.length === 0
 
     return (
         <AppLayout>
@@ -87,7 +119,26 @@ export function MonthClosingView() {
                                 </div>
                             )}
 
-                            {data.cardlessItems.length > 0 && (
+                            {(data.installmentItems.length > 0 || data.recurringItems.length > 0) && (
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+                                        Pendências fora da fatura
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground px-1 -mt-1 mb-2">
+                                        Parcela ou recorrência lançada no débito (não sai sozinha como a fatura de crédito).
+                                    </p>
+                                    <div className="space-y-2">
+                                        {data.installmentItems.length > 0 && (
+                                            <GroupSummaryRow icon={Stack} label="Parcelas" items={data.installmentItems} />
+                                        )}
+                                        {data.recurringItems.length > 0 && (
+                                            <GroupSummaryRow icon={ArrowsClockwise} label="Recorrentes" items={data.recurringItems} />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {data.otherItems.length > 0 && (
                                 <div className="space-y-2">
                                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
                                         Outras pendências (sem cartão)
@@ -96,7 +147,7 @@ export function MonthClosingView() {
                                         Provavelmente boleto, aluguel ou PIX que você ainda precisa pagar na mão.
                                     </p>
                                     <div className="space-y-2">
-                                        {data.cardlessItems
+                                        {data.otherItems
                                             .slice()
                                             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                                             .map((item) => (
