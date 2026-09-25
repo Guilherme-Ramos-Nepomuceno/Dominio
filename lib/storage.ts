@@ -620,24 +620,6 @@ export async function getMonthData(year: number, month: number): Promise<MemberM
   return fetchApi(`/stats/month-data/${year}/${month}`)
 }
 
-export interface CardInvoiceResult {
-  card: { id: string; name: string; bankName: string; lastDigits: string; color: string; limit: number | null; dueDate: number | null }
-  // Vem cru do backend (enums em maiúsculo: "EXPENSE"/"PENDING"), sem passar
-  // pelo mapTransactionFromApi — quem consome já sabe disso (ver
-  // income-expense-cards.tsx).
-  transactions: any[]
-  total: number
-  totalPending: number
-  pendingCount: number
-}
-
-// Fatura por cartão de um mês — já resolve pelo invoiceId de cada transação
-// quando existe (respeita "mover pra fatura seguinte/anterior"), com o dia
-// de fechamento como fallback só pra quem nunca foi movido.
-export async function getCardInvoices(year: number, month: number): Promise<CardInvoiceResult[]> {
-  return fetchApi(`/stats/card-invoices/${year}/${month}`)
-}
-
 export async function addTransaction(
   transaction: Omit<Transaction, "id" | "createdAt" | "updatedAt">,
 ): Promise<Transaction> {
