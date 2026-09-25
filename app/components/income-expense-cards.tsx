@@ -44,6 +44,15 @@ export function IncomeExpenseCards({
   onDayClick,
 }: IncomeExpenseCardsProps) {
   const isCurrentMonth = !selectedMonth || selectedMonth === getCurrentMonth()
+  // "Mensal" de fato (cardInvoices/mes civil) sempre que NAO for o mes atual,
+  // mesmo que `period` ainda esteja "week" por um instante -- `period` so vira
+  // "month" pelo efeito assincrono em use-home-view-model.ts, que roda DEPOIS
+  // do render que troca `selectedMonth` (efeito separado, um tick depois).
+  // Sem isso, esse primeiro render usava a projecao semanal (baseada em
+  // `new Date()`, alheia ao mes selecionado) mesmo ja estando em outro mes --
+  // era isso que fazia "Fatura Pendente" ficar presa nos dados de hoje ao
+  // trocar o filtro do cabecalho pra outro mes.
+  const isMonthView = period === "month" || !isCurrentMonth
   const weekChartSource = period === "week" && allTransactions ? allTransactions : transactions
   const [expenseView, setExpenseView] = useState<"all" | "credit">("all")
 
@@ -68,7 +77,7 @@ export function IncomeExpenseCards({
   // movida na mão.
   const [cardInvoices, setCardInvoices] = useState<CardInvoiceResult[]>([])
   useEffect(() => {
-    if (expenseView !== "credit" || period !== "month") return
+    if (expenseView !== "credit" || !isMonthView) return
     let cancelled = false
     const [y, m] = (selectedMonth ?? getCurrentMonth()).split("-").map(Number)
 
@@ -80,7 +89,7 @@ export function IncomeExpenseCards({
       cancelled = true
       window.removeEventListener("storage-update", load)
     }
-  }, [expenseView, period, selectedMonth])
+  }, [expenseView, period, selectedMonth, isMonthView])
 
   // 1. Lógica Inteligente de Processamento
   const { displayedExpenseValue, processedExpenseTransactions } = useMemo(() => {
@@ -91,7 +100,7 @@ export function IncomeExpenseCards({
         }
     }
 
-    if (period === 'month') {
+    if (isMonthView) {
         // Vem do backend (cardInvoices) — já resolve por invoiceId quando
         // existe, então uma fatura movida manualmente pra frente/trás
         // aparece certa aqui, e respeita o mês selecionado no cabeçalho em
@@ -132,7 +141,7 @@ export function IncomeExpenseCards({
         processedExpenseTransactions: finalFiltered
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekChartSource, expense, expenseView, period, allHistory, cards, cardInvoices])
+  }, [weekChartSource, expense, expenseView, period, allHistory, cards, cardInvoices, isMonthView])
 
 
   // 2. Geração dos Gráficos
@@ -185,9 +194,9 @@ export function IncomeExpenseCards({
       return points
     }
 
-    const incomeDataPoints = period === "week" ? buildWeekPoints() : buildCalendarMonthPoints()
+    const incomeDataPoints = !isMonthView ? buildWeekPoints() : buildCalendarMonthPoints()
     const expenseDataPoints =
-      period === "week"
+      !isMonthView
         ? buildWeekPoints()
         : expenseView === "credit"
           ? buildInvoiceSpanPoints(processedExpenseTransactions)
@@ -203,7 +212,7 @@ export function IncomeExpenseCards({
           .reduce((sum, t) => sum + t.amount, 0)
 
         let label = "";
-        if (period === 'week') {
+        if (!isMonthView) {
            label = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(dateObj).replace('.', '');
         } else {
            label = String(dateObj.getDate()).padStart(2, '0');
@@ -218,7 +227,7 @@ export function IncomeExpenseCards({
         incomeChartData: processTransactions(weekChartSource, "income", incomeDataPoints),
         expenseChartData: processTransactions(processedExpenseTransactions, "expense", expenseDataPoints)
     }
-  }, [weekChartSource, processedExpenseTransactions, period, selectedMonth, expenseView])
+  }, [weekChartSource, processedExpenseTransactions, period, selectedMonth, expenseView, isMonthView])
 
   // O número grande precisa bater com o que as barras mostram — o gráfico
   // sempre usa "hoje - 6 dias" (ou o mês civil atual/anterior), independente
