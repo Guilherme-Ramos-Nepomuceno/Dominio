@@ -92,7 +92,7 @@ O front segue o padrão **MVVM (Model-View-ViewModel)** adaptado ao Next.js App 
 - **Tailwind CSS 4**, com componentes no estilo **shadcn/ui** sobre **Radix UI**
 - **Phosphor Icons** e **Lucide** (ícones)
 - **Recharts** (gráficos) e **Framer Motion** (animações)
-- **React Hook Form** + **Zod** (formulários e validação)
+- **React Hook Form** (formulários)
 - **date-fns** (datas), **next-themes** (tema claro/escuro)
 - **Vercel Analytics**
 
