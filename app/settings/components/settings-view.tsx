@@ -49,6 +49,7 @@ export function SettingsView() {
         updatingProfile,
         savingSettings,
         clearingData,
+        isAdmin,
     } = useSettingsViewModel()
 
     if (loading) {
@@ -129,6 +130,25 @@ export function SettingsView() {
                         Conecte sua conta gratuita da Pluggy pra importar o extrato automaticamente, sem upload manual de arquivo.
                     </p>
                 </div>
+
+                {/* Painel admin — só para admins */}
+                {isAdmin && (
+                    <div className="rounded-[20px] bg-card p-6 border border-border/50">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <PhosphorIcons.ChartLineUp size={24} weight="fill" className="text-primary" />
+                                <h3 className="text-lg font-semibold">Admin</h3>
+                            </div>
+                            <a
+                                href="/admin"
+                                className="shrink-0 px-4 py-2 rounded-lg border border-border text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                            >
+                                Abrir
+                            </a>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-2">Métricas de uso e eventos recentes.</p>
+                    </div>
+                )}
 
                 {/* Family */}
                 <div className="rounded-[20px] bg-card p-6 border border-border/50">

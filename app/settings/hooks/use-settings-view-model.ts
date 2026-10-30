@@ -15,6 +15,7 @@ import { getCurrentUser, updateCurrentUser, logoutUser, type User } from "@/lib/
 import { toast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 import { createFamilyInvite, createCoupleAccount as createCoupleAccountApi } from "@/lib/family"
+import { getAdminMe } from "@/lib/admin"
 
 export function useSettingsViewModel() {
     const router = useRouter()
@@ -28,6 +29,15 @@ export function useSettingsViewModel() {
     const [categories, setCategories] = useState<Category[]>([])
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
+    // Link do painel admin só aparece para quem é admin (GET /admin/me).
+    const [isAdmin, setIsAdmin] = useState(false)
+    useEffect(() => {
+        let cancelled = false
+        getAdminMe().then((ok) => !cancelled && setIsAdmin(ok))
+        return () => {
+            cancelled = true
+        }
+    }, [])
     const [updatingProfile, setUpdatingProfile] = useState(false)
     const [savingSettings, setSavingSettings] = useState(false)
     const [clearingData, setClearingData] = useState(false)
@@ -200,6 +210,7 @@ export function useSettingsViewModel() {
     }
 
     return {
+        isAdmin,
         theme,
         toggleTheme,
         family,
