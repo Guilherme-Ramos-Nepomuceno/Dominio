@@ -7,6 +7,9 @@ export type CardKind = "card" | "checking" | "savings"
 export type PaymentMethod = "credit" | "debit"
 export type BankName = "nubank" | "inter" | "itau" | "bradesco" | "santander" | "caixa" | "bb" | "alelo" | "other" | "cash"
 export type PeriodType = "week" | "month" | "lastMonth"
+// Quem/como definiu a categoria de uma transação (null = sem categoria ou
+// transação anterior a esse controle).
+export type CategorizedBy = "MANUAL" | "RULE" | "HISTORY" | "MERCHANT" | "PLUGGY" | "DICTIONARY"
 
 export interface Category {
   id: string
@@ -26,7 +29,8 @@ export interface Transaction {
   description: string
   amount: number
   type: TransactionType
-  categoryId: string
+  // null = "Sem categoria" (vai para a caixa de entrada "A classificar").
+  categoryId: string | null
   date: string
   recurrence: RecurrenceType
   installments?: number
@@ -42,6 +46,10 @@ export interface Transaction {
   // for editada) e id único do banco (FITID) — nulos em transações manuais.
   originalDescription?: string
   externalId?: string
+  // Chave normalizada do estabelecimento (agrupa a caixa de entrada) e origem
+  // da categorização — preenchidas pelo backend, só leitura no front.
+  merchantKey?: string | null
+  categorizedBy?: CategorizedBy | null
   createdAt: string
   updatedAt: string
 }

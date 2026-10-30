@@ -18,7 +18,7 @@ export interface CardlessPendingItem {
     description: string
     amount: number
     date: string
-    categoryName: string
+    categoryName: string | null // null = sem categoria
     installments: number | null
     currentInstallment: number | null
     recurrence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "NONE"

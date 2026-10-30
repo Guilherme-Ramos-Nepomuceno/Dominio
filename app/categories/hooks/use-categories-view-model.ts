@@ -16,6 +16,8 @@ export function useCategoriesViewModel() {
         Record<string, { total: number; count: number; percentage: number }>
     >({})
     const [categoryGoals, setCategoryGoals] = useState<any[]>([])
+    // Transações do mês sem categoria (as que estão em "A classificar").
+    const [uncategorizedStats, setUncategorizedStats] = useState<{ total: number; count: number }>({ total: 0, count: 0 })
 
     const loadCategories = useCallback(async () => {
         const [allCategories, transactions, settings] = await Promise.all([
@@ -57,6 +59,12 @@ export function useCategoriesViewModel() {
         })
 
         setCategoryStats(stats)
+
+        const uncategorized = monthlyTransactions.filter((t) => !t.categoryId && t.status !== "cancelled")
+        setUncategorizedStats({
+            total: uncategorized.reduce((sum, t) => sum + t.amount, 0),
+            count: uncategorized.length,
+        })
     }, [selectedMonth])
 
     useEffect(() => {
@@ -109,6 +117,7 @@ export function useCategoriesViewModel() {
         filter,
         setFilter,
         categoryStats,
+        uncategorizedStats,
         categoryGoals,
         loadCategories,
         handleDelete,

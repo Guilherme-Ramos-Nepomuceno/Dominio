@@ -9,10 +9,11 @@ import { setSettings, getSettings, getCategories, getCards, getTransactions, can
 import { useToast } from "@/hooks/use-toast"
 import type { CategoryAlert } from "@/app/types/category"
 import type { AppSettings, Category, Card, Transaction } from "@/lib/types"
+import { categoryKeyOf, transactionCategoryLabel } from "@/lib/category-utils"
 
 export interface StatsFilters {
     search: string
-    categoryId: string // "all" ou id da categoria
+    categoryId: string // "all", id da categoria ou UNCATEGORIZED_KEY ("Sem categoria")
     cardId: string // "all" ou id do cartão
     paymentMethod: "all" | "debit" | "credit"
     status: "all" | "paid" | "open"
@@ -122,11 +123,11 @@ export function useStatsViewModel() {
         return pool.filter((t) => {
             if (status === "paid" && t.status !== "paid") return false
             if (status === "open" && t.status === "paid") return false
-            if (categoryId !== "all" && t.categoryId !== categoryId) return false
+            if (categoryId !== "all" && categoryKeyOf(t) !== categoryId) return false
             if (cardId !== "all" && t.cardId !== cardId) return false
             if (search.trim()) {
                 const q = search.trim().toLowerCase()
-                const categoryName = categories.find((c) => c.id === t.categoryId)?.name?.toLowerCase() ?? ""
+                const categoryName = transactionCategoryLabel(categories, t).toLowerCase()
                 if (!t.description?.toLowerCase().includes(q) && !categoryName.includes(q)) return false
             }
             return true
@@ -165,7 +166,8 @@ export function useStatsViewModel() {
         monthData.transactions
             .filter((t) => t.type === "expense" && !isInternalTransfer(categories, t))
             .reduce((acc, t) => {
-                acc[t.categoryId] = (acc[t.categoryId] || 0) + t.amount
+                const key = categoryKeyOf(t)
+                acc[key] = (acc[key] || 0) + t.amount
                 return acc
             }, {} as Record<string, number>),
         [monthData.transactions, categories])

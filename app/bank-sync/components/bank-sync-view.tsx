@@ -234,6 +234,9 @@ export function BankSyncView() {
   // Uma linha comum só está pronta quando categorizada — se não estiver, a
   // confirmação vai deixá-la de fora e ela continua na fila pra depois.
   const isDone = (r: PluggyReviewRow) => !!r.categoryId || r.settleDecision === "yes" || r.duplicateDecision === "yes"
+  const hasOpenQuestion = (r: PluggyReviewRow) =>
+    (!!r.matchedInvoiceCardId && !r.settleDecision) || (!!r.matchedManualTransactionId && !r.duplicateDecision)
+  const isConfirmable = (r: PluggyReviewRow) => isDone(r) || !hasOpenQuestion(r)
 
   // Agrupa a fila de revisão por cartão (não só por banco/item da Pluggy) —
   // um mesmo login pode ter várias contas mapeadas que NÃO são o mesmo
@@ -523,9 +526,13 @@ export function BankSyncView() {
       ? selectedBank.rows
       : selectedBank.rows.filter((r) => (sideFilter === "debit" ? isRowDebitSide(r) : !isRowDebitSide(r)))
     : []
-  // Só o que já está pronto (categorizado, ou pagamento de fatura/duplicata
-  // já decidido) é realmente confirmado agora — o resto fica na fila.
-  const includedInSelected = visibleBankRows.filter((r) => r.include && isDone(r)).length
+  // Sem categoria não bloqueia mais: a linha é confirmada assim mesmo e vai
+  // para a caixa de entrada "A classificar". Só fica na fila quem ainda tem
+  // uma pergunta em aberto ("é pagamento de fatura?" / "já lancei na mão?")
+  // e não foi categorizado — confirmar sem resposta criaria uma despesa nova
+  // que talvez nem devesse existir.
+  const includedInSelected = visibleBankRows.filter((r) => r.include && isConfirmable(r)).length
+  const uncategorizedInSelected = visibleBankRows.filter((r) => r.include && isConfirmable(r) && !isDone(r)).length
   const hasBothSides = !!selectedBank && selectedBank.debit.total > 0 && selectedBank.credit.total > 0
 
   return (
@@ -962,7 +969,11 @@ export function BankSyncView() {
               totalCount={visibleBankRows.length}
               isSaving={vm.isConfirming}
               canConfirm={!vm.isConfirming && includedInSelected > 0}
-              confirmLabel={vm.isConfirming ? "Confirmando..." : `Confirmar ${includedInSelected} transaç${includedInSelected === 1 ? "ão" : "ões"}`}
+              confirmLabel={
+                vm.isConfirming
+                  ? "Confirmando..."
+                  : `Confirmar ${includedInSelected} transaç${includedInSelected === 1 ? "ão" : "ões"}${uncategorizedInSelected > 0 ? ` (${uncategorizedInSelected} ${uncategorizedInSelected === 1 ? "vai" : "vão"} para A classificar)` : ""}`
+              }
               onConfirm={async () => {
                 const rows = visibleBankRows
                 const result = await vm.confirmPending(rows.map((r) => r.id))

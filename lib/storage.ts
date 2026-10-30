@@ -300,7 +300,7 @@ function mapTransactionFromApi(t: any): Transaction {
     description: t.description,
     amount: Number(t.amount),
     type: String(t.type).toLowerCase() as Transaction["type"],
-    categoryId: t.categoryId,
+    categoryId: t.categoryId ?? null,
     date: t.date,
     recurrence: String(t.recurrence || "NONE").toLowerCase() as Transaction["recurrence"],
     installments: t.installments ?? undefined,
@@ -313,6 +313,8 @@ function mapTransactionFromApi(t: any): Transaction {
     invoiceId: t.invoiceId ?? undefined,
     originalDescription: t.originalDescription ?? undefined,
     externalId: t.externalId ?? undefined,
+    merchantKey: t.merchantKey ?? null,
+    categorizedBy: t.categorizedBy ?? null,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -329,7 +331,10 @@ function mapTransactionToApi(t: Partial<Transaction>) {
   if (t.parentId !== undefined) body.parentId = t.parentId
   if (t.installments !== undefined) body.installments = t.installments
   if (t.currentInstallment !== undefined) body.currentInstallment = t.currentInstallment
-  if (t.categoryId !== undefined) body.categoryId = t.categoryId
+  // Sem categoria: no POST simplesmente não envia o campo (a transação vai
+  // para "A classificar"); `null` explícito só faz sentido num PUT, para
+  // remover a categoria de uma transação existente.
+  if (t.categoryId) body.categoryId = t.categoryId
   if (t.cardId !== undefined) body.cardId = t.cardId
   if (t.paymentMethod !== undefined) body.paymentMethod = t.paymentMethod.toUpperCase()
   if (t.isCasal !== undefined) body.isCasal = t.isCasal
@@ -339,6 +344,99 @@ function mapTransactionToApi(t: Partial<Transaction>) {
 async function createTransactionApi(data: Partial<Transaction>): Promise<Transaction> {
   const created = await fetchApi("/transactions", { method: "POST", body: JSON.stringify(mapTransactionToApi(data)) })
   return mapTransactionFromApi(created)
+}
+
+// ---------------------------------------------------------------------------
+// Caixa de entrada "A classificar" e sugestão de categoria
+// ---------------------------------------------------------------------------
+
+export type SuggestionConfidence = "HIGH" | "MEDIUM" | "LOW"
+
+export interface CategorySuggestion {
+  categoryId: string
+  source: string
+  confidence: SuggestionConfidence
+}
+
+export interface InboxTransaction {
+  id: string
+  description: string
+  amount: number
+  date: string
+  type: TransactionType
+  cardId: string | null
+  paymentMethod?: PaymentMethod
+}
+
+export interface InboxGroup {
+  merchantKey: string | null
+  label: string
+  count: number
+  totalAmount: number
+  suggestion: CategorySuggestion | null
+  transactions: InboxTransaction[]
+}
+
+export interface InboxData {
+  total: number
+  groups: InboxGroup[]
+}
+
+function mapSuggestionFromApi(s: any): CategorySuggestion | null {
+  if (!s || !s.categoryId) return null
+  return { categoryId: s.categoryId, source: String(s.source ?? ""), confidence: s.confidence ?? "LOW" }
+}
+
+export async function getInbox(): Promise<InboxData> {
+  const raw = await fetchApi("/transactions/inbox")
+  return {
+    total: Number(raw?.total ?? 0),
+    groups: (raw?.groups || []).map((g: any) => ({
+      merchantKey: g.merchantKey ?? null,
+      label: g.label,
+      count: Number(g.count ?? 0),
+      totalAmount: Number(g.totalAmount ?? 0),
+      suggestion: mapSuggestionFromApi(g.suggestion),
+      transactions: (g.transactions || []).map((t: any) => ({
+        id: t.id,
+        description: t.description,
+        amount: Number(t.amount),
+        date: t.date,
+        type: String(t.type).toLowerCase() as TransactionType,
+        cardId: t.cardId ?? null,
+        paymentMethod: t.paymentMethod ? (String(t.paymentMethod).toLowerCase() as PaymentMethod) : undefined,
+      })),
+    })),
+  }
+}
+
+export async function getInboxCount(): Promise<number> {
+  const result = await fetchApi("/transactions/inbox/count")
+  return Number(result?.count ?? 0)
+}
+
+export async function categorizeTransactions(transactionIds: string[], categoryId: string): Promise<number> {
+  assertWritable()
+  const result = await fetchApi("/transactions/categorize", {
+    method: "POST",
+    body: JSON.stringify({ transactionIds, categoryId }),
+  })
+  notifyStorageUpdate()
+  return Number(result?.updated ?? 0)
+}
+
+export interface CategorySuggestionResult {
+  suggestion: CategorySuggestion | null
+  frequent: string[]
+}
+
+export async function suggestCategory(description: string, type: TransactionType): Promise<CategorySuggestionResult> {
+  const params = new URLSearchParams({ description, type: type.toUpperCase() })
+  const raw = await fetchApi(`/categorization/suggest?${params.toString()}`)
+  return {
+    suggestion: mapSuggestionFromApi(raw?.suggestion),
+    frequent: Array.isArray(raw?.frequent) ? raw.frequent.slice(0, 3) : [],
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -366,7 +464,8 @@ export interface ConfirmImportRow {
   originalDescription: string
   description: string
   // Ausente quando `settlePendingId` está presente — a categoria já cadastrada
-  // na pendência é mantida, não é escolhida de novo.
+  // na pendência é mantida, não é escolhida de novo. Também ausente quando o
+  // usuário confirma sem categoria (a transação vai para "A classificar").
   categoryId?: string
   installments?: number
   currentInstallment?: number
@@ -539,9 +638,18 @@ export async function mapPluggyAccount(itemId: string, pluggyAccountId: string, 
   })
 }
 
-export async function syncPluggyTransactions(): Promise<{ created: number; skipped: number }> {
+export interface PluggySyncResult {
+  created: number
+  // Sync manual: quantas linhas foram puladas. Sync automático (`auto=true`):
+  // o backend devolve `skipped: true` quando nem tentou (sem conexão,
+  // sincronizou há pouco, outro sync em andamento ou falha recente).
+  skipped: number | boolean
+  reason?: "NO_CONNECTION" | "RECENT" | "IN_PROGRESS" | "FAILED"
+}
+
+export async function syncPluggyTransactions(options: { auto?: boolean } = {}): Promise<PluggySyncResult> {
   assertWritable()
-  const result = await fetchApi("/pluggy/sync", { method: "POST" })
+  const result = await fetchApi(options.auto ? "/pluggy/sync?auto=true" : "/pluggy/sync", { method: "POST" })
   // Nenhuma Transaction real muda aqui ainda (só cria pendências pra revisar),
   // mas o sino de notificação escuta esse mesmo evento pra reconferir a
   // contagem — mais simples que inventar um evento paralelo só pra isso.

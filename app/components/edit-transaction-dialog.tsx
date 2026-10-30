@@ -36,7 +36,7 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
     getCards().then(setCards)
     setDescription(transaction.description)
     setAmount(formatCurrencyInput(Math.round(transaction.amount * 100).toString()))
-    setCategoryId(transaction.categoryId)
+    setCategoryId(transaction.categoryId ?? "")
     setDate(transaction.date.split("T")[0])
     setIsCasal(!!transaction.isCasal)
     setPaymentMethod(transaction.paymentMethod ?? "")
@@ -58,7 +58,8 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
 
   const handleSubmit = async () => {
     const numAmount = parseCurrencyInput(amount)
-    if (!description.trim() || isNaN(numAmount) || numAmount <= 0 || !categoryId || !date) {
+    // Categoria é opcional: sem ela, a transação continua em "A classificar".
+    if (!description.trim() || isNaN(numAmount) || numAmount <= 0 || !date) {
       toast({ title: "Erro", description: "Preencha todos os campos corretamente.", variant: "destructive" })
       return
     }
@@ -76,7 +77,8 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
       await updateTransaction(transaction.id, {
         description: description.trim(),
         amount: numAmount,
-        categoryId,
+        // Sem categoria escolhida não envia o campo (mantém como está).
+        categoryId: categoryId || undefined,
         date: dateObj.toISOString(),
         isCasal: transaction.type === "expense" ? isCasal : undefined,
         paymentMethod: isComboCard ? (paymentMethod as PaymentMethod) : undefined,
@@ -150,6 +152,9 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
         {/* Category */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">Categoria</label>
+          {!categoryId && (
+            <p className="text-xs text-muted-foreground">Sem categoria — escolha uma para tirar de &quot;A classificar&quot;.</p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {filteredCategories.map((category) => {
               const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle

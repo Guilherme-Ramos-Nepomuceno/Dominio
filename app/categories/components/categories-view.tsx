@@ -1,7 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Folders } from "@phosphor-icons/react"
+import Link from "next/link"
+import { Plus, Folders, Tag, CaretRight } from "@phosphor-icons/react"
+import { formatCurrency } from "@/lib/date-utils"
+import { UNCATEGORIZED_LABEL } from "@/lib/category-utils"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
@@ -23,6 +26,7 @@ export function CategoriesView() {
         filter,
         setFilter,
         categoryStats,
+        uncategorizedStats,
         categoryGoals,
         loadCategories,
         handleDelete,
@@ -140,6 +144,26 @@ export function CategoriesView() {
                             ))}
                         </div>
                     </div>
+                )}
+
+                {/* "Sem categoria" do mês — leva para a caixa de entrada "A classificar". */}
+                {uncategorizedStats.count > 0 && (
+                    <Link
+                        href="/inbox"
+                        className="flex items-center gap-4 p-4 rounded-2xl bg-card border border-dashed border-border hover:border-primary/50 transition-colors"
+                    >
+                        <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground opacity-70">
+                            <Tag size={26} weight="duotone" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-muted-foreground">{UNCATEGORIZED_LABEL}</h3>
+                            <p className="text-sm text-muted-foreground">
+                                {uncategorizedStats.count} {uncategorizedStats.count === 1 ? "transação" : "transações"} · ir para A classificar
+                            </p>
+                        </div>
+                        <p className="font-bold text-muted-foreground tabular-nums">{formatCurrency(uncategorizedStats.total)}</p>
+                        <CaretRight size={16} weight="bold" className="text-muted-foreground shrink-0" />
+                    </Link>
                 )}
 
                 {filteredCategories.length === 0 && (

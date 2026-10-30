@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { CaretDown } from "@phosphor-icons/react"
+import { CaretDown, Tag } from "@phosphor-icons/react"
+import { UNCATEGORIZED_KEY, UNCATEGORIZED_LABEL } from "@/lib/category-utils"
 import type { Category } from "@/lib/types"
 import { CategoryIcon } from "@/app/cards/components/import-review/category-icon"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -9,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 
 interface CategoryFilterPickerProps {
   categories: Category[]
-  value: string // "all" ou id da categoria
+  value: string // "all", id da categoria ou UNCATEGORIZED_KEY
   onChange: (value: string) => void
 }
 
@@ -31,7 +32,12 @@ export function CategoryFilterPicker({ categories, value, onChange }: CategoryFi
           type="button"
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
         >
-          {selected ? (
+          {value === UNCATEGORIZED_KEY ? (
+            <>
+              <Tag size={14} weight="duotone" className="text-muted-foreground shrink-0" />
+              <span className="flex-1 min-w-0 text-left truncate">{UNCATEGORIZED_LABEL}</span>
+            </>
+          ) : selected ? (
             <>
               <CategoryIcon category={selected} size="sm" />
               <span className="flex-1 min-w-0 text-left truncate">{selected.name}</span>
@@ -50,6 +56,10 @@ export function CategoryFilterPicker({ categories, value, onChange }: CategoryFi
             <CommandGroup>
               <CommandItem value="all" onSelect={() => pick("all")}>
                 Todas as categorias
+              </CommandItem>
+              <CommandItem value={UNCATEGORIZED_KEY} keywords={[UNCATEGORIZED_LABEL]} onSelect={() => pick(UNCATEGORIZED_KEY)}>
+                <Tag size={14} weight="duotone" className="text-muted-foreground" />
+                {UNCATEGORIZED_LABEL}
               </CommandItem>
             </CommandGroup>
             <CommandGroup heading="Despesas">

@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/date-utils"
 import { getBankIcon, bankColors } from "@/lib/bank-icons"
 import type { BankName } from "@/lib/types"
 import { useMonthClosingViewModel, type CardlessPendingItem } from "../hooks/use-month-closing-view-model"
+import { UNCATEGORIZED_LABEL } from "@/lib/category-utils"
 
 // Caixinha agregada (ícone + rótulo + total), no mesmo estilo de uma linha
 // de cartão — usada tanto pra "Parcelas" quanto pra "Recorrentes".
@@ -163,7 +164,7 @@ export function MonthClosingView() {
                                                         <p className="text-xs text-muted-foreground truncate">
                                                             {[
                                                                 new Date(item.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-                                                                item.categoryName,
+                                                                item.categoryName || UNCATEGORIZED_LABEL,
                                                                 item.memberName,
                                                             ]
                                                                 .filter(Boolean)

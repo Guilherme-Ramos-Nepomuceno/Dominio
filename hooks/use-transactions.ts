@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import type { Transaction, Category, MonthData } from "@/lib/types"
 import { getTransactions, getCategories, getSavingsGoals, getPendingTransactions, getCards } from "@/lib/storage"
 import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
+import { effectiveTransactionType, findCategory } from "@/lib/category-utils"
 
 // Transferências entre contas (e retiradas de reserva) usam a categoria de sistema
 // "Transferência" nos dois lados do lançamento. Retiradas de reserva usam a mesma
@@ -17,8 +18,8 @@ import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
 // dessa flag existir quebrava o match).
 export function isInternalTransfer(categories: Category[], t: Transaction): boolean {
   if (t.description?.startsWith("Retirada da reserva")) return false
-  const category = categories.find((c) => c.id === t.categoryId)
-  return !!category?.excludedFromTotals
+  // Sem categoria nunca é transferência interna — entra nos totais normais.
+  return !!findCategory(categories, t.categoryId)?.excludedFromTotals
 }
 
 export function useTransactions(selectedMonth?: string) {
@@ -67,17 +68,11 @@ export function useMonthData(month: string): MonthData {
   const paidTransactions = transactions.filter((t) => t.status !== "pending" && t.status !== "cancelled")
 
   const income = paidTransactions
-    .filter((t) => {
-      const category = categories.find((c) => c.id === t.categoryId)
-      return category?.type === "income"
-    })
+    .filter((t) => effectiveTransactionType(categories, t) === "income")
     .reduce((sum, t) => sum + t.amount, 0)
 
   const expense = paidTransactions
-    .filter((t) => {
-      const category = categories.find((c) => c.id === t.categoryId)
-      return category?.type === "expense"
-    })
+    .filter((t) => effectiveTransactionType(categories, t) === "expense")
     .reduce((sum, t) => sum + t.amount, 0)
 
   const balance = income - expense
@@ -111,7 +106,7 @@ export function computeTotalBalanceFrom(
   const isExcludedTransfer = (t: Transaction) => {
     if (isInternalTransfer(categories, t)) return true
     if (extraInternalTransferCategoryNames.length === 0) return false
-    const category = categories.find((c) => c.id === t.categoryId)
+    const category = findCategory(categories, t.categoryId)
     return !!category && extraInternalTransferCategoryNames.includes(category.name)
   }
 
@@ -126,10 +121,11 @@ export function computeTotalBalanceFrom(
     .filter((t) => t.status !== "cancelled" && isExcludedTransfer(t))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
+  // Sem categoria conta pelo tipo da própria transação (effectiveTransactionType).
   const checkingBalance = allPaidTransactions.reduce((sum, t) => {
-    const category = categories.find((c) => c.id === t.categoryId)
-    if (category?.type === "income") return sum + t.amount
-    if (category?.type === "expense") return sum - t.amount
+    const type = effectiveTransactionType(categories, t)
+    if (type === "income") return sum + t.amount
+    if (type === "expense") return sum - t.amount
     return sum
   }, 0)
 
@@ -144,17 +140,11 @@ export function computeTotalBalanceFrom(
     .filter((t) => !isExcludedTransfer(t))
 
   const income = paidTransactions
-    .filter((t) => {
-      const category = categories.find((c) => c.id === t.categoryId)
-      return category?.type === "income"
-    })
+    .filter((t) => effectiveTransactionType(categories, t) === "income")
     .reduce((sum, t) => sum + t.amount, 0)
 
   const expense = paidTransactions
-    .filter((t) => {
-      const category = categories.find((c) => c.id === t.categoryId)
-      return category?.type === "expense"
-    })
+    .filter((t) => effectiveTransactionType(categories, t) === "expense")
     .reduce((sum, t) => sum + t.amount, 0)
 
   return {

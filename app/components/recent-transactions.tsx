@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { Heart } from "@phosphor-icons/react"
 import { EditTransactionDialog } from "./edit-transaction-dialog"
+import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
 
 interface RecentTransactionsProps {
   transactions: Transaction[]
@@ -69,12 +70,16 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
 
       <div className="space-y-3">
         {sortedTransactions.map((transaction) => {
-          const category = categories.find((c) => c.id === transaction.categoryId)
-          const isExpense = category?.type === "expense"
+          const category = findCategory(categories, transaction.categoryId)
+          // Tipo da categoria quando existe (comportamento de antes); sem
+          // categoria, o tipo da própria transação.
+          const isExpense = (category?.type ?? transaction.type) === "expense"
+          const isUncategorized = !transaction.categoryId
 
           // Get icon dynamically
           const IconComponent =
-            (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
+            (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) ||
+            (isUncategorized ? PhosphorIcons.Tag : PhosphorIcons.Circle)
 
           return (
             <button
@@ -83,7 +88,7 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
               onClick={() => setEditingTransaction(transaction)}
               className="w-full flex items-center gap-4 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors text-left"
             >
-              <div className="w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground">
+              <div className={cn("w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground", isUncategorized && "opacity-60")}>
                 {/* @ts-ignore - Dynamic icon component */}
                 <IconComponent size={22} weight="duotone" />
               </div>
@@ -91,7 +96,9 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-foreground text-sm truncate">{transaction.description}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-muted-foreground">{category?.name}</p>
+                  <p className={cn("text-xs text-muted-foreground", isUncategorized && "italic opacity-80")}>
+                    {transactionCategoryLabel(categories, transaction)}
+                  </p>
                   {transaction.installments && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {transaction.currentInstallment}/{transaction.installments}x

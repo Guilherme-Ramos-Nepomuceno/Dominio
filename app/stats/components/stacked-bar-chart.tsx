@@ -7,6 +7,7 @@ import { isInternalTransfer } from "@/hooks/use-transactions"
 import type { Transaction, Category } from "@/lib/types"
 import { formatCurrency, formatShortMonth, getNextMonth, getPreviousMonth } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
+import { categoryKeyOf, categoryLabel, findCategory, UNCATEGORIZED_COLOR, UNCATEGORIZED_KEY } from "@/lib/category-utils"
 
 interface StackedBarChartProps {
   currentMonth: string
@@ -24,6 +25,11 @@ interface CategoryData {
 // Todas as fatias usam o mesmo tom (--expense); a intensidade decresce por
 // posição no ranking (maior gasto = mais opaco), formando uma escala tipo heatmap.
 const MIN_SEGMENT_OPACITY = 0.32
+
+// Fatia "Sem categoria" em cinza neutro, separada da escala de despesa.
+function segmentColor(categoryId: string) {
+  return categoryId === UNCATEGORIZED_KEY ? UNCATEGORIZED_COLOR : "var(--expense)"
+}
 
 function segmentIntensity(rank: number, total: number) {
   if (total <= 1) return 1
@@ -120,16 +126,18 @@ export function StackedBarChart({
       const amountToAdd = transaction.date.startsWith(targetMonthStr) ? transaction.amount : 0
 
       if (amountToAdd > 0) {
-        const category = categories.find((c) => c.id === transaction.categoryId)
-        if (!category) return
+        // Sem categoria vira a fatia "Sem categoria" (cinza) em vez de sumir.
+        const category = findCategory(categories, transaction.categoryId)
+        if (transaction.categoryId && !category) return
+        const key = categoryKeyOf(transaction)
 
-        const existing = result.find((d) => d.categoryId === category.id)
+        const existing = result.find((d) => d.categoryId === key)
         if (existing) {
           existing.amount += amountToAdd
         } else {
           result.push({
-            categoryId: category.id,
-            name: category.name,
+            categoryId: key,
+            name: categoryLabel(category),
             amount: amountToAdd,
           })
         }
@@ -217,7 +225,7 @@ export function StackedBarChart({
                         !isBottom ? "border-b-2 border-card" : ""
                     )}
                     style={{
-                      backgroundColor: "var(--expense)",
+                      backgroundColor: segmentColor(cat.categoryId),
                       height: `${heightPercentage}%`,
                       opacity: intensity * (monthData.isCurrent ? 1 : 0.6),
                     }}
@@ -230,7 +238,7 @@ export function StackedBarChart({
                     )}>
                         <div className="bg-[#1a1a1a]/95 backdrop-blur-md text-white border border-white/10 rounded-xl px-4 py-3 shadow-2xl relative">
                             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--expense)", opacity: intensity }} />
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: segmentColor(cat.categoryId), opacity: intensity }} />
                                 <p className="text-xs font-medium text-gray-300 truncate max-w-25">{cat.name}</p>
                             </div>
                             <div className="flex justify-between items-end gap-4">
@@ -274,7 +282,7 @@ export function StackedBarChart({
                               return (
                                   <div key={cat.categoryId} className="flex items-center justify-between gap-3">
                                       <div className="flex items-center gap-2 min-w-0">
-                                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "var(--expense)", opacity: catIntensity }} />
+                                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: segmentColor(cat.categoryId), opacity: catIntensity }} />
                                           <span className="text-xs text-gray-200 truncate">{cat.name}</span>
                                       </div>
                                       <div className="flex items-center gap-2 shrink-0">

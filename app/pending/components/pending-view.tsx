@@ -1,6 +1,7 @@
 "use client"
 
 import { Clock, CheckCircle, XCircle, Wallet, CalendarCheck, Warning, Heart, Pencil } from "@phosphor-icons/react"
+import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { useState } from "react"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
@@ -73,9 +74,9 @@ export function PendingView() {
                             </div>
                         ) : (
                             visibleTransactions.map((transaction) => {
-                                const category = categories.find((c) => c.id === transaction.categoryId)
-                                const isExpense = category?.type === "expense"
-                                const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
+                                const category = findCategory(categories, transaction.categoryId)
+                                const isExpense = (category?.type ?? transaction.type) === "expense"
+                                const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || (transaction.categoryId ? PhosphorIcons.Circle : PhosphorIcons.Tag)
                                 const linkedCard = transaction.cardId ? cards.find(c => c.id === transaction.cardId) : null
                                 const totalInst = transaction.installments || 1
                                 const paidInst = transaction.paidInstallments || 0
@@ -94,7 +95,7 @@ export function PendingView() {
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-semibold text-foreground truncate">{transaction.description}</p>
                                                     <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                        <p className="text-sm text-muted-foreground truncate max-w-full">{category?.name}</p>
+                                                        <p className={cn("text-sm text-muted-foreground truncate max-w-full", !transaction.categoryId && "italic opacity-80")}>{transactionCategoryLabel(categories, transaction)}</p>
                                                         {installmentLabel && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">{installmentLabel}</span>}
                                                         {linkedCard && <span className="text-[10px] flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20"><Wallet size={10} weight="fill" />{linkedCard.name}</span>}
                                                         {transaction.isCasal && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary"><Heart size={11} weight="fill" /></span>}

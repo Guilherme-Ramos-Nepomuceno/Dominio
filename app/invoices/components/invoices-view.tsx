@@ -13,6 +13,7 @@ import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
 import type { Invoice } from "@/lib/types"
 import { useInvoicesViewModel } from "../hooks/use-invoices-view-model"
+import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
 
 // YYYY-MM-DD (fuso local) a partir de um ISO — pra usar em <input type="date">.
 const toDateInputValue = (iso: string) => new Date(iso).toLocaleDateString("sv-SE")
@@ -269,9 +270,9 @@ export function InvoicesView() {
                                             </div>
                                         ) : (
                                             selectedInvoice.transactions.map((transaction) => {
-                                                const category = categories.find((c) => c.id === transaction.categoryId)
+                                                const category = findCategory(categories, transaction.categoryId)
                                                 const isPaid = transaction.status === "paid"
-                                                const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
+                                                const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || (transaction.categoryId ? PhosphorIcons.Circle : PhosphorIcons.Tag)
                                                 // A data principal é sempre a data real desta parcela (o vencimento do mês
                                                 // que está sendo exibido) — a referência da compra original é só um selo
                                                 // extra, mostrado a partir da 2ª parcela.
@@ -295,7 +296,7 @@ export function InvoicesView() {
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="font-semibold text-foreground truncate">{transaction.description}</p>
-                                                                    <p className="text-sm text-muted-foreground">{category?.name}</p>
+                                                                    <p className={cn("text-sm text-muted-foreground", !transaction.categoryId && "italic opacity-80")}>{transactionCategoryLabel(categories, transaction)}</p>
                                                                     <div className="flex items-center gap-2 mt-1">
                                                                         <p className="text-xs text-muted-foreground">{formatDate(transaction.date)}</p>
                                                                         {purchaseTransaction && (

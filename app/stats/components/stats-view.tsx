@@ -27,6 +27,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useStatsViewModel } from "../hooks/use-stats-view-model"
+import { findCategory, UNCATEGORIZED_LABEL } from "@/lib/category-utils"
 
 export function StatsView() {
     const {
@@ -69,10 +70,10 @@ export function StatsView() {
     const yesterdayKey = getLocalDateKey(yesterdayDate)
 
     const TransactionItem = ({ transaction }: { transaction: any }) => {
-        const category = categories.find(c => c.id === transaction.categoryId)
+        const category = findCategory(categories, transaction.categoryId)
         const IconComponent = category?.icon && (PhosphorIcons as any)[category.icon]
             ? (PhosphorIcons as any)[category.icon]
-            : PhosphorIcons.Question
+            : transaction.categoryId ? PhosphorIcons.Question : PhosphorIcons.Tag
         const card = cards.find(c => c.id === transaction.cardId)
 
         // No crédito, todas as parcelas de uma compra referenciam quando ela foi
@@ -127,7 +128,7 @@ export function StatsView() {
                         <div>
                             <p className="font-semibold text-foreground">{transaction.description}</p>
                             <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">{category?.name || "Geral"}</span>
+                                <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">{transaction.categoryId ? category?.name || "Geral" : UNCATEGORIZED_LABEL}</span>
                                 {isCreditInstallment && purchaseDateObj && (
                                     <span className="text-[10px] text-muted-foreground">Comprou em: {purchaseDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
                                 )}

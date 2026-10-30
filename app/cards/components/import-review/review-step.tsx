@@ -51,6 +51,9 @@ export function ReviewStep({
   // outra parte da tela, tipo digitar num campo) é caro sem necessidade.
   const settled = useMemo(() => rows.filter((r) => r.settleDecision === "yes"), [rows])
   const uncategorized = useMemo(() => rows.filter((r) => !r.categoryId && r.settleDecision !== "yes"), [rows])
+  // Sem categoria não bloqueia a confirmação — essas linhas entram sem
+  // categoria e vão para a caixa de entrada "A classificar".
+  const uncategorizedIncluded = useMemo(() => uncategorized.filter((r) => r.include).length, [uncategorized])
 
   // Ranqueia os chips pela frequência no lote inteiro (não só na fila) — a
   // maioria dos itens com sugestão já nasce categorizada, então olhar só a
@@ -92,7 +95,11 @@ export function ReviewStep({
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        {includedCount} de {totalCount} transações marcadas pra importar — {uncategorized.length === 0 ? "tudo categorizado" : `${uncategorized.length} ainda sem categoria`}.
+        {includedCount} de {totalCount} transações marcadas pra importar —{" "}
+        {uncategorizedIncluded === 0
+          ? "tudo categorizado"
+          : `${uncategorizedIncluded} sem categoria (${uncategorizedIncluded === 1 ? "vai" : "vão"} para A classificar)`}
+        .
       </p>
 
       {uncategorized.length > 0 && (
@@ -132,7 +139,12 @@ export function ReviewStep({
       )}
 
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Sem categoria</h3>
+        <div className="flex items-baseline justify-between gap-2 px-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sem categoria</h3>
+          {uncategorizedIncluded > 0 && (
+            <span className="text-[11px] text-muted-foreground">Pode confirmar assim — vai para A classificar</span>
+          )}
+        </div>
         <UncategorizedList
           rows={visibleUncategorized}
           activeCategoryId={activeCategoryId}

@@ -161,7 +161,8 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
   }
 
   const includedRows = rows.filter((r) => r.include)
-  const missingCategory = includedRows.some((r) => r.settleDecision !== "yes" && !r.categoryId)
+  // Linhas sem categoria não bloqueiam mais a importação — entram sem
+  // categoria e vão para a caixa de entrada "A classificar".
   const missingSettleDecision = includedRows.some((r) => r.pendingMatch && !r.settleDecision)
   const missingTransferTarget = includedRows.some((r) => isTransferRow(r) && !r.transferCardId)
 
@@ -172,10 +173,6 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
     }
     if (missingSettleDecision) {
       toast({ title: "Confirme a pendência", description: "Diga se cada conta destacada é a pendência já cadastrada antes de importar.", variant: "destructive" })
-      return
-    }
-    if (missingCategory) {
-      toast({ title: "Categoria faltando", description: "Escolha uma categoria pra cada transação marcada.", variant: "destructive" })
       return
     }
     if (missingTransferTarget) {
@@ -212,7 +209,11 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
           description: r.description.trim() || r.originalDescription,
           ...(r.settleDecision === "yes" && r.pendingMatch
             ? { settlePendingId: r.pendingMatch.id }
-            : { categoryId: usesFamilyCategory ? familyTransferCategoryId![r.type] : r.categoryId }),
+            : usesFamilyCategory
+              ? { categoryId: familyTransferCategoryId![r.type] }
+              : r.categoryId
+                ? { categoryId: r.categoryId }
+                : {}),
           installments: r.installments,
           currentInstallment: r.currentInstallment,
         }

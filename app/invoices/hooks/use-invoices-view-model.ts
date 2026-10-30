@@ -5,6 +5,7 @@ import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancel
 import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { Card, Transaction, Category, Invoice } from "@/lib/types"
+import { effectiveTransactionType } from "@/lib/category-utils"
 
 export function useInvoicesViewModel() {
     const [cards, setCards] = useState<Card[]>([])
@@ -80,7 +81,8 @@ export function useInvoicesViewModel() {
                 (t) =>
                     t.cardId === card.id &&
                     t.status !== "cancelled" &&
-                    categories.find((c) => c.id === t.categoryId)?.type === "expense" &&
+                    // Sem categoria também entra na fatura (tipo da própria transação).
+                    effectiveTransactionType(categories, t) === "expense" &&
                     (!card.hasDebit || t.paymentMethod === "credit")
             )
 
