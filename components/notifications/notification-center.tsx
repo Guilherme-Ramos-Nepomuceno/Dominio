@@ -44,7 +44,7 @@ export function NotificationCenter() {
         notifications.push({
             id: "pluggy-pending",
             title: "Transações para revisar",
-            message: `${pluggyPendingCount} transaç${pluggyPendingCount === 1 ? "ão" : "ões"} da sincronização bancária esperando categorização.`,
+            message: `${pluggyPendingCount} transaç${pluggyPendingCount === 1 ? "ão" : "ões"} da sincronização bancária esperando revisão.`,
             type: "info",
             href: "/bank-sync",
         })
