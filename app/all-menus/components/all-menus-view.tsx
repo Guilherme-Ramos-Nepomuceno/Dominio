@@ -3,10 +3,11 @@
 import Link from "next/link"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
+import { InboxCountBadge } from "@/components/inbox/inbox-count-badge"
 import { useAllMenusViewModel } from "../hooks/use-all-menus-view-model"
 
 export function AllMenusView() {
-    const { allMenus } = useAllMenusViewModel()
+    const { allMenus, inboxCount } = useAllMenusViewModel()
 
     return (
         <AppLayout>
@@ -25,7 +26,10 @@ export function AllMenusView() {
                                 <Icon size={24} weight="fill" className="text-primary" />
                             </div>
                             <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-foreground mb-1">{menu.label}</h3>
+                                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
+                                    {menu.label}
+                                    {menu.href === "/inbox" && <InboxCountBadge count={inboxCount} />}
+                                </h3>
                                 <p className="text-sm text-muted-foreground">{menu.description}</p>
                             </div>
                         </Link>

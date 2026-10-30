@@ -30,6 +30,9 @@ import { useAccount } from "@/components/account/account-context"
 import { getCurrentUser } from "@/lib/auth"
 
 import { useToast } from "@/hooks/use-toast"
+import { trackEvent } from "@/lib/events"
+import { setLastUsedCardId } from "@/lib/preferences"
+import { amountToCents, parseNewTransactionPrefill } from "@/lib/quick-add"
 
 // Categorias "de sistema" usadas quando a transação vem do fluxo de uma Reserva:
 // despesa sempre aporta (Investimento), receita sempre saca (Saque) — nesse fluxo
@@ -169,6 +172,22 @@ export function TransactionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // "Mais opções" do registro rápido: chega aqui com o que já foi digitado lá
+  // (valor, descrição, conta, data, categoria) na URL.
+  useEffect(() => {
+    if (searchParams.get("goalId")) return
+    const prefill = parseNewTransactionPrefill(searchParams)
+    if (prefill.type) setType(prefill.type)
+    if (prefill.description) setDescription(prefill.description)
+    if (prefill.amount) setAmount(formatCurrencyInput(String(amountToCents(prefill.amount))))
+    if (prefill.date) setDate(prefill.date)
+    if (prefill.categoryId) setCategoryId(prefill.categoryId)
+    // O reset de paymentMethod ao trocar de cartão roda depois deste efeito
+    // — não tem problema, cartão combinado pede a escolha de novo de todo jeito.
+    if (prefill.cardId) setCardId(prefill.cardId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // No fluxo de Reserva (chegou via link com goalId) a categoria não é escolhida
   // manualmente — despesa sempre é "Investimento", receita sempre é "Saque". Cria
   // a categoria de sistema na hora se a conta ainda não tiver uma.
@@ -218,7 +237,8 @@ export function TransactionForm() {
       return
     }
 
-    if (!description || !amount || !categoryId || !cardId) {
+    // Categoria é opcional — sem ela, a transação vai para "A classificar".
+    if (!description || !amount || !cardId) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios.",
@@ -318,7 +338,7 @@ export function TransactionForm() {
         description,
         amount: numAmount,
         type,
-        categoryId,
+        categoryId: categoryId || null,
         date: dateObj.toISOString(), // Salva como ISO string segura
         recurrence,
         installments: recurrence === "none" && numInstallments > 1 ? numInstallments : undefined,
@@ -327,6 +347,9 @@ export function TransactionForm() {
         status: status,
         isCasal: type === "expense" && !isReserveCategory ? isCasal : undefined,
       })
+
+      trackEvent("transaction_created", { source: "full", hasCategory: !!categoryId })
+      setLastUsedCardId(cardId)
 
       // Reflete o lançamento no saldo da reserva — só quando já está pago; uma
       // transação futura/pendente ainda não moveu dinheiro de fato.
@@ -352,13 +375,13 @@ export function TransactionForm() {
 
   const showIncomeWarning = type === "income" && !hasDebitCard;
 
-  // Cartão, categoria, valor, título, data e recorrência são sempre obrigatórios
+  // Cartão, valor, título, data e recorrência são sempre obrigatórios (categoria
+  // é opcional — sem ela a transação vai para "A classificar")
   // para habilitar o botão de salvar. Cartão combinado também exige a escolha
   // entre crédito/débito.
   const isFormValid =
     description.trim().length > 0 &&
     parseCurrencyInput(amount) > 0 &&
-    !!categoryId &&
     !!cardId &&
     !!date &&
     !!recurrence &&
@@ -402,7 +425,11 @@ export function TransactionForm() {
       <div className="flex gap-3">
         <button
           type="button"
-          onClick={() => setType("expense")}
+          onClick={() => {
+            // Categoria escolhida é de um tipo só — trocar o tipo desmarca.
+            if (type !== "expense" && !isReserveShortcut) setCategoryId("")
+            setType("expense")
+          }}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-semibold transition-all",
             type === "expense"
@@ -416,7 +443,11 @@ export function TransactionForm() {
 
         <button
           type="button"
-          onClick={() => setType("income")}
+          onClick={() => {
+            // Categoria escolhida é de um tipo só — trocar o tipo desmarca.
+            if (type !== "income" && !isReserveShortcut) setCategoryId("")
+            setType("income")
+          }}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-semibold transition-all",
             type === "income"
@@ -501,7 +532,12 @@ export function TransactionForm() {
           {/* Category — escondida no fluxo de Reserva, onde é implícita pelo tipo */}
           {!isReserveShortcut && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Categoria</label>
+              <div className="flex items-baseline justify-between gap-2">
+                <label className="text-sm font-medium text-foreground">Categoria</label>
+                <span className="text-xs text-muted-foreground">
+                  {categoryId ? "Toque de novo para desmarcar" : "Opcional — sem categoria vai para A classificar"}
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 {filteredCategories.map((category) => {
                   const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
@@ -510,6 +546,11 @@ export function TransactionForm() {
                       key={category.id}
                       type="button"
                       onClick={() => {
+                        if (categoryId === category.id) {
+                          setCategoryId("")
+                          setSelectedGoalId("")
+                          return
+                        }
                         setCategoryId(category.id)
                         if (category.name !== "Investimento" && category.name !== "Saque") setSelectedGoalId("")
                       }}

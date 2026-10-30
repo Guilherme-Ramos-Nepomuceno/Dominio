@@ -15,6 +15,7 @@ import { NotificationCenter } from "@/components/notifications/notification-cent
 import { AccountSwitcher } from "@/components/account/account-switcher"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { usePathname } from "next/navigation"
+import { QuickAddFab } from "@/components/quick-add/quick-add-fab"
 
 export function AppLayout({ children, showMonthFilter = false }: AppLayoutProps) {
   const pathname = usePathname()
@@ -47,6 +48,7 @@ export function AppLayout({ children, showMonthFilter = false }: AppLayoutProps)
       </main>
 
       <BottomNav />
+      <QuickAddFab />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { useFamilyHomeData } from "@/hooks/use-family-home-data"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { getCurrentMonth } from "@/lib/date-utils"
 import type { PeriodType } from "@/lib/types"
+import { useInboxCount } from "@/hooks/use-inbox-count"
 
 export function useHomeViewModel() {
     const { selectedMonth } = useSelectedMonth()
@@ -22,6 +23,8 @@ export function useHomeViewModel() {
 
     const ownBalanceData = useTotalBalance(selectedMonth)
     const familyData = useFamilyHomeData(selectedMonth, viewMode === "familia")
+    // Atualiza sozinho após registro rápido/categorização (evento storage-update).
+    const { count: inboxCount } = useInboxCount()
 
     // Mesmos componentes da Home nos dois modos — só troca a fonte dos dados:
     // a própria conta (casal) ou o consolidado dos dois parceiros (família).
@@ -35,6 +38,7 @@ export function useHomeViewModel() {
         viewMode,
         setViewMode,
         isCoupleAccount: familyData.isCoupleAccount,
+        inboxCount,
         loadingFamilyData: viewMode === "familia" && familyData.loading,
         isLoading: viewMode === "familia" ? familyData.loading : ownBalanceData.isLoading,
         // Só passado adiante na visão "Total da Família" — os cartões de destino de

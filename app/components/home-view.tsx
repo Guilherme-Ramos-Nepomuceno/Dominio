@@ -1,6 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
+import { TrayIcon, CaretRightIcon } from "@phosphor-icons/react"
+import { InboxCountBadge } from "@/components/inbox/inbox-count-badge"
 import { AppLayout } from "@/components/layout/app-layout"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { CircularBalance } from "./circular-balance"
@@ -23,6 +26,7 @@ export function HomeView() {
         isCoupleAccount,
         isLoading,
         cards,
+        inboxCount,
     } = useHomeViewModel()
 
     // Dia clicado numa barra do gráfico (Receitas ou Despesas, incluindo a
@@ -81,6 +85,24 @@ export function HomeView() {
                                 setSelectedDay((prev) => (prev?.dateStr === dateStr ? null : { dateStr, transactions: transactionsForDay }))
                             }
                         />
+
+                        {/* Atalho discreto para a caixa de entrada "A classificar" */}
+                        {inboxCount > 0 && (
+                            <Link
+                                href="/inbox"
+                                className="flex items-center gap-3 px-4 py-3 rounded-[20px] bg-card border border-border/50 hover:border-primary/40 transition-colors"
+                            >
+                                <TrayIcon size={22} weight="duotone" className="text-muted-foreground shrink-0" />
+                                <span className="flex-1 min-w-0">
+                                    <span className="block text-sm font-medium text-foreground">A classificar</span>
+                                    <span className="block text-xs text-muted-foreground truncate">
+                                        {inboxCount === 1 ? "1 transação sem categoria" : `${inboxCount} transações sem categoria`}
+                                    </span>
+                                </span>
+                                <InboxCountBadge count={inboxCount} />
+                                <CaretRightIcon size={14} weight="bold" className="text-muted-foreground shrink-0" />
+                            </Link>
+                        )}
 
                         {/* Recent Transactions */}
                         <RecentTransactions

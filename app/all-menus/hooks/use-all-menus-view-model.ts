@@ -12,11 +12,15 @@ import {
     ClockIcon,
     ReceiptIcon,
     CalendarCheckIcon,
+    TrayIcon,
 } from "@phosphor-icons/react"
+import { useInboxCount } from "@/hooks/use-inbox-count"
 
 export function useAllMenusViewModel() {
+    const { count: inboxCount } = useInboxCount()
     const allMenus = [
         { href: "/", icon: HouseIcon, label: "Home", description: "Visão geral das suas finanças" },
+        { href: "/inbox", icon: TrayIcon, label: "A classificar", description: "Transações sem categoria, agrupadas" },
         { href: "/stats", icon: ChartBarIcon, label: "Estatísticas", description: "Gráficos e análises detalhadas" },
         { href: "/cards", icon: CreditCardIcon, label: "Cartões", description: "Gerencie seus cartões bancários" },
         { href: "/categories", icon: FoldersIcon, label: "Categorias", description: "Organize suas transações" },
@@ -31,5 +35,6 @@ export function useAllMenusViewModel() {
 
     return {
         allMenus,
+        inboxCount,
     }
 }

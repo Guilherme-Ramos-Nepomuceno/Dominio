@@ -16,15 +16,19 @@ import {
   ClockIcon,
   ReceiptIcon,
   CalendarCheckIcon,
+  TrayIcon,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
 import { UserProfileBox } from "@/components/profile/user-profile-box"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { AccountSwitcher } from "@/components/account/account-switcher"
+import { InboxCountBadge } from "@/components/inbox/inbox-count-badge"
+import { useInboxCount } from "@/hooks/use-inbox-count"
 
 const navItems = [
   { href: "/", icon: HouseIcon, label: "Home" },
+  { href: "/inbox", icon: TrayIcon, label: "A classificar" },
   { href: "/stats", icon: ChartBarIcon, label: "Estatísticas" },
   { href: "/cards", icon: CreditCardIcon, label: "Cartões" },
   { href: "/categories", icon: FoldersIcon, label: "Categorias" },
@@ -39,6 +43,7 @@ const navItems = [
 export function DesktopNav() {
   const pathname = usePathname()
   const { theme, toggleTheme, mounted } = useTheme()
+  const { count: inboxCount } = useInboxCount()
 
   if (!mounted) return null
 
@@ -78,7 +83,10 @@ export function DesktopNav() {
                 )}
               >
                 <Icon weight={isActive ? "fill" : "regular"} size={22} />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/inbox" && (
+                  <InboxCountBadge count={inboxCount} className={isActive ? "bg-background/20 text-background" : undefined} />
+                )}
               </Link>
             )
           })}
