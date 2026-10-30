@@ -141,6 +141,19 @@ export function useBankSyncViewModel() {
     setIsSyncing(true)
     try {
       const result = await syncPluggyTransactions()
+      // Manual também respeita a trava do backend: outro sync (ex: o
+      // automático do login) pode estar rodando.
+      if (result.skipped) {
+        toast({
+          title: "Sincronização não executada",
+          description:
+            result.reason === "IN_PROGRESS"
+              ? "Já tem uma sincronização em andamento — aguarde um instante e confira de novo."
+              : "Não foi possível sincronizar agora. Tente novamente em instantes.",
+        })
+        await loadAll()
+        return
+      }
       toast({
         title: "Sincronização concluída",
         description: result.created > 0 ? `${result.created} transaç${result.created === 1 ? "ão nova" : "ões novas"} pra revisar.` : "Nenhuma transação nova.",

@@ -40,9 +40,15 @@ export function SessionBootstrap() {
       const indicatorTimer = setTimeout(() => setIsSyncing(true), INDICATOR_DELAY_MS)
       syncPluggyTransactions({ auto: true })
         .then((result) => {
-          const created = Number(result?.created ?? 0)
-          const skipped = result?.skipped === true
-          trackEvent("pluggy_auto_sync", { created, skipped })
+          const created = result.created
+          // `skipped` = o backend nem sincronizou (reason diz o motivo);
+          // `skippedCount` = lançamentos pulados num sync que rodou.
+          trackEvent("pluggy_auto_sync", {
+            created,
+            skipped: result.skipped,
+            skippedCount: result.skippedCount,
+            reason: result.reason ?? null,
+          })
           if (created > 0) {
             toast({
               title: `${created} ${created === 1 ? "transação nova" : "transações novas"} do banco`,

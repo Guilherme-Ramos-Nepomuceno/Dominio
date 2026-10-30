@@ -640,16 +640,23 @@ export async function mapPluggyAccount(itemId: string, pluggyAccountId: string, 
 
 export interface PluggySyncResult {
   created: number
-  // Sync manual: quantas linhas foram puladas. Sync automático (`auto=true`):
-  // o backend devolve `skipped: true` quando nem tentou (sem conexão,
-  // sincronizou há pouco, outro sync em andamento ou falha recente).
-  skipped: number | boolean
+  // true quando o backend nem sincronizou (sem conexão, sincronizou há pouco,
+  // outro sync em andamento ou falha no automático) — ver `reason`.
+  skipped: boolean
+  // Quantas transações do banco foram puladas (já existiam etc.) num sync que rodou.
+  skippedCount: number
   reason?: "NO_CONNECTION" | "RECENT" | "IN_PROGRESS" | "FAILED"
 }
 
 export async function syncPluggyTransactions(options: { auto?: boolean } = {}): Promise<PluggySyncResult> {
   assertWritable()
-  const result = await fetchApi(options.auto ? "/pluggy/sync?auto=true" : "/pluggy/sync", { method: "POST" })
+  const raw = await fetchApi(options.auto ? "/pluggy/sync?auto=true" : "/pluggy/sync", { method: "POST" })
+  const result: PluggySyncResult = {
+    created: Number(raw?.created ?? 0),
+    skipped: raw?.skipped === true,
+    skippedCount: Number(raw?.skippedCount ?? 0),
+    reason: raw?.reason ?? undefined,
+  }
   // Nenhuma Transaction real muda aqui ainda (só cria pendências pra revisar),
   // mas o sino de notificação escuta esse mesmo evento pra reconferir a
   // contagem — mais simples que inventar um evento paralelo só pra isso.
