@@ -6,6 +6,7 @@ import { AuthGuard } from "@/components/auth/auth-guard"
 import { AccountProvider } from "@/components/account/account-context"
 import { SelectedMonthProvider } from "@/lib/selected-month-context"
 import { Toaster } from "@/components/ui/toaster"
+import { SessionBootstrap } from "@/components/session/session-bootstrap"
 import "./globals.css"
 
 const fontSans = Plus_Jakarta_Sans({
@@ -43,6 +44,7 @@ export default function RootLayout({
         <AuthGuard>
           <AccountProvider>
             <SelectedMonthProvider>{children}</SelectedMonthProvider>
+            <SessionBootstrap />
           </AccountProvider>
         </AuthGuard>
         <Toaster />
