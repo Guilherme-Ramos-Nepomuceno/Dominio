@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { SkeletonRowList } from "@/components/ui/loading-skeletons"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
-import { inboxGroupKey, inboxGroupType, selectableCategories } from "@/lib/inbox"
+import { inboxGroupKey, inboxGroupType, isSuggestionValid, selectableCategories } from "@/lib/inbox"
 import { cn } from "@/lib/utils"
 import { useInboxViewModel } from "../hooks/use-inbox-view-model"
 import { InboxCategorySelect } from "./inbox-category-select"
@@ -88,7 +88,8 @@ export function InboxView() {
             const isExpanded = vm.expanded.has(key)
             const isBusy = vm.busyGroupKey === key
             const groupType = inboxGroupType(group)
-            const suggestedCategory = group.suggestion
+            // Sugestão de tipo diferente do grupo não aparece (o backend recusaria).
+            const suggestedCategory = isSuggestionValid(group, vm.categories)
               ? vm.categories.find((c) => c.id === group.suggestion!.categoryId)
               : undefined
             const usingSuggestion = !!suggestedCategory && selectedId === suggestedCategory.id

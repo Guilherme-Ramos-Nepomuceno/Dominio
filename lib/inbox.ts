@@ -10,10 +10,15 @@ export interface InboxGroupLike {
   transactions: Array<{ id: string; type: TransactionType }>
 }
 
-// Chave estável de um grupo na tela. Grupos sem estabelecimento reconhecido
-// (merchantKey null) caem no rótulo.
-export function inboxGroupKey(group: Pick<InboxGroupLike, "merchantKey" | "label">): string {
-  return group.merchantKey ?? `label:${group.label}`
+// Chave estável de um grupo na tela. O backend agrupa por merchantKey + tipo
+// (o mesmo estabelecimento pode ter um grupo de despesa e outro de receita,
+// ex: estorno) e, sem merchantKey, cada lançamento vira seu próprio grupo —
+// então a chave é tipo + merchantKey, ou o id do (único) lançamento.
+export function inboxGroupKey(group: Pick<InboxGroupLike, "merchantKey" | "label" | "transactions">): string {
+  const first = group.transactions[0]
+  const type = first?.type ?? "unknown"
+  if (group.merchantKey) return `${type}:${group.merchantKey}`
+  return first ? `tx:${first.id}` : `label:${group.label}`
 }
 
 // Tipo do grupo (receita/despesa) — o da maioria das transações; empate ou
@@ -33,19 +38,29 @@ export function selectableCategories(categories: Category[], type: TransactionTy
   return type ? categories.filter((c) => c.type === type) : categories
 }
 
-// Seleção inicial de cada grupo: a sugestão da API, se ela apontar para uma
-// categoria que existe; senão nenhuma.
+// A sugestão só vale se apontar para uma categoria existente do MESMO tipo
+// do grupo — o backend recusa (400) categoria de despesa em receita e
+// vice-versa.
+export function isSuggestionValid(group: InboxGroupLike, categories: Category[]): boolean {
+  const suggested = group.suggestion?.categoryId
+  if (!suggested || group.transactions.length === 0) return false
+  const category = categories.find((c) => c.id === suggested)
+  if (!category) return false
+  const type = inboxGroupType(group)
+  return type === null || category.type === type
+}
+
+// Seleção inicial de cada grupo: a sugestão da API, se for válida; senão nenhuma.
 export function initialSelections(groups: InboxGroupLike[], categories: Category[]): Record<string, string | null> {
-  const known = new Set(categories.map((c) => c.id))
   const result: Record<string, string | null> = {}
   for (const g of groups) {
-    const suggested = g.suggestion?.categoryId
-    result[inboxGroupKey(g)] = suggested && (known.size === 0 || known.has(suggested)) ? suggested : null
+    result[inboxGroupKey(g)] = isSuggestionValid(g, categories) ? g.suggestion!.categoryId : null
   }
   return result
 }
 
-// Grupos que "Aceitar todas as sugestões" vai classificar.
-export function groupsWithSuggestion<T extends InboxGroupLike>(groups: T[]): T[] {
-  return groups.filter((g) => !!g.suggestion?.categoryId && g.transactions.length > 0)
+// Grupos que "Aceitar todas as sugestões" vai classificar (só sugestões
+// válidas e do tipo do grupo).
+export function groupsWithSuggestion<T extends InboxGroupLike>(groups: T[], categories: Category[]): T[] {
+  return groups.filter((g) => isSuggestionValid(g, categories))
 }

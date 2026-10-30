@@ -7,6 +7,16 @@ import { trackEvent } from "@/lib/events"
 import { groupsWithSuggestion, inboxGroupKey, initialSelections } from "@/lib/inbox"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
+import { ApiError } from "@/lib/api"
+
+// 400 do POST /transactions/categorize = categoria de tipo diferente
+// (receita x despesa) do das transações do grupo.
+function categorizeErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status === 400) {
+    return "Essa categoria não é do mesmo tipo (receita/despesa) dessas transações. Escolha outra."
+  }
+  return (error as any)?.message || "Tente novamente."
+}
 
 export function useInboxViewModel() {
   const { toast } = useToast()
@@ -92,13 +102,13 @@ export function useInboxViewModel() {
       })
       load()
     } catch (error: any) {
-      toast({ title: "Não foi possível classificar", description: error?.message || "Tente novamente.", variant: "destructive" })
+      toast({ title: "Não foi possível classificar", description: categorizeErrorMessage(error), variant: "destructive" })
     } finally {
       setBusyGroupKey(null)
     }
   }
 
-  const suggestedGroups = useMemo(() => groupsWithSuggestion(groups), [groups])
+  const suggestedGroups = useMemo(() => groupsWithSuggestion(groups, categories), [groups, categories])
 
   const acceptAllSuggestions = async () => {
     if (suggestedGroups.length === 0 || isAcceptingAll || busyGroupKey) return
