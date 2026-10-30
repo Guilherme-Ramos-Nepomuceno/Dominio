@@ -331,10 +331,10 @@ function mapTransactionToApi(t: Partial<Transaction>) {
   if (t.parentId !== undefined) body.parentId = t.parentId
   if (t.installments !== undefined) body.installments = t.installments
   if (t.currentInstallment !== undefined) body.currentInstallment = t.currentInstallment
-  // Sem categoria: no POST simplesmente não envia o campo (a transação vai
-  // para "A classificar"); `null` explícito só faz sentido num PUT, para
-  // remover a categoria de uma transação existente.
-  if (t.categoryId) body.categoryId = t.categoryId
+  // `null` = sem categoria (vai para "A classificar"): o backend aceita no
+  // POST e, no PUT, remove a categoria de uma transação existente. String
+  // vazia é tratada como null (o validador exige id não vazio).
+  if (t.categoryId !== undefined) body.categoryId = t.categoryId || null
   if (t.cardId !== undefined) body.cardId = t.cardId
   if (t.paymentMethod !== undefined) body.paymentMethod = t.paymentMethod.toUpperCase()
   if (t.isCasal !== undefined) body.isCasal = t.isCasal

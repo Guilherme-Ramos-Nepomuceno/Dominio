@@ -77,8 +77,8 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
       await updateTransaction(transaction.id, {
         description: description.trim(),
         amount: numAmount,
-        // Sem categoria escolhida não envia o campo (mantém como está).
-        categoryId: categoryId || undefined,
+        // "Sem categoria" envia null — a transação volta para "A classificar".
+        categoryId: categoryId || null,
         date: dateObj.toISOString(),
         isCasal: transaction.type === "expense" ? isCasal : undefined,
         paymentMethod: isComboCard ? (paymentMethod as PaymentMethod) : undefined,
@@ -152,10 +152,25 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
         {/* Category */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">Categoria</label>
-          {!categoryId && (
-            <p className="text-xs text-muted-foreground">Sem categoria — escolha uma para tirar de &quot;A classificar&quot;.</p>
-          )}
           <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setCategoryId("")}
+              className={cn(
+                "flex items-center gap-3 p-4 rounded-[1vw] border transition-all",
+                !categoryId
+                  ? "border-primary bg-primary/10 shadow-sm"
+                  : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
+              )}
+            >
+              <div className="w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground opacity-70">
+                <TagIcon size={22} weight="duotone" />
+              </div>
+              <span className="text-sm font-medium text-muted-foreground text-left">
+                Sem categoria
+                <span className="block text-[11px] font-normal">vai para A classificar</span>
+              </span>
+            </button>
             {filteredCategories.map((category) => {
               const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
               return (
