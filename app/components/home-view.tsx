@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { TrayIcon, CaretRightIcon } from "@phosphor-icons/react"
+import { TrayIcon, CaretRightIcon, TargetIcon } from "@phosphor-icons/react"
 import { InboxCountBadge } from "@/components/inbox/inbox-count-badge"
 import { AppLayout } from "@/components/layout/app-layout"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
@@ -27,6 +27,7 @@ export function HomeView() {
         isLoading,
         cards,
         inboxCount,
+        showOnboardingCard,
     } = useHomeViewModel()
 
     // Dia clicado numa barra do gráfico (Receitas ou Despesas, incluindo a
@@ -63,6 +64,21 @@ export function HomeView() {
                     </div>
                 ) : (
                     <>
+                        {/* Conta nova: convite para montar o primeiro plano */}
+                        {showOnboardingCard && (
+                            <Link
+                                href="/onboarding"
+                                className="flex items-center gap-3 px-4 py-4 rounded-[20px] bg-primary text-background hover:bg-primary/90 transition-colors"
+                            >
+                                <TargetIcon size={24} weight="duotone" className="shrink-0" />
+                                <span className="flex-1 min-w-0">
+                                    <span className="block text-sm font-semibold">Comece pelo plano do mês</span>
+                                    <span className="block text-xs opacity-80">Renda, grupos de gasto e um desejo — leva 1 minuto.</span>
+                                </span>
+                                <CaretRightIcon size={14} weight="bold" className="shrink-0" />
+                            </Link>
+                        )}
+
                         {/* Circular Balance Display */}
                         <CircularBalance
                             balance={balanceData.totalBalance}

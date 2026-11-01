@@ -1,6 +1,7 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { usePathname } from "next/navigation"
 import { getCurrentMonth } from "@/lib/date-utils"
 import { getSettings } from "@/lib/storage"
 import {
@@ -46,6 +47,11 @@ function readCachedStartDay(): number {
 export function SelectedMonthProvider({ children }: { children: ReactNode }) {
   const [selectedMonth, setSelectedMonthState] = useState(getCurrentMonth)
   const [monthStartDay, setMonthStartDay] = useState(1)
+  const pathname = usePathname()
+  // Token com que as configurações foram lidas: o login/cadastro não recarrega
+  // a página, então a troca de rota depois dele dispara uma nova leitura.
+  const loadedForToken = useRef<string | null>(null)
+  const loadRef = useRef<() => void>(() => {})
 
   // Carrega o mês salvo só depois do mount (localStorage não existe no SSR) —
   // evita hydration mismatch entre server (sempre mês atual) e client.
@@ -61,7 +67,9 @@ export function SelectedMonthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     const load = () => {
-      if (!localStorage.getItem("finance-token")) return
+      const token = localStorage.getItem("finance-token")
+      if (!token) return
+      loadedForToken.current = token
       getSettings()
         .then((settings) => {
           if (cancelled) return
@@ -77,6 +85,7 @@ export function SelectedMonthProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {})
     }
+    loadRef.current = load
     load()
     window.addEventListener("settings-update", load)
     window.addEventListener("auth-change", load)
@@ -86,6 +95,11 @@ export function SelectedMonthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("auth-change", load)
     }
   }, [])
+
+  useEffect(() => {
+    const token = localStorage.getItem("finance-token")
+    if (token && token !== loadedForToken.current) loadRef.current()
+  }, [pathname])
 
   const setSelectedMonth = useCallback((month: string) => {
     setSelectedMonthState(month)
