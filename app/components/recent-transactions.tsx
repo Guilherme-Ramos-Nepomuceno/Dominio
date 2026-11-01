@@ -9,6 +9,7 @@ import * as PhosphorIcons from "@phosphor-icons/react"
 import { Heart } from "@phosphor-icons/react"
 import { EditTransactionDialog } from "./edit-transaction-dialog"
 import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
+import { AutoCategoryBadge } from "@/components/rules/auto-category-badge"
 
 interface RecentTransactionsProps {
   transactions: Transaction[]
@@ -99,6 +100,7 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
                   <p className={cn("text-xs text-muted-foreground", isUncategorized && "italic opacity-80")}>
                     {transactionCategoryLabel(categories, transaction)}
                   </p>
+                  <AutoCategoryBadge transaction={transaction} />
                   {transaction.installments && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {transaction.currentInstallment}/{transaction.installments}x

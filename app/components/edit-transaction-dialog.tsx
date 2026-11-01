@@ -9,6 +9,8 @@ import { getCategories, getCards, updateTransaction, moveTransactionInvoice } fr
 import type { Category, Transaction, Card, PaymentMethod } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
+import { AutoCategoryBadge } from "@/components/rules/auto-category-badge"
+import { autoCategorizedLabel, isAutoCategorized } from "@/lib/rules"
 
 interface EditTransactionDialogProps {
   transaction: Transaction | null
@@ -93,6 +95,21 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
     }
   }
 
+  // Categoria automática: desfazer manda o lançamento de volta para "A classificar".
+  const handleUndoAutoCategory = async () => {
+    setIsSaving(true)
+    try {
+      await updateTransaction(transaction.id, { categoryId: null })
+      toast({ title: "Categoria desfeita", description: "O lançamento voltou para A classificar.", variant: "success" })
+      onSaved()
+      onClose()
+    } catch (error: any) {
+      toast({ title: "Não foi possível desfazer", description: error.message || "Tente novamente.", variant: "destructive" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleMoveInvoice = async (direction: "next" | "previous") => {
     setIsSaving(true)
     try {
@@ -152,6 +169,20 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
         {/* Category */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">Categoria</label>
+          {isAutoCategorized(transaction) && categoryId === transaction.categoryId && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-primary/5 border border-primary/15">
+              <AutoCategoryBadge transaction={transaction} />
+              <span className="flex-1 min-w-0 text-xs text-muted-foreground">{autoCategorizedLabel(transaction.categorizedBy)}.</span>
+              <button
+                type="button"
+                onClick={handleUndoAutoCategory}
+                disabled={isSaving}
+                className="text-xs font-semibold text-primary hover:underline shrink-0 disabled:opacity-50"
+              >
+                Desfazer
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"

@@ -29,6 +29,7 @@ import {
 import { useStatsViewModel } from "../hooks/use-stats-view-model"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { findCategory, UNCATEGORIZED_LABEL } from "@/lib/category-utils"
+import { AutoCategoryBadge } from "@/components/rules/auto-category-badge"
 
 export function StatsView() {
     const { periodRangeLabel } = useSelectedMonth()
@@ -131,6 +132,7 @@ export function StatsView() {
                             <p className="font-semibold text-foreground">{transaction.description}</p>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">{transaction.categoryId ? category?.name || "Geral" : UNCATEGORIZED_LABEL}</span>
+                                <AutoCategoryBadge transaction={transaction} />
                                 {isCreditInstallment && purchaseDateObj && (
                                     <span className="text-[10px] text-muted-foreground">Comprou em: {purchaseDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
                                 )}
