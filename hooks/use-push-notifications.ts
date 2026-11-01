@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { ApiError } from "@/lib/api"
 import { getPushPublicKey, subscribePush, unsubscribePush } from "@/lib/push-api"
 import {
   DEFAULT_NOTIFICATION_PREFS,
@@ -92,6 +93,12 @@ export function usePushNotifications() {
       trackEvent("push_enabled")
       toast({ title: "Notificações ativadas", description: "Você vai receber os avisos que escolher abaixo.", variant: "success" })
     } catch (error: any) {
+      // 503: o servidor ainda não tem as chaves de push — trata como indisponível.
+      if (error instanceof ApiError && error.status === 503) {
+        setPublicKey(null)
+        toast({ title: "Notificações indisponíveis", description: "O servidor ainda não está pronto para enviar notificações." })
+        return
+      }
       console.error("Falha ao ativar push:", error)
       toast({ title: "Não foi possível ativar as notificações", description: error?.message, variant: "destructive" })
     } finally {
