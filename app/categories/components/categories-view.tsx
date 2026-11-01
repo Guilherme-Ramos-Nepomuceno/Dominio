@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Plus, Folders, Tag, CaretRight } from "@phosphor-icons/react"
+import { Plus, Folders, Tag, CaretRight, ListChecks } from "@phosphor-icons/react"
 import { formatCurrency } from "@/lib/date-utils"
 import { UNCATEGORIZED_LABEL } from "@/lib/category-utils"
 import { AppLayout } from "@/components/layout/app-layout"
@@ -45,8 +45,17 @@ export function CategoriesView() {
                 title="Categorias"
                 subtitle="Gerencie suas categorias de receitas e despesas"
                 action={
-                    <div className="hidden md:block">
-                        <MonthHeaderSelector />
+                    <div className="flex items-center gap-3">
+                        <Link
+                            href="/rules"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                        >
+                            <ListChecks size={16} weight="bold" />
+                            Regras
+                        </Link>
+                        <div className="hidden md:block">
+                            <MonthHeaderSelector />
+                        </div>
                     </div>
                 }
             />

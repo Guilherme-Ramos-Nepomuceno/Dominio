@@ -134,6 +134,25 @@ export function SettingsView() {
                     </p>
                 </div>
 
+                {/* Regras de categoria */}
+                <div className="rounded-[20px] bg-card p-6 border border-border/50">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <PhosphorIcons.ListChecks size={24} weight="fill" className="text-primary" />
+                            <h3 className="text-lg font-semibold">Regras de categoria</h3>
+                        </div>
+                        <a
+                            href="/rules"
+                            className="shrink-0 px-4 py-2 rounded-lg border border-border text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                        >
+                            Abrir
+                        </a>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                        Estabelecimentos que entram categorizados sozinhos — veja, edite ou crie regras.
+                    </p>
+                </div>
+
                 {/* Painel admin — só para admins */}
                 {isAdmin && (
                     <div className="rounded-[20px] bg-card p-6 border border-border/50">
