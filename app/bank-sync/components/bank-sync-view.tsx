@@ -21,6 +21,7 @@ import { useAccount } from "@/components/account/account-context"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useBankSyncViewModel } from "../hooks/use-bank-sync-view-model"
+import { PluggyCategoryMapSection } from "./pluggy-category-map-section"
 
 // ReviewRow "genérico" não carrega id/itemId (só existem na Pluggy, não no
 // import de OFX que também usa esse mesmo componente) — estende localmente
@@ -779,6 +780,9 @@ export function BankSyncView() {
             )}
           </section>
         )}
+
+        {/* Mapa categoria do banco → categoria da conta */}
+        {vm.connection?.connected && !selectedBank && <PluggyCategoryMapSection />}
 
         {/* Transferências identificadas — pares de contas já mapeadas, prontos
             pra confirmar de uma vez, sem precisar entrar em cada banco. */}
