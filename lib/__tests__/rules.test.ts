@@ -61,3 +61,39 @@ test("faixa de valor, usos e validação do formulário", () => {
   assert.equal(validateRuleForm({ ...ok, categoryId: "" }, true), "Escolha a categoria.")
   assert.equal(validateRuleForm({ ...ok, minAmount: 50, maxAmount: 10 }, true), "O valor mínimo não pode ser maior que o máximo.")
 })
+
+test("agrega avisos de regra de uma mesma ação", async () => {
+  const { aggregateRuleFeedback, ruleFeedbackPrompt } = await import("../rules.ts")
+  const sug = (m: string, c: string) => ({ categoryId: c, suggestion: { merchantKey: m, categoryId: c, label: m.toUpperCase() }, conflict: null })
+  const conf = (ruleId: string, m: string, old: string, chosen: string) => ({
+    categoryId: chosen,
+    suggestion: null,
+    conflict: { ruleId, merchantKey: m, categoryId: old },
+  })
+
+  assert.deepEqual(ruleFeedbackPrompt(aggregateRuleFeedback([])), { kind: "none" })
+  assert.equal(ruleFeedbackPrompt(aggregateRuleFeedback([sug("ifood", "food")])).kind, "single-suggestion")
+
+  // Mesmo estabelecimento repetido conta uma vez (vale o mais recente).
+  const dup = aggregateRuleFeedback([sug("ifood", "food"), sug("ifood", "fun")])
+  assert.deepEqual(dup.suggestions.map((s) => s.categoryId), ["fun"])
+
+  const many = ruleFeedbackPrompt(aggregateRuleFeedback([sug("ifood", "food"), sug("uber", "car"), sug("padaria", "food")]))
+  assert.equal(many.kind, "batch")
+  assert.equal(many.kind === "batch" && many.title, "Criar regras para 3 comerciantes?")
+
+  const one = ruleFeedbackPrompt(aggregateRuleFeedback([conf("r1", "posto", "car", "food")]))
+  assert.equal(one.kind, "single-conflict")
+  assert.equal(one.kind === "single-conflict" && one.conflict.newCategoryId, "food")
+
+  const conflicts = ruleFeedbackPrompt(aggregateRuleFeedback([conf("r1", "posto", "car", "food"), conf("r2", "uber", "car", "fun"), conf("r1", "posto", "car", "fun")]))
+  assert.equal(conflicts.kind === "batch" && conflicts.title, "Atualizar 2 regras?")
+  assert.deepEqual(conflicts.kind === "batch" && conflicts.feedback.conflicts.map((c) => [c.ruleId, c.newCategoryId]), [["r1", "fun"], ["r2", "fun"]])
+
+  // Conflito "para a mesma categoria" é ignorado; sugestão do mesmo estabelecimento do conflito sai.
+  const mixed = aggregateRuleFeedback([conf("r1", "posto", "car", "car"), sug("uber", "car"), conf("r2", "uber", "car", "fun"), sug("ifood", "food")])
+  assert.deepEqual(mixed.conflicts.map((c) => c.ruleId), ["r2"])
+  assert.deepEqual(mixed.suggestions.map((s) => s.merchantKey), ["ifood"])
+  const p = ruleFeedbackPrompt(mixed)
+  assert.equal(p.kind === "batch" && p.title, "Revisar regras de 2 comerciantes?")
+})

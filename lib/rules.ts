@@ -123,3 +123,68 @@ export function validateRuleForm(input: RuleFormInput, requireDescription: boole
   }
   return null
 }
+
+// ---------------------------------------------------------------------------
+// Agregação de avisos de regra
+// ---------------------------------------------------------------------------
+
+export interface PendingRuleConflict extends RuleConflict {
+  // Categoria que a pessoa acabou de escolher (para onde a regra mudaria).
+  newCategoryId: string
+  label: string
+}
+
+export interface AggregatedRuleFeedback {
+  suggestions: RuleSuggestion[]
+  conflicts: PendingRuleConflict[]
+}
+
+// Junta os avisos gerados por uma mesma ação (ex.: "Aceitar todas as
+// sugestões" categoriza vários grupos seguidos): uma sugestão por
+// estabelecimento e um conflito por regra (vale o mais recente); se o mesmo
+// estabelecimento tem conflito, a sugestão dele sai (a pergunta é atualizar).
+export function aggregateRuleFeedback(items: RuleFeedback[]): AggregatedRuleFeedback {
+  const suggestions = new Map<string, RuleSuggestion>()
+  const conflicts = new Map<string, PendingRuleConflict>()
+  for (const item of items) {
+    if (item.conflict && item.categoryId) {
+      // Escolheu a mesma categoria da regra: não há o que atualizar.
+      if (item.conflict.categoryId === item.categoryId) continue
+      conflicts.set(item.conflict.ruleId, {
+        ...item.conflict,
+        newCategoryId: item.categoryId,
+        label: item.suggestion?.label ?? item.conflict.merchantKey,
+      })
+    } else if (item.suggestion) {
+      suggestions.set(item.suggestion.merchantKey, item.suggestion)
+    }
+  }
+  const conflictKeys = new Set(Array.from(conflicts.values()).map((c) => c.merchantKey))
+  return {
+    suggestions: Array.from(suggestions.values()).filter((s) => !conflictKeys.has(s.merchantKey)),
+    conflicts: Array.from(conflicts.values()),
+  }
+}
+
+export type RuleFeedbackPrompt =
+  | { kind: "none" }
+  | { kind: "single-suggestion"; suggestion: RuleSuggestion }
+  | { kind: "single-conflict"; conflict: PendingRuleConflict }
+  | { kind: "batch"; title: string; feedback: AggregatedRuleFeedback }
+
+// Um único aviso por ação: pergunta direta com 1 item; com 2+, um resumo que
+// abre a lista para escolher.
+export function ruleFeedbackPrompt(agg: AggregatedRuleFeedback): RuleFeedbackPrompt {
+  const s = agg.suggestions.length
+  const c = agg.conflicts.length
+  if (s + c === 0) return { kind: "none" }
+  if (s === 1 && c === 0) return { kind: "single-suggestion", suggestion: agg.suggestions[0] }
+  if (c === 1 && s === 0) return { kind: "single-conflict", conflict: agg.conflicts[0] }
+  const title =
+    c === 0
+      ? `Criar regras para ${s} comerciantes?`
+      : s === 0
+        ? `Atualizar ${c} regras?`
+        : `Revisar regras de ${s + c} comerciantes?`
+  return { kind: "batch", title, feedback: agg }
+}
