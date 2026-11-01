@@ -27,9 +27,11 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useStatsViewModel } from "../hooks/use-stats-view-model"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import { findCategory, UNCATEGORIZED_LABEL } from "@/lib/category-utils"
 
 export function StatsView() {
+    const { periodRangeLabel } = useSelectedMonth()
     const {
         selectedMonth,
         setSelectedMonth,
@@ -186,7 +188,7 @@ export function StatsView() {
         <AppLayout showMonthFilter>
             <PageHeader
                 title={formatMonth(selectedMonth)}
-                subtitle="Análise detalhada dos seus gastos"
+                subtitle={periodRangeLabel ? `Período: ${periodRangeLabel}` : "Análise detalhada dos seus gastos"}
                 action={
                     <div className="hidden md:block">
                         <MonthHeaderSelector />
