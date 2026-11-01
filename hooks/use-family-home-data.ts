@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import { useAccount } from "@/components/account/account-context"
 import { computeTotalBalanceFrom } from "./use-transactions"
 import {
@@ -31,6 +32,7 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
 // nos dois lados, mas é a mesma linha).
 export function useFamilyHomeData(selectedMonth: string, enabled: boolean) {
     const { selection, family } = useAccount()
+    const { monthStartDay } = useSelectedMonth()
     const isCoupleAccount = selection.type === "couple"
     const personalMembers = useMemo(
         () => family?.members?.filter((m) => m.accountType === "PERSONAL") ?? [],
@@ -93,8 +95,9 @@ export function useFamilyHomeData(selectedMonth: string, enabled: boolean) {
     }, [enabled, isCoupleAccount, personalMembers, selectedMonth])
 
     const totals = useMemo(
-        () => computeTotalBalanceFrom(allTransactions, categories, savingsGoals, selectedMonth, ["Transferência Familiar"]),
-        [allTransactions, categories, savingsGoals, selectedMonth],
+        () =>
+            computeTotalBalanceFrom(allTransactions, categories, savingsGoals, selectedMonth, ["Transferência Familiar"], monthStartDay),
+        [allTransactions, categories, savingsGoals, selectedMonth, monthStartDay],
     )
 
     return { isCoupleAccount, loading, cards, ...totals }

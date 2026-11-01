@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useMonthData, isInternalTransfer } from "@/hooks/use-transactions"
 import { useFamilyTotals } from "@/hooks/use-family-totals"
-import { isSameMonth, getInvoiceMonth } from "@/lib/date-utils"
+import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { setSettings, getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
@@ -28,7 +28,7 @@ const DEFAULT_FILTERS: StatsFilters = {
 }
 
 export function useStatsViewModel() {
-    const { selectedMonth, setSelectedMonth } = useSelectedMonth()
+    const { selectedMonth, setSelectedMonth, isInMonth } = useSelectedMonth()
     const [filters, setFilters] = useState<StatsFilters>(DEFAULT_FILTERS)
     const [viewMode, setViewMode] = useState<"casal" | "familia">("casal")
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
@@ -72,8 +72,8 @@ export function useStatsViewModel() {
     // recorrência) no total do mês — essa lista precisa incluir essas mesmas
     // transações, senão meses futuros aparecem com valor no gráfico mas lista vazia.
     const generalPool = useMemo(
-        () => allTransactions.filter((t) => t.status !== "cancelled" && isSameMonth(t.date, selectedMonth + "-01")),
-        [allTransactions, selectedMonth],
+        () => allTransactions.filter((t) => t.status !== "cancelled" && isInMonth(t.date)),
+        [allTransactions, isInMonth],
     )
 
     // Se essa transação é do "lado crédito" (entra em fatura) — não depende

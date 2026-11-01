@@ -16,6 +16,7 @@ import type {
   ImportPreviewRow,
 } from "./types"
 import { fetchApi } from "./api"
+import { normalizeMonthStartDay } from "./period"
 import { getActiveAccountSelection } from "./active-account"
 import * as familyApi from "./family"
 import type { MemberMonthData } from "./family"
@@ -1010,6 +1011,7 @@ function mapSettingsFromApi(s: any): AppSettings {
     currency: s.currency,
     firstDayOfWeek: s.firstDayOfWeek,
     categoryGoals: Array.isArray(s.categoryGoals) ? s.categoryGoals : [],
+    monthStartDay: normalizeMonthStartDay(s.monthStartDay ?? 1),
   }
 }
 
@@ -1019,6 +1021,7 @@ function mapSettingsToApi(s: Partial<AppSettings>) {
   if (s.currency !== undefined) body.currency = s.currency
   if (s.firstDayOfWeek !== undefined) body.firstDayOfWeek = s.firstDayOfWeek
   if (s.categoryGoals !== undefined) body.categoryGoals = s.categoryGoals
+  if (s.monthStartDay !== undefined) body.monthStartDay = normalizeMonthStartDay(s.monthStartDay)
   return body
 }
 
@@ -1033,6 +1036,8 @@ export async function getSettings(): Promise<AppSettings> {
 export async function setSettings(settings: Partial<AppSettings>): Promise<void> {
   assertWritable()
   await fetchApi("/settings", { method: "PUT", body: JSON.stringify(mapSettingsToApi(settings)) })
+  // O SelectedMonthProvider escuta para reler o dia de início do mês.
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("settings-update"))
 }
 
 // ---------------------------------------------------------------------------

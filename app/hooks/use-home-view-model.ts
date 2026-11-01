@@ -4,12 +4,11 @@ import { useState, useEffect } from "react"
 import { useTotalBalance } from "@/hooks/use-transactions"
 import { useFamilyHomeData } from "@/hooks/use-family-home-data"
 import { useSelectedMonth } from "@/lib/selected-month-context"
-import { getCurrentMonth } from "@/lib/date-utils"
 import type { PeriodType } from "@/lib/types"
 import { useInboxCount } from "@/hooks/use-inbox-count"
 
 export function useHomeViewModel() {
-    const { selectedMonth } = useSelectedMonth()
+    const { selectedMonth, currentMonth } = useSelectedMonth()
     const [period, setPeriod] = useState<PeriodType>("week")
     const [viewMode, setViewMode] = useState<"casal" | "familia">("casal")
 
@@ -18,8 +17,8 @@ export function useHomeViewModel() {
     // pra outro mês (passado ou futuro), força "Mensal" (a visão semanal some
     // do toggle em income-expense-cards.tsx).
     useEffect(() => {
-        if (selectedMonth !== getCurrentMonth() && period === "week") setPeriod("month")
-    }, [selectedMonth, period])
+        if (selectedMonth !== currentMonth && period === "week") setPeriod("month")
+    }, [selectedMonth, currentMonth, period])
 
     const ownBalanceData = useTotalBalance(selectedMonth)
     const familyData = useFamilyHomeData(selectedMonth, viewMode === "familia")

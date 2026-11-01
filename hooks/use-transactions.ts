@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react"
 import type { Transaction, Category, MonthData } from "@/lib/types"
 import { getTransactions, getCategories, getSavingsGoals, getPendingTransactions, getCards } from "@/lib/storage"
-import { getCurrentMonth, isSameMonth } from "@/lib/date-utils"
+import { isInPlanMonth } from "@/lib/period"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import { effectiveTransactionType, findCategory } from "@/lib/category-utils"
 
 // Transferências entre contas (e retiradas de reserva) usam a categoria de sistema
@@ -26,15 +27,17 @@ export function useTransactions(selectedMonth?: string) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
 
-  const month = selectedMonth || getCurrentMonth()
+  // "Mês" segue o período do plano (Configurações > Meu mês começa no dia).
+  const { currentMonth, monthStartDay } = useSelectedMonth()
+  const month = selectedMonth || currentMonth
 
   const loadTransactions = useCallback(async () => {
     setLoading(true)
     const allTransactions = await getTransactions()
-    const monthTransactions = allTransactions.filter((t) => isSameMonth(t.date, month + "-01"))
+    const monthTransactions = allTransactions.filter((t) => isInPlanMonth(t.date, month, monthStartDay))
     setTransactions(monthTransactions)
     setLoading(false)
-  }, [month])
+  }, [month, monthStartDay])
 
   useEffect(() => {
     loadTransactions()
@@ -102,6 +105,8 @@ export function computeTotalBalanceFrom(
   // transferências). Fora dessa visão (conta "Casal" ou de cada um), continua
   // contando normal, pois é dinheiro que entrou/saiu de verdade daquela conta.
   extraInternalTransferCategoryNames: string[] = [],
+  // Dia em que o mês começa (lib/period.ts) — 1 = mês civil.
+  monthStartDay = 1,
 ) {
   const isExcludedTransfer = (t: Transaction) => {
     if (isInternalTransfer(categories, t)) return true
@@ -134,7 +139,7 @@ export function computeTotalBalanceFrom(
   // income/expense abaixo seguem escopados ao mês selecionado (usados nos cards e
   // mini-gráficos mensais da Home/Stats, não no saldo total). Transferências entre
   // contas ficam de fora — elas aparecem só na lista de transferências recentes.
-  const monthTransactions = allTransactions.filter((t) => isSameMonth(t.date, month + "-01"))
+  const monthTransactions = allTransactions.filter((t) => isInPlanMonth(t.date, month, monthStartDay))
   const paidTransactions = monthTransactions
     .filter((t) => t.status !== "pending" && t.status !== "cancelled")
     .filter((t) => !isExcludedTransfer(t))
@@ -162,6 +167,7 @@ export function computeTotalBalanceFrom(
 }
 
 export function useTotalBalance(month: string) {
+  const { monthStartDay } = useSelectedMonth()
   const [savingsGoals, setSavingsGoals] = useState<any[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
@@ -186,7 +192,7 @@ export function useTotalBalance(month: string) {
     return () => window.removeEventListener("storage-update", load)
   }, [])
 
-  return { ...computeTotalBalanceFrom(allTransactions, categories, savingsGoals, month), isLoading }
+  return { ...computeTotalBalanceFrom(allTransactions, categories, savingsGoals, month, [], monthStartDay), isLoading }
 }
 
 // Pendências de qualquer mês (incluindo meses anteriores não pagos), com a mesma

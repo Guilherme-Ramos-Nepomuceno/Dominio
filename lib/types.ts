@@ -141,6 +141,8 @@ export interface AppSettings {
   currency: string
   firstDayOfWeek: number
   categoryGoals?: CategoryGoal[] // Added category spending goals
+  // Dia em que o "mês" do plano começa (1–31). Ver lib/period.ts.
+  monthStartDay?: number
 }
 
 export interface CategoryGoal {

@@ -23,6 +23,8 @@ export function useSettingsViewModel() {
     const { family, refreshFamily } = useAccount()
     const [spendingGoal, setSpendingGoal] = useState("")
     const [currency, setCurrency] = useState("BRL")
+    // Dia em que o mês do plano começa (1–31) — ver lib/period.ts.
+    const [monthStartDay, setMonthStartDay] = useState(1)
     const [categoryGoals, setCategoryGoals] = useState<any[]>([])
     const [showClearDialog, setShowClearDialog] = useState(false)
     const [user, setUser] = useState<User | null>(null)
@@ -49,6 +51,7 @@ export function useSettingsViewModel() {
             .then(([settings, allCategories, allTransactions]) => {
                 setSpendingGoal(settings.spendingGoal.toString())
                 setCurrency(settings.currency)
+                setMonthStartDay(settings.monthStartDay ?? 1)
                 setCategoryGoals(settings.categoryGoals || [])
                 setCategories(allCategories.filter((c) => c.type === "expense"))
                 setTransactions(allTransactions)
@@ -78,6 +81,7 @@ export function useSettingsViewModel() {
                 spendingGoal: Number.parseFloat(spendingGoal),
                 currency,
                 categoryGoals,
+                monthStartDay,
             })
             toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
         } finally {
@@ -227,6 +231,8 @@ export function useSettingsViewModel() {
         setSpendingGoal,
         currency,
         setCurrency,
+        monthStartDay,
+        setMonthStartDay,
         categoryGoals,
         categories,
         groupedCategories,

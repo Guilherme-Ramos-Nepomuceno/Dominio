@@ -6,7 +6,7 @@ import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { Category } from "@/lib/types"
 
 export function useCategoriesViewModel() {
-    const { selectedMonth } = useSelectedMonth()
+    const { selectedMonth, isInMonth } = useSelectedMonth()
     const [categories, setLocalCategories] = useState<Category[]>([])
     const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -29,7 +29,7 @@ export function useCategoriesViewModel() {
 
         const currentCategoryGoals = settings.categoryGoals || []
         setCategoryGoals(currentCategoryGoals)
-        const monthlyTransactions = transactions.filter(t => t.date.startsWith(selectedMonth))
+        const monthlyTransactions = transactions.filter((t) => isInMonth(t.date))
         const globalSpendingGoal = settings.spendingGoal || 0
 
         const stats: Record<string, { total: number; count: number; percentage: number }> = {}
@@ -65,7 +65,7 @@ export function useCategoriesViewModel() {
             total: uncategorized.reduce((sum, t) => sum + t.amount, 0),
             count: uncategorized.length,
         })
-    }, [selectedMonth])
+    }, [selectedMonth, isInMonth])
 
     useEffect(() => {
         loadCategories().finally(() => setLoading(false))

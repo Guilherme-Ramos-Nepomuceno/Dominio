@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { MiniBarChart, type ChartDataPoint } from "./mini-bar-chart"
-import { formatCurrency, getCurrentMonth, isSameMonth } from "@/lib/date-utils"
+import { formatCurrency } from "@/lib/date-utils"
+import { getPlanPeriod, isInPlanMonth } from "@/lib/period"
+import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { PeriodType, Card, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { CreditCard, Wallet, Circle } from "@phosphor-icons/react"
@@ -43,7 +45,9 @@ export function IncomeExpenseCards({
   onPeriodChange,
   onDayClick,
 }: IncomeExpenseCardsProps) {
-  const isCurrentMonth = !selectedMonth || selectedMonth === getCurrentMonth()
+  // "Mês" segue o período do plano (pode não começar no dia 1).
+  const { currentMonth, monthStartDay } = useSelectedMonth()
+  const isCurrentMonth = !selectedMonth || selectedMonth === currentMonth
   // "Mensal" de fato sempre que NÃO for o mês atual, mesmo que `period`
   // ainda esteja "week" por um instante — `period` só vira "month" pelo
   // efeito assíncrono em use-home-view-model.ts, que roda DEPOIS do render
@@ -94,7 +98,7 @@ export function IncomeExpenseCards({
     const projectedTransactions = creditHistory.filter(t => t.status !== 'paid' && t.status !== 'cancelled')
 
     const finalFiltered = isMonthView
-        ? projectedTransactions.filter(t => isSameMonth(t.date, `${selectedMonth ?? getCurrentMonth()}-01`))
+        ? projectedTransactions.filter(t => isInPlanMonth(t.date, selectedMonth ?? currentMonth, monthStartDay))
         : (() => {
             const now = new Date()
             const oneWeekAgo = new Date()
@@ -113,7 +117,7 @@ export function IncomeExpenseCards({
         displayedExpenseValue: totalPending,
         processedExpenseTransactions: finalFiltered
     }
-  }, [weekChartSource, expense, expenseView, allHistory, cards, isMonthView, selectedMonth])
+  }, [weekChartSource, expense, expenseView, allHistory, cards, isMonthView, selectedMonth, currentMonth, monthStartDay])
 
 
   // 2. Geração dos Gráficos
@@ -134,15 +138,12 @@ export function IncomeExpenseCards({
     // Mês/ano seguem o mês selecionado no cabeçalho (não necessariamente o
     // mês real de hoje) — senão "Mensal" de outubro mostraria os dias de
     // setembro por baixo dos rótulos.
+    // Com "Meu mês começa no dia N", os pontos vão do início ao fim do período.
     const buildCalendarMonthPoints = () => {
-      const [targetYear, targetMonth1Based] = selectedMonth
-        ? selectedMonth.split("-").map(Number)
-        : [now.getFullYear(), now.getMonth() + 1]
-      const adjustedMonth = targetMonth1Based - 1
-      const daysInMonth = new Date(targetYear, adjustedMonth + 1, 0).getDate()
+      const [targetYear, targetMonth1Based] = (selectedMonth ?? currentMonth).split("-").map(Number)
+      const { start, end } = getPlanPeriod(targetYear, targetMonth1Based, monthStartDay)
       const points: { dateStr: string, dateObj: Date }[] = []
-      for (let i = 1; i <= daysInMonth; i++) {
-        const d = new Date(targetYear, adjustedMonth, i)
+      for (let d = new Date(start); d <= end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
         points.push({ dateStr: formatDateLocalYYYYMMDD(d), dateObj: d })
       }
       return points
@@ -178,7 +179,7 @@ export function IncomeExpenseCards({
         incomeChartData: processTransactions(weekChartSource, "income"),
         expenseChartData: processTransactions(processedExpenseTransactions, "expense")
     }
-  }, [weekChartSource, processedExpenseTransactions, selectedMonth, isMonthView])
+  }, [weekChartSource, processedExpenseTransactions, selectedMonth, isMonthView, currentMonth, monthStartDay])
 
   // O número grande precisa bater com o que as barras mostram — o gráfico
   // sempre usa "hoje - 6 dias" (ou o mês civil atual/anterior), independente

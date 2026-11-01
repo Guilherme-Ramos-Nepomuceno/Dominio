@@ -32,6 +32,8 @@ export function SettingsView() {
         setSpendingGoal,
         currency,
         setCurrency,
+        monthStartDay,
+        setMonthStartDay,
         categoryGoals,
         groupedCategories,
         showClearDialog,
@@ -273,6 +275,30 @@ export function SettingsView() {
                                 />
                             </div>
                             <p className="mt-2 text-xs text-muted-foreground">Defina o limite ideal de gastos mensais</p>
+                        </div>
+
+                        {/* Dia de início do mês */}
+                        <div>
+                            <label htmlFor="month-start-day" className="block text-sm font-medium text-foreground mb-2">
+                                Meu mês começa no dia
+                            </label>
+                            <select
+                                id="month-start-day"
+                                value={monthStartDay}
+                                onChange={(e) => setMonthStartDay(Number(e.target.value))}
+                                className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                            >
+                                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                    <option key={day} value={day}>
+                                        {day === 1 ? "1 (mês do calendário)" : day}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="mt-2 text-xs text-muted-foreground">
+                                {monthStartDay === 1
+                                    ? "Seu mês vai do dia 1 ao último dia do mês."
+                                    : `Ex.: o mês de novembro vai de ${monthStartDay} nov até a véspera do dia ${monthStartDay} de dezembro. Útil se você recebe o salário no dia ${monthStartDay}.`}
+                            </p>
                         </div>
 
                         {/* Currency */}

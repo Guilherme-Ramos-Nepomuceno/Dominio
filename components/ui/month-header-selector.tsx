@@ -20,7 +20,7 @@ interface MonthHeaderSelectorProps {
 // Categoria e Fatura — lê e escreve direto no contexto global de mês, então
 // trocar aqui reflete nas outras telas sem precisar passar props.
 export function MonthHeaderSelector({ className }: MonthHeaderSelectorProps) {
-  const { selectedMonth, setSelectedMonth } = useSelectedMonth()
+  const { selectedMonth, setSelectedMonth, periodRangeLabel } = useSelectedMonth()
   const [open, setOpen] = useState(false)
 
   const [year, month] = selectedMonth.split("-").map(Number)
@@ -49,6 +49,12 @@ export function MonthHeaderSelector({ className }: MonthHeaderSelectorProps) {
             {MONTH_FULL[monthIndex]}
             {year !== currentYear && ` de ${year}`}
           </span>
+          {/* Mês que não começa no dia 1: mostra o intervalo real (no celular só no popover). */}
+          {periodRangeLabel && (
+            <span className="hidden sm:inline text-xs font-normal text-muted-foreground whitespace-nowrap">
+              ({periodRangeLabel})
+            </span>
+          )}
           <CaretDown size={14} weight="bold" />
         </button>
       </PopoverTrigger>
@@ -91,6 +97,9 @@ export function MonthHeaderSelector({ className }: MonthHeaderSelectorProps) {
             )
           })}
         </div>
+        {periodRangeLabel && (
+          <p className="mt-3 text-center text-xs text-muted-foreground">Período: {periodRangeLabel}</p>
+        )}
       </PopoverContent>
     </Popover>
   )
