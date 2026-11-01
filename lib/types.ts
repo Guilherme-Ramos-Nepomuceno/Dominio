@@ -143,6 +143,8 @@ export interface AppSettings {
   categoryGoals?: CategoryGoal[] // Added category spending goals
   // Dia em que o "mês" do plano começa (1–31). Ver lib/period.ts.
   monthStartDay?: number
+  // Quais notificações push a pessoa quer receber (ver lib/push.ts).
+  notificationPrefs?: { weekStart: boolean; weekly80: boolean; monthPlan: boolean }
 }
 
 export interface CategoryGoal {

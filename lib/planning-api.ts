@@ -13,6 +13,8 @@ import {
   type Wish,
 } from "./plan"
 import type { PaymentMethod } from "./types"
+import { mapWeek, type WeekData } from "./week"
+import { buildCloseBody, mapClosingData, mapClosingSummary, type ClosingData, type ClosingSummary } from "./closing"
 
 function assertWritable(): void {
   if (isReadOnly()) {
@@ -187,3 +189,30 @@ export async function buyWish(id: string, input: BuyWishInput): Promise<Wish> {
   return mapWish(raw?.wish ?? raw)
 }
 
+
+// ---------------------------------------------------------------------------
+// Semana e fechamento
+// ---------------------------------------------------------------------------
+
+// `date` = "YYYY-MM-DD" do dia de referência (hoje, por padrão no backend).
+export async function getWeek(year: number, month: number, date?: string): Promise<WeekData> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ""
+  return mapWeek(await fetchApi(`/plans/${year}/${month}/week${query}`))
+}
+
+export async function getClosingSummary(year: number, month: number): Promise<ClosingData> {
+  return mapClosingData(await fetchApi(`/plans/${year}/${month}/closing-summary`))
+}
+
+export async function closePlan(
+  year: number,
+  month: number,
+  body: ReturnType<typeof buildCloseBody>,
+): Promise<{ plan: Plan; summary: ClosingSummary }> {
+  assertWritable()
+  const raw = await fetchApi(`/plans/${year}/${month}/close`, { method: "POST", body: JSON.stringify(body) })
+  notifyPlanUpdate()
+  // Sobra enviada a objetivo/reserva muda saldos.
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("storage-update"))
+  return { plan: mapPlan(raw?.plan ?? raw), summary: mapClosingSummary(raw?.summary) }
+}

@@ -17,6 +17,7 @@ import type {
 } from "./types"
 import { fetchApi } from "./api"
 import { normalizeMonthStartDay } from "./period"
+import { mapNotificationPrefs } from "./push"
 import { getActiveAccountSelection } from "./active-account"
 import * as familyApi from "./family"
 import type { MemberMonthData } from "./family"
@@ -1012,6 +1013,7 @@ function mapSettingsFromApi(s: any): AppSettings {
     firstDayOfWeek: s.firstDayOfWeek,
     categoryGoals: Array.isArray(s.categoryGoals) ? s.categoryGoals : [],
     monthStartDay: normalizeMonthStartDay(s.monthStartDay ?? 1),
+    notificationPrefs: mapNotificationPrefs(s.notificationPrefs),
   }
 }
 
@@ -1022,6 +1024,7 @@ function mapSettingsToApi(s: Partial<AppSettings>) {
   if (s.firstDayOfWeek !== undefined) body.firstDayOfWeek = s.firstDayOfWeek
   if (s.categoryGoals !== undefined) body.categoryGoals = s.categoryGoals
   if (s.monthStartDay !== undefined) body.monthStartDay = normalizeMonthStartDay(s.monthStartDay)
+  if (s.notificationPrefs !== undefined) body.notificationPrefs = s.notificationPrefs
   return body
 }
 
