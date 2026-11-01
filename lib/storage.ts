@@ -18,6 +18,7 @@ import type {
 import { fetchApi } from "./api"
 import { normalizeMonthStartDay } from "./period"
 import { mapNotificationPrefs } from "./push"
+import { mapRuleConflict, mapRuleSuggestion, type RuleFeedback } from "./rules"
 import { getActiveAccountSelection } from "./active-account"
 import * as familyApi from "./family"
 import type { MemberMonthData } from "./family"
@@ -71,6 +72,18 @@ function notifyStorageUpdate(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("storage-update"))
   }
+}
+
+// Resposta de categorizar/editar pode trazer uma sugestão de regra ("sempre
+// colocar X em Y?") ou um conflito com regra existente — vira um evento que o
+// RulePromptListener (layout) transforma em pergunta para a pessoa.
+function emitRuleFeedback(result: any, categoryId: string | null): void {
+  if (typeof window === "undefined" || !result) return
+  const suggestion = mapRuleSuggestion(result.ruleSuggestion)
+  const conflict = mapRuleConflict(result.ruleConflict)
+  if (!suggestion && !conflict) return
+  const detail: RuleFeedback = { categoryId, suggestion, conflict }
+  window.dispatchEvent(new CustomEvent<RuleFeedback>("rule-feedback", { detail }))
 }
 
 function isReadOnly(): boolean {
@@ -424,6 +437,7 @@ export async function categorizeTransactions(transactionIds: string[], categoryI
     body: JSON.stringify({ transactionIds, categoryId }),
   })
   notifyStorageUpdate()
+  emitRuleFeedback(result, categoryId)
   return Number(result?.updated ?? 0)
 }
 
@@ -858,8 +872,9 @@ export async function addTransaction(
 
 export async function updateTransaction(id: string, updates: Partial<Transaction>): Promise<void> {
   assertWritable()
-  await fetchApi(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(mapTransactionToApi(updates)) })
+  const result = await fetchApi(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(mapTransactionToApi(updates)) })
   notifyStorageUpdate()
+  if (updates.categoryId) emitRuleFeedback(result, updates.categoryId)
 }
 
 // Apaga a transação. Se ela for a "cabeça" de um grupo de parcelas/recorrência,
