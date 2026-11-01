@@ -96,7 +96,7 @@ export function PlanTower({ plan, groupHref }: PlanTowerProps) {
           <Tray size={20} weight="duotone" className="text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">{UNCATEGORIZED_LABEL}</p>
-            <p className="text-xs text-muted-foreground">Gasto do mês fora dos grupos — classifique para entrar no plano</p>
+            <p className="text-xs text-muted-foreground">Consome a margem até ser classificado</p>
           </div>
           <p className="text-sm font-bold tabular-nums text-foreground shrink-0">{formatCurrency(plan.uncategorized.spent)}</p>
           <CaretRight size={14} weight="bold" className="text-muted-foreground shrink-0" />
@@ -123,7 +123,7 @@ export function PlanTower({ plan, groupHref }: PlanTowerProps) {
           </p>
         ) : (
           <p className="mt-2 text-xs text-muted-foreground">
-            O que sobra do orçamento depois dos grupos — é daqui que saem os desejos do mês.
+            O que sobra do orçamento depois dos grupos e do sem categoria — é daqui que saem os desejos do mês.
           </p>
         )}
       </div>

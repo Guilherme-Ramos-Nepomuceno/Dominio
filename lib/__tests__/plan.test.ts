@@ -151,17 +151,17 @@ test("distribui a margem pelos desejos em ordem de prioridade (regra do backend)
 
 test("reduzir uma categoria recalcula a margem e faz um desejo caber", () => {
   const plan = mapPlan(rawPlan)
-  // Margem = 5000 - (3000 + 1000) = 1000 (sem categoria não entra) → "a" (500) cabe, "b" (800) falta 300.
+  // Margem = 5000 - (3000 + 1000) - 100 (sem categoria) = 900 → "a" (500) cabe, "b" (800) falta 400.
   const before = withBudget(plan, null, "INCOME")
-  assert.equal(before.freeMargin, 1000)
-  assert.deepEqual(before.wishes.map((w) => [w.fits, w.missing]), [[true, 0], [false, 300]])
+  assert.equal(before.freeMargin, 900)
+  assert.deepEqual(before.wishes.map((w) => [w.fits, w.missing]), [[true, 0], [false, 400]])
   const after = withPlannedVariable(before, "lazer", 600)
   assert.equal(after.groups[1].plannedVariable, 600)
   assert.equal(after.groups[1].planned, 600)
-  assert.equal(after.freeMargin, 1400)
+  assert.equal(after.freeMargin, 1300)
   assert.deepEqual(newlyFittingWishIds(before.wishes, after.wishes), ["b"])
   assert.equal(after.wishesPlanned, 1300)
-  assert.equal(after.leftover, 100)
+  assert.equal(after.leftover, 0)
   assert.deepEqual(planTotals(after), { planned: 3600, committed: 2000, spent: 2400 })
 })
 
@@ -172,12 +172,12 @@ test("grupo Desejos: planejado são os desejos que cabem", () => {
   })
   const result = withBudget(plan, null, "INCOME")
   const wishesGroup = result.groups.find((g) => g.kind === "WISHES")!
-  assert.equal(result.freeMargin, 1000)
+  assert.equal(result.freeMargin, 900)
   assert.equal(wishesGroup.planned, 500)
 })
 
 test("orçamento manual e nova ordem dos desejos", () => {
-  const plan = withBudget(mapPlan(rawPlan), 3900, "MANUAL")
+  const plan = withBudget(mapPlan(rawPlan), 4000, "MANUAL")
   assert.equal(plan.freeMargin, -100)
   assert.deepEqual(plan.wishes.map((w) => w.fits), [false, false])
   const reordered = withWishOrder(withBudget(plan, 4900, "MANUAL"), ["b", "a"])

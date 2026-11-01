@@ -1,7 +1,7 @@
 // Chamadas do planejamento do mês: grupos de categoria, plano ("a torre") e
 // desejos. Tipos e mapeamento em lib/plan.ts.
 
-import { fetchApi } from "./api"
+import { ApiError, fetchApi } from "./api"
 import { isReadOnly } from "./storage"
 import {
   mapCategoryGroup,
@@ -131,6 +131,7 @@ export interface WishCandidate {
   description: string
   amount: number
   date: string
+  categoryId: string | null
   cardId: string | null
 }
 
@@ -141,6 +142,7 @@ export async function getWishCandidates(id: string): Promise<WishCandidate[]> {
     description: String(t.description ?? ""),
     amount: Number(t.amount),
     date: String(t.date ?? ""),
+    categoryId: t.categoryId ?? null,
     cardId: t.cardId ?? null,
   }))
 }
@@ -169,7 +171,16 @@ export async function buyWish(id: string, input: BuyWishInput): Promise<Wish> {
             paymentMethod: input.transaction.paymentMethod?.toUpperCase(),
           },
         }
-  const raw = await fetchApi(`/wishes/${id}/buy`, { method: "POST", body: JSON.stringify(body) })
+  let raw: any
+  try {
+    raw = await fetchApi(`/wishes/${id}/buy`, { method: "POST", body: JSON.stringify(body) })
+  } catch (error) {
+    // 409: a transação escolhida já está ligada a outro desejo.
+    if (error instanceof ApiError && error.status === 409) {
+      throw new ApiError(409, "Essa transação já foi usada para outro desejo. Escolha outra ou lance a compra agora.")
+    }
+    throw error
+  }
   notifyPlanUpdate()
   // Criar a transação da compra muda saldo/listas.
   if (typeof window !== "undefined") window.dispatchEvent(new Event("storage-update"))

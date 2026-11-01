@@ -312,7 +312,8 @@ export function allocateWishes<T extends Wish>(
 // Recalcula totais do plano a partir das categorias (planejado variável),
 // orçamento e desejos — usado no otimista enquanto o PUT não volta. Mesma
 // conta do backend: margem livre = orçamento − planejado dos grupos (fora o
-// grupo Desejos, cujo planejado são os próprios desejos).
+// grupo Desejos, cujo planejado são os próprios desejos) − gasto sem
+// categoria (consome a margem até ser classificado).
 export function recomputePlan(plan: Plan): Plan {
   const baseGroups = plan.groups.map((g) => {
     if (g.kind === "WISHES") return g
@@ -321,7 +322,7 @@ export function recomputePlan(plan: Plan): Plan {
     return { ...g, plannedVariable, committed, planned: round2(committed + plannedVariable) }
   })
   const plannedTotal = baseGroups.filter((g) => g.kind !== "WISHES").reduce((s, g) => s + g.planned, 0)
-  const freeMargin = round2(effectiveBudget(plan) - plannedTotal)
+  const freeMargin = round2(effectiveBudget(plan) - plannedTotal - plan.uncategorized.spent)
   const { wishes, wishesPlanned } = allocateWishes(plan.wishes, freeMargin)
   const groups = baseGroups.map((g) => (g.kind === "WISHES" ? { ...g, plannedVariable: wishesPlanned, planned: wishesPlanned } : g))
   return { ...plan, groups, freeMargin, wishes, wishesPlanned, leftover: round2(freeMargin - wishesPlanned) }
