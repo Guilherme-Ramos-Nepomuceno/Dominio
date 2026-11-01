@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { CalendarCheck, Receipt, Stack, ArrowsClockwise } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
@@ -9,6 +10,35 @@ import { getBankIcon, bankColors } from "@/lib/bank-icons"
 import type { BankName } from "@/lib/types"
 import { useMonthClosingViewModel, type CardlessPendingItem } from "../hooks/use-month-closing-view-model"
 import { UNCATEGORIZED_LABEL } from "@/lib/category-utils"
+import { cn } from "@/lib/utils"
+import { ClosePlanSection } from "./close-plan-section"
+
+type ClosingTab = "close" | "dues"
+
+function ClosingTabs({ tab, onChange }: { tab: ClosingTab; onChange: (tab: ClosingTab) => void }) {
+    return (
+        <div className="grid grid-cols-2 bg-card border border-border/50 rounded-2xl p-1 text-sm font-semibold mb-4" role="tablist">
+            {([
+                ["close", "Fechar o plano"],
+                ["dues", "A pagar no próximo mês"],
+            ] as const).map(([value, label]) => (
+                <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === value}
+                    onClick={() => onChange(value)}
+                    className={cn(
+                        "py-2 rounded-xl transition-colors",
+                        tab === value ? "bg-primary text-background" : "text-muted-foreground hover:text-foreground",
+                    )}
+                >
+                    {label}
+                </button>
+            ))}
+        </div>
+    )
+}
 
 // Caixinha agregada (ícone + rótulo + total), no mesmo estilo de uma linha
 // de cartão — usada tanto pra "Parcelas" quanto pra "Recorrentes".
@@ -40,6 +70,19 @@ function GroupSummaryRow({
 
 export function MonthClosingView() {
     const { monthLabel, isCoupleAccount, viewMode, setViewMode, data, isLoading, grandTotal } = useMonthClosingViewModel()
+    const [tab, setTab] = useState<ClosingTab>("close")
+
+    if (tab === "close") {
+        return (
+            <AppLayout>
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
+                    <PageHeader title="Fechamento do Mês" subtitle="Feche o plano e veja o que vence no próximo mês" />
+                    <ClosingTabs tab={tab} onChange={setTab} />
+                    <ClosePlanSection />
+                </div>
+            </AppLayout>
+        )
+    }
 
     if (isLoading || !data) {
         return (
@@ -62,6 +105,7 @@ export function MonthClosingView() {
             <div className="min-h-screen bg-background">
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
                     <PageHeader title="Fechamento do Mês" subtitle={`Tudo que vence em ${monthLabel}`} />
+                    <ClosingTabs tab={tab} onChange={setTab} />
 
                     {isCoupleAccount && <CasalFamiliaToggle viewMode={viewMode} onChange={setViewMode} />}
 
