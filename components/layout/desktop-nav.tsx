@@ -17,6 +17,7 @@ import {
   ReceiptIcon,
   CalendarCheckIcon,
   TrayIcon,
+  TargetIcon,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
@@ -28,6 +29,7 @@ import { useInboxCount } from "@/hooks/use-inbox-count"
 
 const navItems = [
   { href: "/", icon: HouseIcon, label: "Home" },
+  { href: "/plan", icon: TargetIcon, label: "Planejar" },
   { href: "/inbox", icon: TrayIcon, label: "A classificar" },
   { href: "/stats", icon: ChartBarIcon, label: "Estatísticas" },
   { href: "/cards", icon: CreditCardIcon, label: "Cartões" },
@@ -68,7 +70,7 @@ export function DesktopNav() {
         {/* Navigation Links */}
         <nav className="flex-1 px-4 py-6 space-y-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`)
             const Icon = item.icon
 
             return (

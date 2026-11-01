@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, CreditCard, PiggyBank, DotsNine } from "@phosphor-icons/react"
+import { House, CreditCard, PiggyBank, DotsNine, Target } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useInboxCount } from "@/hooks/use-inbox-count"
 
 const navItems = [
   { href: "/", icon: House, label: "Home" },
+  { href: "/plan", icon: Target, label: "Planejar" },
   { href: "/cards", icon: CreditCard, label: "Cartões" },
   { href: "/savings", icon: PiggyBank, label: "Reservas" },
   { href: "/all-menus", icon: DotsNine, label: "Todos" },
@@ -24,7 +25,7 @@ export function BottomNav() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-black/10 dark:border-white/10 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`)
             const Icon = item.icon
 
             return (
@@ -32,7 +33,7 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-[1vw] transition-colors min-w-17.5",
+                  "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-[1vw] transition-colors min-w-16",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
                 )}
               >
