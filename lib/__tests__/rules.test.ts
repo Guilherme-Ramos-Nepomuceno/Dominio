@@ -30,10 +30,13 @@ test("mapeia regra, sugestão e conflito", () => {
 })
 
 test("mapa de categorias da Pluggy ordenado", () => {
-  assert.deepEqual(mapPluggyCategoryMap([{ pluggyCategory: "Transporte", categoryId: null }, { pluggyCategory: "Alimentação", categoryId: "f" }, {}]), [
-    { pluggyCategory: "Alimentação", categoryId: "f" },
-    { pluggyCategory: "Transporte", categoryId: null },
-  ])
+  assert.deepEqual(
+    mapPluggyCategoryMap([{ pluggyCategory: "Transporte", categoryId: null }, { pluggyCategory: "Alimentação", categoryId: "f", source: "LEARNED" }, {}]),
+    [
+      { pluggyCategory: "Alimentação", categoryId: "f", source: "LEARNED" },
+      { pluggyCategory: "Transporte", categoryId: null, source: "DEFAULT" },
+    ],
+  )
   assert.deepEqual(mapPluggyCategoryMap(null), [])
 })
 

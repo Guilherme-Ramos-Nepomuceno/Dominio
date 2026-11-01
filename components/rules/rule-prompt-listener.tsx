@@ -34,6 +34,7 @@ export function RulePromptListener() {
   const router = useRouter()
   const buffer = useRef<RuleFeedback[]>([])
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inBatch = useRef(false)
   const [batch, setBatch] = useState<AggregatedRuleFeedback | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -57,8 +58,8 @@ export function RulePromptListener() {
       if (prompt.kind === "single-conflict") {
         const { conflict } = prompt
         toast({
-          title: `Atualizar a regra de “${conflict.label}”?`,
-          description: `Hoje ela coloca em ${nameOf(cats, conflict.categoryId)}. Passar a usar ${nameOf(cats, conflict.newCategoryId)}?`,
+          title: `Atualizar a regra de “${conflict.label}” para ${nameOf(cats, conflict.newCategoryId)}?`,
+          description: `Hoje ela coloca em ${nameOf(cats, conflict.categoryId)}.`,
           action: (
             <ToastAction
               altText="Atualizar a regra"
@@ -139,18 +140,36 @@ export function RulePromptListener() {
       })
     }
 
-    const handle = (event: Event) => {
-      const feedback = (event as CustomEvent<RuleFeedback>).detail
-      if (!feedback) return
-      buffer.current.push(feedback)
+    const schedule = () => {
       if (timer.current) clearTimeout(timer.current)
+      if (inBatch.current) return
       // Também deixa o toast de "salvo" da própria tela aparecer antes.
       timer.current = setTimeout(flush, QUIET_MS)
     }
 
+    const handle = (event: Event) => {
+      const feedback = (event as CustomEvent<RuleFeedback>).detail
+      if (!feedback) return
+      buffer.current.push(feedback)
+      schedule()
+    }
+    // Lote: segura tudo até o fim e então mostra um único aviso.
+    const batchStart = () => {
+      inBatch.current = true
+      if (timer.current) clearTimeout(timer.current)
+    }
+    const batchEnd = () => {
+      inBatch.current = false
+      schedule()
+    }
+
     window.addEventListener("rule-feedback", handle)
+    window.addEventListener("rule-feedback-batch-start", batchStart)
+    window.addEventListener("rule-feedback-batch-end", batchEnd)
     return () => {
       window.removeEventListener("rule-feedback", handle)
+      window.removeEventListener("rule-feedback-batch-start", batchStart)
+      window.removeEventListener("rule-feedback-batch-end", batchEnd)
       if (timer.current) clearTimeout(timer.current)
     }
   }, [toast, router])

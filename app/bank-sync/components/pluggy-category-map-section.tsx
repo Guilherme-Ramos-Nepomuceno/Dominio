@@ -32,10 +32,11 @@ export function PluggyCategoryMapSection() {
   const change = async (pluggyCategory: string, categoryId: string | null) => {
     if (!rows) return
     const previous = rows
-    setRows(rows.map((r) => (r.pluggyCategory === pluggyCategory ? { ...r, categoryId } : r)))
+    setRows(rows.map((r) => (r.pluggyCategory === pluggyCategory ? { ...r, categoryId, source: categoryId ? "LEARNED" : r.source } : r)))
     setSavingKey(pluggyCategory)
     try {
-      await setPluggyCategoryMapping(pluggyCategory, categoryId)
+      // A resposta traz o mapa inteiro (null volta ao padrão, que pode ter categoria).
+      setRows(await setPluggyCategoryMapping(pluggyCategory, categoryId))
     } catch (error: any) {
       setRows(previous)
       toast({ title: "Não foi possível salvar", description: error?.message, variant: "destructive" })
@@ -74,7 +75,17 @@ export function PluggyCategoryMapSection() {
           <ul className="divide-y divide-border/50">
             {rows.map((row) => (
               <li key={row.pluggyCategory} className="flex flex-col sm:flex-row sm:items-center gap-2 py-2.5">
-                <span className="flex-1 min-w-0 text-sm text-foreground truncate">{row.pluggyCategory}</span>
+                <span className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className="text-sm text-foreground truncate">{row.pluggyCategory}</span>
+                  <span
+                    className={cn(
+                      "text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0",
+                      row.source === "LEARNED" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {row.source === "LEARNED" ? "aprendido" : "padrão"}
+                  </span>
+                </span>
                 <select
                   aria-label={`Categoria para ${row.pluggyCategory}`}
                   value={row.categoryId ?? ""}
@@ -82,7 +93,7 @@ export function PluggyCategoryMapSection() {
                   onChange={(e) => change(row.pluggyCategory, e.target.value || null)}
                   className="sm:w-56 px-3 py-2 rounded-lg bg-background border border-border text-sm disabled:opacity-60"
                 >
-                  <option value="">Não mapear (vai para A classificar)</option>
+                  <option value="">{row.source === "LEARNED" ? "Voltar ao padrão" : "Sem categoria (vai para A classificar)"}</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.type === "income" ? "receita" : "despesa"})

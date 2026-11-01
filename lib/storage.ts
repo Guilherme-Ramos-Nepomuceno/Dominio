@@ -86,6 +86,16 @@ function emitRuleFeedback(result: any, categoryId: string | null): void {
   window.dispatchEvent(new CustomEvent<RuleFeedback>("rule-feedback", { detail }))
 }
 
+// Ação em lote (ex.: "Aceitar todas as sugestões", uma chamada por grupo):
+// o RulePromptListener segura os avisos até o fim e mostra um só.
+export function beginRuleFeedbackBatch(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("rule-feedback-batch-start"))
+}
+
+export function endRuleFeedbackBatch(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("rule-feedback-batch-end"))
+}
+
 function isReadOnly(): boolean {
   return getActiveAccountSelection().type === "partner"
 }

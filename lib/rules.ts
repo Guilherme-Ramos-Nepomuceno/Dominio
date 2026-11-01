@@ -39,6 +39,8 @@ export interface RuleFeedback {
 export interface PluggyCategoryMapping {
   pluggyCategory: string
   categoryId: string | null
+  // DEFAULT = mapeamento padrão do app; LEARNED = escolhido/aprendido da pessoa.
+  source: "LEARNED" | "DEFAULT"
 }
 
 const numOrNull = (v: unknown): number | null => {
@@ -71,7 +73,11 @@ export function mapRuleConflict(c: any): RuleConflict | null {
 
 export function mapPluggyCategoryMap(rows: any): PluggyCategoryMapping[] {
   return (Array.isArray(rows) ? rows : [])
-    .map((r: any) => ({ pluggyCategory: String(r.pluggyCategory ?? ""), categoryId: r.categoryId ?? null }))
+    .map((r: any) => ({
+      pluggyCategory: String(r.pluggyCategory ?? ""),
+      categoryId: r.categoryId ?? null,
+      source: (r.source === "LEARNED" ? "LEARNED" : "DEFAULT") as PluggyCategoryMapping["source"],
+    }))
     .filter((r) => r.pluggyCategory)
     .sort((a, b) => a.pluggyCategory.localeCompare(b.pluggyCategory, "pt-BR"))
 }

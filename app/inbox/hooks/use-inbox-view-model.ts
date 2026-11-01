@@ -1,7 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { categorizeTransactions, getCategories, getInbox, type InboxGroup } from "@/lib/storage"
+import {
+  beginRuleFeedbackBatch,
+  categorizeTransactions,
+  endRuleFeedbackBatch,
+  getCategories,
+  getInbox,
+  type InboxGroup,
+} from "@/lib/storage"
 import type { Category } from "@/lib/types"
 import { trackEvent } from "@/lib/events"
 import { groupsWithSuggestion, inboxGroupKey, initialSelections } from "@/lib/inbox"
@@ -117,6 +124,7 @@ export function useInboxViewModel() {
     let failures = 0
     // Um grupo por vez: cada um tem sua própria categoria, e uma falha num
     // grupo não deve impedir os outros.
+    beginRuleFeedbackBatch()
     for (const group of suggestedGroups) {
       try {
         const ids = group.transactions.map((t) => t.id)
@@ -126,6 +134,7 @@ export function useInboxViewModel() {
         failures++
       }
     }
+    endRuleFeedbackBatch()
     if (updatedTotal > 0) trackEvent("inbox_categorized", { count: updatedTotal, acceptedSuggestion: true })
     toast({
       title: failures > 0 ? "Algumas sugestões não foram aplicadas" : "Sugestões aceitas",

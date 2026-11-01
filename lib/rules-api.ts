@@ -1,6 +1,6 @@
 // Chamadas das regras de categorização e do mapa de categorias da Pluggy.
 
-import { fetchApi } from "./api"
+import { ApiError, fetchApi } from "./api"
 import { isReadOnly } from "./storage"
 import { mapPluggyCategoryMap, mapRule, type CategoryRule, type PluggyCategoryMapping, type RuleSource } from "./rules"
 
@@ -26,14 +26,33 @@ export interface CategoryRuleInput {
   source?: RuleSource
 }
 
+// 409 = já existe regra para esse estabelecimento e faixa; 400 = faixa inválida.
+function friendlyRuleError(error: unknown): unknown {
+  if (error instanceof ApiError && error.status === 409) {
+    return new ApiError(409, "Já existe uma regra para esse estabelecimento nessa faixa de valor.")
+  }
+  if (error instanceof ApiError && error.status === 400 && /min|max|faixa/i.test(error.message)) {
+    return new ApiError(400, "O valor mínimo não pode ser maior que o máximo.")
+  }
+  return error
+}
+
 export async function createCategoryRule(input: CategoryRuleInput): Promise<CategoryRule> {
   assertWritable()
-  return mapRule(await fetchApi("/category-rules", { method: "POST", body: JSON.stringify(input) }))
+  try {
+    return mapRule(await fetchApi("/category-rules", { method: "POST", body: JSON.stringify(input) }))
+  } catch (error) {
+    throw friendlyRuleError(error)
+  }
 }
 
 export async function updateCategoryRule(id: string, updates: Partial<CategoryRuleInput>): Promise<CategoryRule> {
   assertWritable()
-  return mapRule(await fetchApi(`/category-rules/${id}`, { method: "PUT", body: JSON.stringify(updates) }))
+  try {
+    return mapRule(await fetchApi(`/category-rules/${id}`, { method: "PUT", body: JSON.stringify(updates) }))
+  } catch (error) {
+    throw friendlyRuleError(error)
+  }
 }
 
 export async function deleteCategoryRule(id: string): Promise<void> {
@@ -45,10 +64,12 @@ export async function getPluggyCategoryMap(): Promise<PluggyCategoryMapping[]> {
   return mapPluggyCategoryMap(await fetchApi("/pluggy/category-map"))
 }
 
-export async function setPluggyCategoryMapping(pluggyCategory: string, categoryId: string | null): Promise<void> {
+// Devolve o mapa atualizado; categoryId null volta ao padrão.
+export async function setPluggyCategoryMapping(pluggyCategory: string, categoryId: string | null): Promise<PluggyCategoryMapping[]> {
   assertWritable()
-  await fetchApi(`/pluggy/category-map/${encodeURIComponent(pluggyCategory)}`, {
+  const raw = await fetchApi(`/pluggy/category-map/${encodeURIComponent(pluggyCategory)}`, {
     method: "PUT",
     body: JSON.stringify({ categoryId }),
   })
+  return mapPluggyCategoryMap(raw)
 }
