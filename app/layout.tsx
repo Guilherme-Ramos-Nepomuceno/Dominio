@@ -7,6 +7,7 @@ import { AccountProvider } from "@/components/account/account-context"
 import { SelectedMonthProvider } from "@/lib/selected-month-context"
 import { Toaster } from "@/components/ui/toaster"
 import { SessionBootstrap } from "@/components/session/session-bootstrap"
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register"
 import "./globals.css"
 
 const fontSans = Plus_Jakarta_Sans({
@@ -21,6 +22,13 @@ export const metadata: Metadata = {
   generator: "Guilherme.Ramos",
   icons: {
     icon: "/icon.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
+  // PWA no iPhone: abre em tela cheia quando adicionado à tela inicial.
+  appleWebApp: {
+    capable: true,
+    title: "Domínio",
+    statusBarStyle: "black-translucent",
   },
 }
 
@@ -31,6 +39,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#18181e",
 }
 
 export default function RootLayout({
@@ -48,6 +57,7 @@ export default function RootLayout({
           </AccountProvider>
         </AuthGuard>
         <Toaster />
+        <ServiceWorkerRegister />
         <Analytics />
       </body>
     </html>

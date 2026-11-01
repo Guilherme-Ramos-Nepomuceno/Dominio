@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSettingsViewModel } from "../hooks/use-settings-view-model"
+import { NotificationsSection } from "./notifications-section"
 
 export function SettingsView() {
     const {
@@ -225,6 +226,8 @@ export function SettingsView() {
                             </button>
                         )}
                 </div>
+
+                <NotificationsSection />
 
                 {/* Theme Toggle */}
                 <div className="rounded-[20px] bg-card p-6 border border-border/50">
