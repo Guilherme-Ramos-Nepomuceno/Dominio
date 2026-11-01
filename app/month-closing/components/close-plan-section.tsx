@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowClockwise, CaretRight, CheckCircle, LockSimple, Target, Tray, Warning } from "@phosphor-icons/react"
+import { ArrowClockwise, CaretRight, CheckCircle, LockSimple, Tray, Warning } from "@phosphor-icons/react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency } from "@/lib/date-utils"
 import { adherenceTone, DECISION_LABEL, postponeWarning, type WishDecision } from "@/lib/closing"
@@ -75,23 +75,12 @@ export function ClosePlanSection() {
     )
   }
 
-  if (vm.status === "NONE") {
-    return (
-      <div className="space-y-3">
-        {monthSwitch}
-        <div className="rounded-[20px] bg-card p-8 text-center border border-border/50 space-y-3">
-          <Target size={36} weight="duotone" className="mx-auto text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Não há plano salvo para {vm.monthLabel}. Planeje o mês para poder fechá-lo.</p>
-          <Link href="/plan" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-background text-sm font-semibold">
-            Planejar o mês
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
   const summary = vm.data?.summary
   const closed = vm.status === "CLOSED"
+  // Sem plano salvo: dá para fechar mesmo assim (o backend salva a proposta e
+  // fecha). O resumo mostra só o realizado, sem comparar com um planejado.
+  const noPlan = vm.status === "NONE"
+  const showWishes = !noPlan || (vm.data?.openWishes.length ?? 0) > 0
   const tone = summary ? adherenceTone(summary.adherencePct) : "ok"
   const wishes = vm.data?.openWishes ?? []
   const hasLeftover = !!summary && summary.leftover > 0
@@ -136,19 +125,25 @@ export function ClosePlanSection() {
       {/* 2. Planejado × real */}
       {summary && (
         <section className="rounded-[20px] bg-card border border-border/50 p-4 space-y-3">
-          <StepTitle n={closed ? 1 : 2}>Planejado × real de {vm.monthLabel}</StepTitle>
+          <StepTitle n={closed ? 1 : 2}>
+            {noPlan ? `Realizado em ${vm.monthLabel}` : `Planejado × real de ${vm.monthLabel}`}
+          </StepTitle>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-xl bg-background p-3">
-              <dt className="text-xs text-muted-foreground">Orçamento</dt>
+              <dt className="text-xs text-muted-foreground">{noPlan ? "Receitas do mês" : "Orçamento"}</dt>
               <dd className="font-bold tabular-nums">{formatCurrency(summary.budgetAmount)}</dd>
             </div>
-            <div className="rounded-xl bg-background p-3">
-              <dt className="text-xs text-muted-foreground">Planejado</dt>
-              <dd className="font-bold tabular-nums">{formatCurrency(summary.plannedTotal)}</dd>
-            </div>
+            {!noPlan && (
+              <div className="rounded-xl bg-background p-3">
+                <dt className="text-xs text-muted-foreground">Planejado</dt>
+                <dd className="font-bold tabular-nums">{formatCurrency(summary.plannedTotal)}</dd>
+              </div>
+            )}
             <div className="rounded-xl bg-background p-3">
               <dt className="text-xs text-muted-foreground">Gasto</dt>
-              <dd className={cn("font-bold tabular-nums", tone === "over" && "text-expense")}>{formatCurrency(summary.spentTotal)}</dd>
+              <dd className={cn("font-bold tabular-nums", !noPlan && tone === "over" && "text-expense")}>
+                {formatCurrency(summary.spentTotal)}
+              </dd>
             </div>
             <div className="rounded-xl bg-background p-3">
               <dt className="text-xs text-muted-foreground">Sobra</dt>
@@ -157,20 +152,31 @@ export function ClosePlanSection() {
               </dd>
             </div>
           </dl>
-          <p
-            className={cn(
-              "text-xs",
-              tone === "ok" ? "text-muted-foreground" : tone === "warning" ? "text-amber-700 dark:text-amber-400" : "text-expense",
-            )}
-          >
-            Você gastou {Math.round(summary.adherencePct)}% do planejado.
-          </p>
+          {noPlan ? (
+            <p className="text-xs text-muted-foreground">
+              Este mês não teve plano salvo, então não há comparativo com o planejado.{" "}
+              <Link href="/plan" className="text-primary hover:underline">
+                Planejar o próximo
+              </Link>
+            </p>
+          ) : (
+            <p
+              className={cn(
+                "text-xs",
+                tone === "ok" ? "text-muted-foreground" : tone === "warning" ? "text-amber-700 dark:text-amber-400" : "text-expense",
+              )}
+            >
+              Você gastou {Math.round(summary.adherencePct)}% do planejado.
+            </p>
+          )}
         </section>
       )}
 
       {!closed && (
         <>
-          {/* 3. Desejos em aberto */}
+          {/* 3. Desejos em aberto — sem plano, só aparece se houver desejo aberto
+              (o backend exige uma decisão para cada um). */}
+          {showWishes && (
           <section className="rounded-[20px] bg-card border border-border/50 p-4 space-y-3">
             <StepTitle n={3}>Desejos que ficaram em aberto</StepTitle>
             {wishes.length === 0 ? (
@@ -219,10 +225,11 @@ export function ClosePlanSection() {
               </ul>
             )}
           </section>
+          )}
 
           {/* 4. Sobra */}
           <section className="rounded-[20px] bg-card border border-border/50 p-4 space-y-3">
-            <StepTitle n={4}>Para onde vai a sobra?</StepTitle>
+            <StepTitle n={showWishes ? 4 : 3}>Para onde vai a sobra?</StepTitle>
             {!hasLeftover ? (
               <p className="text-sm text-muted-foreground">Sem sobra neste mês.</p>
             ) : (
