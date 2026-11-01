@@ -12,6 +12,14 @@ export type EventName =
   | "inbox_viewed"
   | "inbox_categorized"
   | "pluggy_auto_sync"
+  | "plan_viewed"
+  | "plan_confirmed"
+  | "wish_created"
+  | "wish_bought"
+  | "week_viewed"
+  | "month_closed"
+  | "push_enabled"
+  | "rule_created"
 
 export type EventProperties = Record<string, string | number | boolean | null>
 
