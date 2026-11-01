@@ -18,6 +18,7 @@ import {
   CalendarCheckIcon,
   TrayIcon,
   TargetIcon,
+  CalendarDotsIcon,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
@@ -30,6 +31,7 @@ import { useInboxCount } from "@/hooks/use-inbox-count"
 const navItems = [
   { href: "/", icon: HouseIcon, label: "Home" },
   { href: "/plan", icon: TargetIcon, label: "Planejar" },
+  { href: "/week", icon: CalendarDotsIcon, label: "Minha semana" },
   { href: "/inbox", icon: TrayIcon, label: "A classificar" },
   { href: "/stats", icon: ChartBarIcon, label: "Estatísticas" },
   { href: "/cards", icon: CreditCardIcon, label: "Cartões" },

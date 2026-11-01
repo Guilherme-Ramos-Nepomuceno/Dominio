@@ -14,6 +14,7 @@ import {
     CalendarCheckIcon,
     TrayIcon,
     TargetIcon,
+    CalendarDotsIcon,
 } from "@phosphor-icons/react"
 import { useInboxCount } from "@/hooks/use-inbox-count"
 
@@ -22,6 +23,7 @@ export function useAllMenusViewModel() {
     const allMenus = [
         { href: "/", icon: HouseIcon, label: "Home", description: "Visão geral das suas finanças" },
         { href: "/plan", icon: TargetIcon, label: "Planejar mês", description: "Orçamento, grupos e desejos do mês" },
+        { href: "/week", icon: CalendarDotsIcon, label: "Minha semana", description: "Quanto ainda dá para gastar até domingo" },
         { href: "/inbox", icon: TrayIcon, label: "A classificar", description: "Transações sem categoria, agrupadas" },
         { href: "/stats", icon: ChartBarIcon, label: "Estatísticas", description: "Gráficos e análises detalhadas" },
         { href: "/cards", icon: CreditCardIcon, label: "Cartões", description: "Gerencie seus cartões bancários" },

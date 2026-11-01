@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { ArrowClockwise, CheckCircle, LockSimple, NotePencil, Sparkle, CalendarBlank } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
@@ -148,6 +149,12 @@ export function PlanView() {
                 {formatCurrency(plan.leftover)}
               </span>
             </div>
+          )}
+
+          {plan.status === "CONFIRMED" && plan.weeklyLimitEnabled && (
+            <Link href="/week" className="block text-center text-sm font-semibold text-primary hover:underline">
+              Acompanhar minha semana
+            </Link>
           )}
 
           {(plan.status === "NONE" || plan.status === "DRAFT") && vm.editable && (

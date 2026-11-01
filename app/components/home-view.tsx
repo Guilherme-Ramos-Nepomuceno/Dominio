@@ -14,6 +14,7 @@ import { CasalFamiliaToggle } from "./casal-familia-toggle"
 import { SkeletonCircularBalance } from "@/components/ui/loading-skeletons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHomeViewModel } from "../hooks/use-home-view-model"
+import { WeekAvailableCard } from "@/components/week/week-available-card"
 
 export function HomeView() {
     const {
@@ -78,6 +79,9 @@ export function HomeView() {
                                 <CaretRightIcon size={14} weight="bold" className="shrink-0" />
                             </Link>
                         )}
+
+                        {/* Disponível da semana (acima do saldo); some na visão "Total da Família" */}
+                        {viewMode !== "familia" && <WeekAvailableCard />}
 
                         {/* Circular Balance Display */}
                         <CircularBalance
