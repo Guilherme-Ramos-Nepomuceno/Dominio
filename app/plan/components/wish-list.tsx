@@ -143,7 +143,7 @@ export function WishList({
   const categoryName = (id: string | null) => (id ? categories.find((c) => c.id === id)?.name : undefined)
 
   return (
-    <section className="space-y-3" aria-label="Desejos do mês">
+    <section id="desejos" className="space-y-3 scroll-mt-24" aria-label="Desejos do mês">
       <div className="flex items-center justify-between gap-2 px-1">
         <div>
           <h2 className="text-lg font-bold text-foreground">Desejos</h2>

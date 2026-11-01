@@ -276,36 +276,54 @@ function round2(v: number): number {
   return Math.round(v * 100) / 100
 }
 
-// Distribui a margem livre pelos desejos em aberto, na ordem de prioridade:
-// cada um cabe inteiro ou fica faltando o que não coube; depois que a margem
-// acaba, os seguintes "ainda não cabem". Espelha o cálculo do backend para o
-// recálculo otimista — a resposta do servidor sempre prevalece depois.
-export function allocateWishes<T extends Wish>(wishes: T[], freeMargin: number): Array<T & { fits: boolean; missing: number }> {
-  let available = Math.max(0, freeMargin)
-  return sortByPriority(wishes).map((w) => {
+// Distribui a margem livre pelos desejos, na ordem de prioridade (mesma
+// regra do backend, src/utils/plan-calculator.ts): os já comprados saem da
+// margem primeiro (e contam como "cabem"); os abertos vão acumulando — cabe
+// enquanto o acumulado couber; o primeiro que não cabe fica faltando a
+// diferença e, a partir dele, os seguintes "ainda não cabem" (falta o valor
+// inteiro). Usado no recálculo otimista — a resposta do servidor prevalece.
+export function allocateWishes<T extends Wish>(
+  wishes: T[],
+  freeMargin: number,
+): { wishes: Array<T & { fits: boolean; missing: number }>; wishesPlanned: number } {
+  const sorted = sortByPriority(wishes)
+  const boughtTotal = sorted
+    .filter((w) => w.status === "BOUGHT")
+    .reduce((s, w) => s + (w.actualAmount ?? w.estimatedAmount), 0)
+  const available = round2(freeMargin - boughtTotal)
+  let accumulated = 0
+  let blocked = false
+  let openPlanned = 0
+  const result = sorted.map((w) => {
+    if (w.status === "BOUGHT") return { ...w, fits: true, missing: 0 }
     if (w.status !== "OPEN") return { ...w, fits: false, missing: 0 }
-    if (w.estimatedAmount <= available + 0.004) {
-      available = round2(available - w.estimatedAmount)
+    if (blocked) return { ...w, fits: false, missing: round2(w.estimatedAmount) }
+    accumulated += w.estimatedAmount
+    if (round2(accumulated) <= available) {
+      openPlanned += w.estimatedAmount
       return { ...w, fits: true, missing: 0 }
     }
-    const missing = round2(w.estimatedAmount - available)
-    available = 0
-    return { ...w, fits: false, missing }
+    blocked = true
+    return { ...w, fits: false, missing: round2(accumulated - available) }
   })
+  return { wishes: result, wishesPlanned: round2(openPlanned + boughtTotal) }
 }
 
 // Recalcula totais do plano a partir das categorias (planejado variável),
-// orçamento e desejos — usado no otimista enquanto o PUT não volta.
+// orçamento e desejos — usado no otimista enquanto o PUT não volta. Mesma
+// conta do backend: margem livre = orçamento − planejado dos grupos (fora o
+// grupo Desejos, cujo planejado são os próprios desejos).
 export function recomputePlan(plan: Plan): Plan {
-  const groups = plan.groups.map((g) => {
+  const baseGroups = plan.groups.map((g) => {
+    if (g.kind === "WISHES") return g
     const plannedVariable = round2(g.categories.reduce((s, c) => s + c.plannedVariable, 0))
     const committed = round2(g.categories.reduce((s, c) => s + c.committed, 0))
     return { ...g, plannedVariable, committed, planned: round2(committed + plannedVariable) }
   })
-  const plannedTotal = groups.reduce((s, g) => s + g.planned, 0)
-  const freeMargin = round2(effectiveBudget(plan) - plannedTotal - plan.uncategorized.spent)
-  const wishes = allocateWishes(plan.wishes, freeMargin)
-  const wishesPlanned = round2(wishes.filter((w) => w.fits).reduce((s, w) => s + w.estimatedAmount, 0))
+  const plannedTotal = baseGroups.filter((g) => g.kind !== "WISHES").reduce((s, g) => s + g.planned, 0)
+  const freeMargin = round2(effectiveBudget(plan) - plannedTotal)
+  const { wishes, wishesPlanned } = allocateWishes(plan.wishes, freeMargin)
+  const groups = baseGroups.map((g) => (g.kind === "WISHES" ? { ...g, plannedVariable: wishesPlanned, planned: wishesPlanned } : g))
   return { ...plan, groups, freeMargin, wishes, wishesPlanned, leftover: round2(freeMargin - wishesPlanned) }
 }
 

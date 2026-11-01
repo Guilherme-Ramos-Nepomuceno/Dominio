@@ -115,7 +115,9 @@ export function usePlan(monthKeyStr: string) {
 
   const setBudget = useCallback(
     (amount: number | null, source: BudgetSource) =>
-      save(source === "INCOME" ? { budgetSource: "INCOME" } : { budgetAmount: amount, budgetSource: "MANUAL" }, (p) =>
+      // budgetAmount null = volta a usar a renda prevista (o backend só troca a
+      // origem se vier só budgetSource, mantendo o valor manual antigo).
+      save(source === "INCOME" ? { budgetAmount: null, budgetSource: "INCOME" } : { budgetAmount: amount, budgetSource: "MANUAL" }, (p) =>
         withBudget(p, source === "INCOME" ? null : amount, source),
       ),
     [save],
