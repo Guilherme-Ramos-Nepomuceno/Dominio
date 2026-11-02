@@ -1,12 +1,9 @@
 "use client"
 
-import Link from "next/link"
-import { ArrowClockwise, CheckCircle, LockSimple, NotePencil, Sparkle, CalendarBlank } from "@phosphor-icons/react"
+import { ArrowClockwise, CheckCircle, LockSimple, NotePencil, Sparkle } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
-import { PageHeader } from "@/components/ui/page-header"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,159 +15,166 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { PLAN_STATUS_LABEL, type PlanStatus } from "@/lib/plan"
-import { formatCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import { usePlanViewModel } from "../hooks/use-plan-view-model"
-import { BudgetCard } from "./budget-card"
-import { PlanTower } from "./plan-tower"
+import { PlanHero } from "./plan-hero"
+import { MonthBar } from "./month-bar"
+import { PlanGroupList } from "./plan-tower"
 import { WishList } from "./wish-list"
+import { PlanSettings } from "./plan-settings"
 import { WishFormSheet } from "./wish-form-sheet"
 import { BuyWishSheet } from "./buy-wish-sheet"
 
-const STATUS_STYLE: Record<PlanStatus, string> = {
-  NONE: "bg-muted text-muted-foreground",
-  DRAFT: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  CONFIRMED: "bg-income/15 text-income",
-  CLOSED: "bg-foreground/10 text-foreground",
+// Status = bolinha + rótulo (nunca só a cor).
+const STATUS_DOT: Record<PlanStatus, string> = {
+  NONE: "bg-muted-foreground/60",
+  DRAFT: "bg-amber-500",
+  CONFIRMED: "bg-income",
+  CLOSED: "bg-foreground/50",
 }
 
-function StatusBanner({ status }: { status: PlanStatus }) {
-  if (status === "CONFIRMED") return null
-  const content = {
-    NONE: {
-      icon: Sparkle,
-      text: "Esta é uma proposta montada com seus gastos recentes e o que já está comprometido. Ajuste o que quiser e confirme.",
-    },
-    DRAFT: { icon: NotePencil, text: "Rascunho salvo. Confirme quando o plano estiver do seu jeito." },
-    CLOSED: { icon: LockSimple, text: "Este mês já foi fechado — o plano fica só para consulta." },
-  }[status]
-  const Icon = content.icon
+const GUIDE_ICON: Record<PlanStatus, typeof Sparkle> = {
+  NONE: Sparkle,
+  DRAFT: NotePencil,
+  CONFIRMED: CheckCircle,
+  CLOSED: LockSimple,
+}
+
+function StatusChip({ status }: { status: PlanStatus }) {
   return (
-    <div className="flex items-start gap-2 rounded-2xl bg-card border border-dashed border-border p-3 text-xs text-muted-foreground">
-      <Icon size={16} weight="duotone" className="shrink-0 mt-0.5 text-foreground/70" />
-      <p>{content.text}</p>
-    </div>
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+      <span aria-hidden className={cn("w-1.5 h-1.5 rounded-full", STATUS_DOT[status])} />
+      {PLAN_STATUS_LABEL[status]}
+    </span>
+  )
+}
+
+// Linha guia leve no topo (no lugar do antigo aviso grande).
+function GuideLine({ status, text }: { status: PlanStatus; text: string }) {
+  const Icon = GUIDE_ICON[status]
+  return (
+    <p className="-mt-2 flex items-start gap-2 text-sm text-muted-foreground">
+      <Icon size={16} weight="duotone" className="mt-0.5 shrink-0 text-foreground/60" />
+      {text}
+    </p>
   )
 }
 
 export function PlanView() {
   const vm = usePlanViewModel()
   const plan = vm.plan
+  const ready = !vm.isReadOnly && !vm.isLoading && !vm.loadError && !!plan
 
   return (
     <AppLayout showMonthFilter>
-      <PageHeader
-        title="Planejar mês"
-        subtitle={vm.periodRangeLabel ? `Período: ${vm.periodRangeLabel}` : "Quanto vai para cada parte do mês"}
-        action={
-          <div className="flex items-center gap-2">
-            {plan && (
-              <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-full", STATUS_STYLE[plan.status])}>
-                {PLAN_STATUS_LABEL[plan.status]}
+      <div className="max-w-2xl mx-auto">
+        <header className="mb-6 flex items-center justify-between gap-4 md:mb-8">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+              <span className="sr-only">Planejar </span>
+              {vm.title}
+            </h1>
+            {vm.periodText && <span className="text-sm md:text-base text-muted-foreground">· {vm.periodText}</span>}
+            {plan && !vm.isReadOnly && (
+              <span className="self-center">
+                <StatusChip status={plan.status} />
               </span>
             )}
-            <div className="hidden md:block">
-              <MonthHeaderSelector />
+          </div>
+          <div className="hidden md:block shrink-0">
+            <MonthHeaderSelector />
+          </div>
+        </header>
+
+        {vm.isReadOnly ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">O planejamento de um parceiro não pode ser visto por aqui.</p>
+        ) : vm.isLoading ? (
+          <div className="space-y-10" aria-busy>
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-40 rounded-full" />
+              <Skeleton className="h-12 w-56 rounded-xl" />
+              <Skeleton className="h-4 w-52 rounded-full" />
+              <Skeleton className="mt-6 h-6 w-full rounded-[6px]" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
             </div>
           </div>
-        }
-      />
-
-      {vm.isReadOnly ? (
-        <div className="rounded-[20px] bg-card p-8 text-center border border-border/50">
-          <p className="text-sm text-muted-foreground">O planejamento de um parceiro não pode ser visto por aqui.</p>
-        </div>
-      ) : vm.isLoading ? (
-        <div className="max-w-2xl mx-auto space-y-3">
-          <Skeleton className="h-32 rounded-[20px]" />
-          <Skeleton className="h-24 rounded-[20px]" />
-          <Skeleton className="h-24 rounded-[20px]" />
-          <Skeleton className="h-24 rounded-[20px]" />
-        </div>
-      ) : vm.loadError || !plan ? (
-        <div className="rounded-[20px] bg-card p-8 text-center border border-border/50 space-y-3">
-          <p className="text-sm text-muted-foreground">Não foi possível carregar o plano agora.</p>
-          <button
-            type="button"
-            onClick={vm.reload}
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-          >
-            <ArrowClockwise size={14} weight="bold" />
-            Tentar de novo
-          </button>
-        </div>
-      ) : (
-        <div className="max-w-2xl mx-auto space-y-4 pb-6">
-          <StatusBanner status={plan.status} />
-
-          <BudgetCard plan={plan} budget={vm.budget} editable={vm.editable} onSave={vm.setBudget} />
-
-          <PlanTower plan={plan} groupHref={(id) => `/plan/${id}`} />
-
-          {vm.totals && (
-            <p className="text-xs text-muted-foreground text-center">
-              Planejado {formatCurrency(vm.totals.planned)} · gasto até agora {formatCurrency(vm.totals.spent)}
-            </p>
-          )}
-
-          <div className="flex items-center gap-3 rounded-[20px] bg-card border border-border/50 p-4">
-            <CalendarBlank size={20} weight="duotone" className="text-muted-foreground shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">Limite semanal</p>
-              <p className="text-xs text-muted-foreground">
-                Divide o variável dos grupos marcados em semanas, para acompanhar em “Minha semana”.
-              </p>
-            </div>
-            <Switch
-              checked={plan.weeklyLimitEnabled}
-              disabled={!vm.editable}
-              onCheckedChange={(checked) => vm.setWeeklyLimitEnabled(checked)}
-              aria-label="Ativar limite semanal"
-            />
-          </div>
-
-          <WishList
-            wishes={vm.openWishes}
-            boughtWishes={vm.boughtWishes}
-            categories={vm.categories}
-            editable={vm.editable}
-            highlightedIds={vm.highlightedWishIds}
-            onReorder={vm.reorder}
-            onAdd={() => vm.setEditingWish("new")}
-            onEdit={(w) => vm.setEditingWish(w)}
-            onBuy={(w) => vm.setBuyingWish(w)}
-            onDelete={(w) => vm.setDeletingWish(w)}
-          />
-
-          {plan.wishes.length > 0 && (
-            <div className="flex items-center justify-between rounded-2xl bg-card/60 px-4 py-3 text-sm">
-              <span className="text-muted-foreground">Sobra depois dos desejos que cabem</span>
-              <span className={cn("font-bold tabular-nums", plan.leftover < 0 ? "text-expense" : "text-foreground")}>
-                {formatCurrency(plan.leftover)}
-              </span>
-            </div>
-          )}
-
-          {plan.status === "CONFIRMED" && plan.weeklyLimitEnabled && (
-            <Link href="/week" className="block text-center text-sm font-semibold text-primary hover:underline">
-              Acompanhar minha semana
-            </Link>
-          )}
-
-          {(plan.status === "NONE" || plan.status === "DRAFT") && vm.editable && (
+        ) : vm.loadError || !plan ? (
+          <div className="py-12 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">Não foi possível carregar o plano agora.</p>
             <button
               type="button"
-              onClick={vm.confirmPlan}
-              disabled={vm.isConfirming || vm.isSaving}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-primary text-background font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              onClick={vm.reload}
+              className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:underline"
             >
-              <CheckCircle size={18} weight="bold" />
-              {vm.isConfirming ? "Confirmando..." : plan.status === "NONE" ? "Revisar e confirmar" : "Confirmar plano"}
+              <ArrowClockwise size={14} weight="bold" />
+              Tentar de novo
             </button>
-          )}
+          </div>
+        ) : null}
 
-        </div>
-      )}
+        {ready && plan && vm.bar && vm.headline && vm.queue && (
+          <div className="space-y-12 pb-4">
+            {vm.guide && <GuideLine status={plan.status} text={vm.guide} />}
+
+            <div>
+              <PlanHero plan={plan} headline={vm.headline} budget={vm.budget} editable={vm.editable} onSaveBudget={vm.setBudget} />
+              <MonthBar
+                className="mt-8"
+                bar={vm.bar}
+                summary={vm.barSummary}
+                showSpending={vm.showSpending}
+                groupHref={(id) => `/plan/${id}`}
+              />
+            </div>
+
+            <PlanGroupList plan={plan} bar={vm.bar} groupHref={(id) => `/plan/${id}`} />
+
+            <WishList
+              wishes={vm.openWishes}
+              boughtWishes={vm.boughtWishes}
+              categories={vm.categories}
+              queue={vm.queue}
+              leftover={plan.leftover}
+              editable={vm.editable}
+              highlightedIds={vm.highlightedWishIds}
+              onReorder={vm.reorder}
+              onAdd={() => vm.setEditingWish("new")}
+              onEdit={(w) => vm.setEditingWish(w)}
+              onBuy={(w) => vm.setBuyingWish(w)}
+              onDelete={(w) => vm.setDeletingWish(w)}
+            />
+
+            <PlanSettings
+              weeklyLimitEnabled={plan.weeklyLimitEnabled}
+              editable={vm.editable}
+              totals={vm.totals}
+              monthStartDay={vm.monthStartDay}
+              showWeekLink={vm.showWeekLink}
+              onToggleWeeklyLimit={vm.setWeeklyLimitEnabled}
+            />
+
+            {vm.canConfirm && (
+              // Fixo no rodapé (acima do menu inferior no celular), deixando à
+              // direita o espaço do botão "+" do registro rápido.
+              <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 pr-[4.75rem] md:bottom-8 md:pr-[5.5rem] xl:pr-0">
+                <button
+                  type="button"
+                  onClick={vm.confirmPlan}
+                  disabled={vm.isConfirming || vm.isSaving}
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-primary text-background font-semibold shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
+                >
+                  <CheckCircle size={18} weight="bold" />
+                  {vm.isConfirming ? "Confirmando..." : "Confirmar plano"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <WishFormSheet
         wish={vm.editingWish}

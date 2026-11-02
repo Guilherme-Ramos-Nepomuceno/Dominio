@@ -1,74 +1,97 @@
 "use client"
 
 import Link from "next/link"
-import { CaretRight, Tray, WarningCircle, Scales } from "@phosphor-icons/react"
-import { formatCurrency } from "@/lib/date-utils"
-import { barSegments, type Plan, type PlanGroup } from "@/lib/plan"
-import { UNCATEGORIZED_LABEL } from "@/lib/category-utils"
+import { CaretRight } from "@phosphor-icons/react"
+import type { Plan } from "@/lib/plan"
+import {
+  formatMoneyWhole,
+  monthBar,
+  monthBarSummary,
+  planHeadline,
+  spentProgress,
+  type MonthBar as MonthBarData,
+} from "@/lib/plan-layout"
 import { cn } from "@/lib/utils"
+import { MonthBar } from "./month-bar"
+import { ColorDot, SectionTitle, SpentBar } from "./plan-ui"
 
-// Barra planejado × gasto: fundo = planejado (comprometido em tom mais forte,
-// variável mais claro); a faixa por cima = gasto. Passou do planejado, a faixa
-// fica vermelha.
-export function PlanBar({
-  committed,
-  plannedVariable,
-  spent,
-  className,
-}: {
-  committed: number
-  plannedVariable: number
-  spent: number
+interface PlanGroupListProps {
+  plan: Plan
+  bar: MonthBarData
+  groupHref: (groupId: string) => string
   className?: string
-}) {
-  const seg = barSegments({ committed, plannedVariable, spent })
-  return (
-    <div className={cn("relative h-3 rounded-full bg-muted overflow-hidden", className)} aria-hidden>
-      <div className="absolute inset-y-0 left-0 flex w-full">
-        <div className="h-full bg-foreground/25" style={{ width: `${seg.committedPct}%` }} />
-        <div className="h-full bg-foreground/10" style={{ width: `${seg.variablePct}%` }} />
-      </div>
-      <div
-        className={cn(
-          "absolute left-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full transition-[width] duration-500",
-          seg.overspent ? "bg-expense" : "bg-income",
-        )}
-        style={{ width: `${seg.spentPct}%` }}
-      />
-    </div>
-  )
 }
 
-function GroupRow({ group, href }: { group: PlanGroup; href: string }) {
-  const seg = barSegments(group)
+// "Para onde vai": uma linha leve por grupo, na mesma ordem e cor da barra do
+// mês — nome, planejado (sem centavos) e a barrinha gasto/planejado. O
+// detalhe (comprometido × variável) fica no detalhe do grupo.
+export function PlanGroupList({ plan, bar, groupHref, className }: PlanGroupListProps) {
+  const byId = new Map(plan.groups.map((g) => [g.id, g]))
+  const rows = bar.segments.filter((s) => s.type !== "free")
+
   return (
-    <Link
-      href={href}
-      className="block rounded-[20px] bg-card border border-border/50 p-4 hover:border-primary/40 transition-colors"
-    >
-      <div className="flex items-center gap-2">
-        <p className="flex-1 min-w-0 font-semibold text-foreground truncate">{group.name}</p>
-        <p className="text-sm tabular-nums shrink-0">
-          <span className={cn("font-bold", seg.overspent ? "text-expense" : "text-foreground")}>{formatCurrency(group.spent)}</span>
-          <span className="text-muted-foreground"> de {formatCurrency(group.planned)}</span>
-        </p>
-        <CaretRight size={14} weight="bold" className="text-muted-foreground shrink-0" />
-      </div>
-      <PlanBar className="mt-3" committed={group.committed} plannedVariable={group.plannedVariable} spent={group.spent} />
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-        {group.committed > 0 && (
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-foreground/25" />
-            {formatCurrency(group.committed)} comprometido
-          </span>
-        )}
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-foreground/10 border border-foreground/20" />
-          {formatCurrency(group.plannedVariable)} variável
-        </span>
-        {seg.overspent && <span className="text-expense font-medium">{formatCurrency(seg.overAmount)} acima</span>}
-      </div>
-    </Link>
+    <section className={cn("space-y-1", className)} aria-labelledby="plan-groups-title">
+      <SectionTitle id="plan-groups-title">Para onde vai</SectionTitle>
+      <ul className="divide-y divide-border">
+        {rows.map((s) => {
+          if (s.type === "uncategorized") {
+            return (
+              <li key={s.key}>
+                <Link href="/inbox" className="group flex items-center gap-3 py-3.5">
+                  <ColorDot color={s.color} />
+                  <span className="flex-1 min-w-0 truncate text-sm font-medium text-foreground">{s.label}</span>
+                  <span className="text-sm tabular-nums text-foreground">
+                    {formatMoneyWhole(s.amount)}
+                    <span className="text-muted-foreground"> · </span>
+                    <span className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4 group-hover:decoration-foreground">
+                      classificar
+                    </span>
+                  </span>
+                  <CaretRight size={14} weight="bold" className="text-muted-foreground/60 shrink-0" />
+                </Link>
+              </li>
+            )
+          }
+
+          const group = s.groupId ? byId.get(s.groupId) : undefined
+          const isWishes = s.kind === "WISHES"
+          // Desejos não têm categorias planejáveis: o planejado é a lista de desejos abaixo.
+          const href = isWishes ? "#desejos" : groupHref(s.groupId ?? "")
+          const planned = isWishes ? plan.wishesPlanned : (group?.planned ?? s.amount)
+          const spent = group?.spent ?? 0
+          const progress = spentProgress(spent, planned)
+          return (
+            <li key={s.key}>
+              <Link href={href} className="group flex items-center gap-3 py-3.5">
+                <ColorDot color={s.color} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="truncate text-sm font-medium text-foreground">{s.label}</span>
+                    <span className="text-sm font-semibold tabular-nums text-foreground">{formatMoneyWhole(planned)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <SpentBar spent={spent} planned={planned} color={s.color ?? "var(--plan-uncategorized)"} className="flex-1" />
+                    <span
+                      className={cn(
+                        "w-24 shrink-0 text-right text-[11px] tabular-nums",
+                        progress.over ? "font-medium text-expense" : "text-muted-foreground",
+                      )}
+                    >
+                      {progress.over ? `${formatMoneyWhole(progress.overAmount)} acima` : `${formatMoneyWhole(spent)} gasto`}
+                    </span>
+                  </div>
+                </div>
+                <CaretRight
+                  size={14}
+                  weight="bold"
+                  className="text-muted-foreground/60 shrink-0 transition-transform group-hover:translate-x-0.5"
+                />
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -77,56 +100,21 @@ interface PlanTowerProps {
   groupHref: (groupId: string) => string
 }
 
-// A torre: grupos empilhados, "Sem categoria" consumindo a margem e, na base,
-// a margem livre (o que sobra para desejos).
+// Versão compacta (onboarding): barra do mês, "para onde vai" e a sobra.
 export function PlanTower({ plan, groupHref }: PlanTowerProps) {
-  const negative = plan.freeMargin < 0
+  const bar = monthBar(plan)
+  const headline = planHeadline(plan)
   return (
-    <section className="space-y-2" aria-label="Plano por grupo">
-      {plan.groups.map((group) => (
-        // Desejos não têm categorias planejáveis: o planejado é a lista de desejos abaixo.
-        <GroupRow key={group.id} group={group} href={group.kind === "WISHES" ? "#desejos" : groupHref(group.id)} />
-      ))}
-
-      {plan.uncategorized.spent > 0 && (
-        <Link
-          href="/inbox"
-          className="flex items-center gap-3 rounded-[20px] bg-card border border-dashed border-border p-4 hover:border-primary/40 transition-colors"
-        >
-          <Tray size={20} weight="duotone" className="text-muted-foreground shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">{UNCATEGORIZED_LABEL}</p>
-            <p className="text-xs text-muted-foreground">Consome a margem até ser classificado</p>
-          </div>
-          <p className="text-sm font-bold tabular-nums text-foreground shrink-0">{formatCurrency(plan.uncategorized.spent)}</p>
-          <CaretRight size={14} weight="bold" className="text-muted-foreground shrink-0" />
-        </Link>
-      )}
-
-      <div
-        className={cn(
-          "rounded-[20px] p-5 border",
-          negative ? "bg-expense/10 border-expense/30" : "bg-income/10 border-income/30",
-        )}
-      >
-        <div className="flex items-center gap-3">
-          <Scales size={22} weight="bold" className={negative ? "text-expense" : "text-income"} />
-          <p className="flex-1 text-sm font-semibold text-foreground">Margem livre</p>
-          <p className={cn("text-2xl font-bold tabular-nums", negative ? "text-expense" : "text-foreground")}>
-            {formatCurrency(plan.freeMargin)}
-          </p>
-        </div>
-        {negative ? (
-          <p className="mt-2 text-xs text-expense flex items-start gap-1.5">
-            <WarningCircle size={14} weight="fill" className="shrink-0 mt-0.5" />
-            O plano passa do orçamento em {formatCurrency(Math.abs(plan.freeMargin))}. Reduza alguma categoria ou aumente o orçamento.
-          </p>
-        ) : (
-          <p className="mt-2 text-xs text-muted-foreground">
-            O que sobra do orçamento depois dos grupos e do sem categoria — é daqui que saem os desejos do mês.
-          </p>
-        )}
+    <div className="space-y-6">
+      <MonthBar bar={bar} summary={monthBarSummary(bar)} showSpending={false} groupHref={groupHref} />
+      <PlanGroupList plan={plan} bar={bar} groupHref={groupHref} />
+      <div className="flex items-baseline justify-between gap-3 border-t border-border pt-3">
+        <span className="text-sm text-muted-foreground">{headline.label}</span>
+        <span className={cn("text-lg font-semibold tabular-nums", headline.negative ? "text-expense" : "text-foreground")}>
+          {formatMoneyWhole(headline.value)}
+        </span>
       </div>
-    </section>
+      {headline.shortfallText && <p className="-mt-4 text-xs text-expense">{headline.shortfallText}</p>}
+    </div>
   )
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import {
   CaretUp,
   CaretDown,
+  Check,
   DotsSixVertical,
   DotsThreeVertical,
   LinkSimple,
@@ -14,21 +15,19 @@ import {
   Plus,
   Gift,
 } from "@phosphor-icons/react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { formatCurrency } from "@/lib/date-utils"
-import { moveItem, wishFitState, type PlanWish } from "@/lib/plan"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { moveItem, type PlanWish } from "@/lib/plan"
+import { formatMoneyWhole, wishFitLabel, type WishQueue } from "@/lib/plan-layout"
 import type { Category } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { SectionTitle } from "./plan-ui"
 
 interface WishListProps {
   wishes: PlanWish[]
   boughtWishes: PlanWish[]
   categories: Category[]
+  queue: WishQueue
+  leftover: number
   editable: boolean
   highlightedIds: string[]
   onReorder: (ids: string[]) => void
@@ -38,24 +37,52 @@ interface WishListProps {
   onDelete: (wish: PlanWish) => void
 }
 
-function FitBadge({ wish, highlighted }: { wish: PlanWish; highlighted: boolean }) {
-  const state = wishFitState(wish)
-  if (state === "fits") {
+function FitLabel({ wish, highlighted }: { wish: PlanWish; highlighted: boolean }) {
+  const label = wishFitLabel(wish, highlighted)
+  if (label.tone === "fresh") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-income/15 text-income">
-        {highlighted && <Sparkle size={10} weight="fill" />}
-        {highlighted ? "Agora cabe!" : "Cabe este mês"}
+      <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+        <Sparkle size={12} weight="fill" className="text-income" />
+        {label.text}
       </span>
     )
   }
-  if (state === "partial") {
+  if (label.tone === "fits") {
     return (
-      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400">
-        Faltam {formatCurrency(wish.missing)}
+      <span className="inline-flex items-center gap-1 text-foreground/80">
+        <Check size={12} weight="bold" className="text-income" />
+        {label.text}
       </span>
     )
   }
-  return <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Ainda não cabe</span>
+  return <span className="text-muted-foreground tabular-nums">{label.text}</span>
+}
+
+// Barra fina que se enche com os desejos que cabem na sobra, na ordem da
+// prioridade (os já comprados primeiro, como na alocação do backend).
+function WishQueueBar({ queue }: { queue: WishQueue }) {
+  const fitting = queue.slices.filter((s) => !s.bought).length
+  const summary =
+    queue.available > 0
+      ? `${formatMoneyWhole(queue.used)} de ${formatMoneyWhole(queue.available)} livres vão para ${fitting} ${
+          fitting === 1 ? "desejo que cabe" : "desejos que cabem"
+        }.`
+      : "Não sobra nada para desejos este mês."
+  return (
+    <div role="img" aria-label={summary} className="relative h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--plan-track)" }}>
+      {queue.slices.map((s) => (
+        <span
+          key={s.id}
+          className={cn("absolute inset-y-0 transition-all duration-500", s.bought && "opacity-60")}
+          style={{
+            left: `${s.startPct}%`,
+            width: `max(2px, calc(${s.widthPct}% - 2px))`,
+            backgroundColor: "var(--plan-wishes)",
+          }}
+        />
+      ))}
+    </div>
+  )
 }
 
 interface DragState {
@@ -67,13 +94,15 @@ interface DragState {
   startOrder: string[]
 }
 
-// Lista de desejos por prioridade. Reordenar: arrastar pela alça (mouse ou
-// toque, com pointer events) ou pelos botões subir/descer (teclado e leitores
-// de tela).
+// "O que cabe este mês": quanto há livre, a barra que se enche com os desejos
+// e a lista por prioridade. Reordenar: arrastar pela alça (mouse ou toque,
+// com pointer events) ou pelos botões subir/descer (teclado e leitores de tela).
 export function WishList({
   wishes,
   boughtWishes,
   categories,
+  queue,
+  leftover,
   editable,
   highlightedIds,
   onReorder,
@@ -93,6 +122,7 @@ export function WishList({
 
   const byId = new Map(wishes.map((w) => [w.id, w]))
   const ordered = order.map((id) => byId.get(id)).filter((w): w is PlanWish => !!w)
+  const isEmpty = ordered.length === 0 && boughtWishes.length === 0
 
   const commit = (next: string[], previous: string[]) => {
     if (next.join() !== previous.join()) onReorder(next)
@@ -120,9 +150,9 @@ export function WishList({
     const index = current.indexOf(drag.id)
     const neighborId = offset > 0 ? current[index + 1] : current[index - 1]
     const neighbor = neighborId ? itemRefs.current.get(neighborId) : undefined
-    // Passou da metade do vizinho: troca de lugar com ele.
+    // Passou da metade do vizinho: troca de lugar com ele (linhas coladas, sem gap).
     if (neighbor) {
-      const step = neighbor.offsetHeight + 8 // gap-2
+      const step = neighbor.offsetHeight
       if (Math.abs(offset) > step / 2) {
         const direction = offset > 0 ? 1 : -1
         current = moveItem(current, index, index + direction)
@@ -143,161 +173,201 @@ export function WishList({
   const categoryName = (id: string | null) => (id ? categories.find((c) => c.id === id)?.name : undefined)
 
   return (
-    <section id="desejos" className="space-y-3 scroll-mt-24" aria-label="Desejos do mês">
-      <div className="flex items-center justify-between gap-2 px-1">
-        <div>
-          <h2 className="text-lg font-bold text-foreground">Desejos</h2>
-          <p className="text-xs text-muted-foreground">Em ordem de prioridade — o primeiro é atendido primeiro.</p>
-        </div>
-        {editable && (
-          <button
-            type="button"
-            onClick={onAdd}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-background text-sm font-semibold hover:bg-primary/90 transition-colors shrink-0"
-          >
-            <Plus size={14} weight="bold" />
-            Adicionar
-          </button>
-        )}
+    <section id="desejos" className="scroll-mt-24 space-y-4" aria-labelledby="plan-wishes-title">
+      <div className="flex items-baseline justify-between gap-3">
+        <SectionTitle id="plan-wishes-title">O que cabe este mês</SectionTitle>
+        <p className="text-sm tabular-nums">
+          {queue.available > 0 ? (
+            <>
+              <span className="font-semibold text-foreground">{formatMoneyWhole(queue.available)}</span>
+              <span className="text-muted-foreground"> livres</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">nada livre</span>
+          )}
+        </p>
       </div>
 
-      {ordered.length === 0 ? (
-        <div className="rounded-[20px] bg-card p-8 text-center border border-border/50">
-          <Gift size={36} weight="duotone" className="mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">
-            Algo que você quer comprar? Anote aqui e veja se cabe na margem do mês.
+      {isEmpty ? (
+        <div className="py-8 text-center">
+          <Gift size={28} weight="duotone" className="mx-auto text-muted-foreground/70" />
+          <p className="mt-3 font-medium text-foreground">O que você quer comprar este mês?</p>
+          <p className="mt-1 text-sm text-muted-foreground text-pretty">
+            {queue.available > 0
+              ? `Anote aqui e veja na hora se cabe nos ${formatMoneyWhole(queue.available)} livres.`
+              : "Anote aqui — quando sobrar espaço no plano, você vê o que cabe."}
           </p>
+          {editable && (
+            <button
+              type="button"
+              onClick={onAdd}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <Plus size={14} weight="bold" />
+              Adicionar desejo
+            </button>
+          )}
         </div>
       ) : (
-        <ol className="space-y-2">
-          {ordered.map((wish, index) => {
-            const isDragging = drag?.id === wish.id
-            const highlighted = highlightedIds.includes(wish.id)
-            const category = categoryName(wish.categoryId)
-            return (
-              <li
-                key={wish.id}
-                ref={(el) => {
-                  if (el) itemRefs.current.set(wish.id, el)
-                  else itemRefs.current.delete(wish.id)
-                }}
-                style={isDragging ? { transform: `translateY(${drag.offset}px)` } : undefined}
-                className={cn(
-                  "relative flex items-center gap-2 rounded-[20px] bg-card border border-border/50 p-3 transition-shadow",
-                  isDragging && "z-10 shadow-lg border-primary/40",
-                  highlighted && "ring-2 ring-income/60 animate-pulse",
-                )}
-              >
-                {editable && (
-                  <div className="flex flex-col items-center shrink-0">
-                    <button
-                      type="button"
-                      aria-label={`Subir prioridade de ${wish.name}`}
-                      disabled={index === 0}
-                      onClick={() => moveBy(wish.id, -1)}
-                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20"
-                    >
-                      <CaretUp size={12} weight="bold" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Arrastar ${wish.name} para reordenar`}
-                      onPointerDown={(e) => onPointerDown(e, wish.id)}
-                      onPointerMove={onPointerMove}
-                      onPointerUp={onPointerUp}
-                      onPointerCancel={onPointerUp}
-                      tabIndex={-1}
-                      className="p-0.5 text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
-                    >
-                      <DotsSixVertical size={16} weight="bold" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Descer prioridade de ${wish.name}`}
-                      disabled={index === ordered.length - 1}
-                      onClick={() => moveBy(wish.id, 1)}
-                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20"
-                    >
-                      <CaretDown size={12} weight="bold" />
-                    </button>
-                  </div>
-                )}
+        <>
+          <WishQueueBar queue={queue} />
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-muted-foreground tabular-nums">{index + 1}.</span>
-                    <p className="font-semibold text-foreground truncate">{wish.name}</p>
-                    {wish.link && (
-                      <a
-                        href={wish.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Abrir link de ${wish.name}`}
-                        className="text-muted-foreground hover:text-foreground shrink-0"
-                      >
-                        <LinkSimple size={14} weight="bold" />
-                      </a>
+          {ordered.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum desejo em aberto.</p>
+          ) : (
+            <ol className="divide-y divide-border">
+              {ordered.map((wish, index) => {
+                const isDragging = drag?.id === wish.id
+                const highlighted = highlightedIds.includes(wish.id)
+                const category = categoryName(wish.categoryId)
+                return (
+                  <li
+                    key={wish.id}
+                    ref={(el) => {
+                      if (el) itemRefs.current.set(wish.id, el)
+                      else itemRefs.current.delete(wish.id)
+                    }}
+                    style={isDragging ? { transform: `translateY(${drag.offset}px)` } : undefined}
+                    className={cn(
+                      "relative -mx-2 flex items-center gap-2 px-2 py-3 transition-[background-color,box-shadow] duration-300",
+                      // Cantos arredondados só no destaque/arraste — senão o divisor fica curvo nas pontas.
+                      isDragging && "z-10 rounded-xl bg-card shadow-lg",
+                      highlighted && !isDragging && "rounded-xl bg-income/10",
                     )}
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-bold tabular-nums text-foreground">{formatCurrency(wish.estimatedAmount)}</span>
-                    <FitBadge wish={wish} highlighted={highlighted} />
-                    {category && <span className="text-[11px] text-muted-foreground">· {category}</span>}
-                  </div>
-                </div>
-
-                {editable && (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => onBuy(wish)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
-                    >
-                      <ShoppingBag size={14} weight="bold" />
-                      Comprei
-                    </button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+                  >
+                    {editable && (
+                      <div className="flex flex-col items-center shrink-0 -my-1">
                         <button
                           type="button"
-                          aria-label={`Mais ações de ${wish.name}`}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted"
+                          aria-label={`Subir prioridade de ${wish.name}`}
+                          disabled={index === 0}
+                          onClick={() => moveBy(wish.id, -1)}
+                          className="p-0.5 text-muted-foreground/70 hover:text-foreground disabled:opacity-20"
                         >
-                          <DotsThreeVertical size={18} weight="bold" />
+                          <CaretUp size={12} weight="bold" />
                         </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => onEdit(wish)}>
-                          <PencilSimple size={14} /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onDelete(wish)} className="text-expense focus:text-expense">
-                          <Trash size={14} /> Remover
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ol>
-      )}
+                        <button
+                          type="button"
+                          aria-label={`Arrastar ${wish.name} para reordenar`}
+                          onPointerDown={(e) => onPointerDown(e, wish.id)}
+                          onPointerMove={onPointerMove}
+                          onPointerUp={onPointerUp}
+                          onPointerCancel={onPointerUp}
+                          tabIndex={-1}
+                          className="p-0.5 text-muted-foreground/70 cursor-grab active:cursor-grabbing touch-none"
+                        >
+                          <DotsSixVertical size={16} weight="bold" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Descer prioridade de ${wish.name}`}
+                          disabled={index === ordered.length - 1}
+                          onClick={() => moveBy(wish.id, 1)}
+                          className="p-0.5 text-muted-foreground/70 hover:text-foreground disabled:opacity-20"
+                        >
+                          <CaretDown size={12} weight="bold" />
+                        </button>
+                      </div>
+                    )}
 
-      {boughtWishes.length > 0 && (
-        <div className="pt-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Comprados</h3>
-          <ul className="space-y-1">
-            {boughtWishes.map((wish) => (
-              <li key={wish.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card/60 text-sm">
-                <ShoppingBag size={14} className="text-income shrink-0" />
-                <span className="flex-1 min-w-0 truncate text-muted-foreground line-through">{wish.name}</span>
-                <span className="tabular-nums text-muted-foreground">
-                  {formatCurrency(wish.actualAmount ?? wish.estimatedAmount)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+                    <span className="w-5 shrink-0 text-center text-xs font-semibold tabular-nums text-muted-foreground">
+                      {index + 1}
+                    </span>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-medium text-foreground">{wish.name}</p>
+                        {wish.link && (
+                          <a
+                            href={wish.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Abrir link de ${wish.name}`}
+                            className="text-muted-foreground hover:text-foreground shrink-0"
+                          >
+                            <LinkSimple size={13} weight="bold" />
+                          </a>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                        <span className="font-semibold tabular-nums text-foreground">{formatMoneyWhole(wish.estimatedAmount)}</span>
+                        <FitLabel wish={wish} highlighted={highlighted} />
+                        {category && <span className="text-muted-foreground">· {category}</span>}
+                      </div>
+                    </div>
+
+                    {editable && (
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => onBuy(wish)}
+                          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-foreground/80 hover:bg-foreground/5 hover:text-foreground transition-colors"
+                        >
+                          <ShoppingBag size={14} weight="bold" />
+                          Comprei
+                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={`Mais ações de ${wish.name}`}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:bg-foreground/5"
+                            >
+                              <DotsThreeVertical size={18} weight="bold" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => onEdit(wish)}>
+                              <PencilSimple size={14} /> Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => onDelete(wish)} className="text-expense focus:text-expense">
+                              <Trash size={14} /> Remover
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+
+          {editable && (
+            <button
+              type="button"
+              onClick={onAdd}
+              className="flex items-center gap-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+            >
+              <Plus size={14} weight="bold" />
+              Adicionar desejo
+            </button>
+          )}
+
+          {boughtWishes.length > 0 && (
+            <div className="pt-1">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">Comprados</p>
+              <ul className="space-y-0.5">
+                {boughtWishes.map((wish) => (
+                  <li key={wish.id} className="flex items-center gap-2 py-1 text-sm">
+                    <ShoppingBag size={14} className="text-muted-foreground shrink-0" />
+                    <span className="flex-1 min-w-0 truncate text-muted-foreground line-through">{wish.name}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatMoneyWhole(wish.actualAmount ?? wish.estimatedAmount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex items-baseline justify-between gap-3 border-t border-border pt-3 text-sm">
+            <span className="text-muted-foreground">Sobra depois dos desejos</span>
+            <span className={cn("font-semibold tabular-nums", leftover < -0.004 ? "text-expense" : "text-foreground")}>
+              {formatMoneyWhole(leftover)}
+            </span>
+          </div>
+        </>
       )}
     </section>
   )

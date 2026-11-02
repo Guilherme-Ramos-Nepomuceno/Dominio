@@ -6,6 +6,7 @@ import { useSelectedMonth } from "@/lib/selected-month-context"
 import { useAccount } from "@/components/account/account-context"
 import { getCategoryGroups, moveCategoryToGroup, updateCategoryGroup } from "@/lib/planning-api"
 import { isPlanEditable, type CategoryGroup } from "@/lib/plan"
+import { groupColor, planHeadline, planPeriodLabel, spentProgress } from "@/lib/plan-layout"
 import { toast } from "@/hooks/use-toast"
 import { usePlan } from "./use-plan"
 
@@ -35,6 +36,10 @@ export function useGroupDetailViewModel() {
   const editable = !!plan && isPlanEditable(plan.status) && !isReadOnly
   // Configurações do grupo (nome, limite semanal) valem para todos os meses.
   const canEditGroup = !isReadOnly
+  const color = groupColor(group?.kind)
+  const progress = group ? spentProgress(group.spent, group.planned) : null
+  const headline = plan ? planHeadline(plan) : null
+  const periodText = plan ? planPeriodLabel(plan.periodStart, plan.periodEnd) : periodRangeLabel
 
   const rename = useCallback(
     async (name: string) => {
@@ -85,7 +90,11 @@ export function useGroupDetailViewModel() {
   return {
     ...planState,
     periodRangeLabel,
+    periodText,
     group,
+    color,
+    progress,
+    headline,
     groups,
     editable,
     canEditGroup,

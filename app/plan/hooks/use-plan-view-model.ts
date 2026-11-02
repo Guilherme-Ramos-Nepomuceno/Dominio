@@ -7,12 +7,24 @@ import { getCards, getCategories } from "@/lib/storage"
 import { createWish, deleteWish, updateWish, type WishInput } from "@/lib/planning-api"
 import { trackEvent } from "@/lib/events"
 import { effectiveBudget, isPlanEditable, planTotals, type PlanWish } from "@/lib/plan"
+import {
+  canConfirmPlan,
+  monthBar,
+  monthBarSummary,
+  planGuide,
+  planHeadline,
+  planMonthTitle,
+  planPeriodLabel,
+  showsSpending,
+  wishQueue,
+} from "@/lib/plan-layout"
+import { toISODate } from "@/lib/period"
 import type { Card, Category } from "@/lib/types"
 import { toast } from "@/hooks/use-toast"
 import { usePlan } from "./use-plan"
 
 export function usePlanViewModel() {
-  const { selectedMonth, periodRangeLabel } = useSelectedMonth()
+  const { selectedMonth, periodRangeLabel, period, monthStartDay } = useSelectedMonth()
   const { selection, family, isReadOnly } = useAccount()
   const planState = usePlan(selectedMonth)
   const { plan, year, month, reload } = planState
@@ -46,6 +58,20 @@ export function usePlanViewModel() {
   const openWishes = useMemo(() => (plan?.wishes ?? []).filter((w) => w.status === "OPEN"), [plan])
   const boughtWishes = useMemo(() => (plan?.wishes ?? []).filter((w) => w.status === "BOUGHT"), [plan])
   const totals = useMemo(() => (plan ? planTotals(plan) : null), [plan])
+
+  // Layout: barra do mês, herói, fila dos desejos e rótulos do cabeçalho.
+  const bar = useMemo(() => (plan ? monthBar(plan) : null), [plan])
+  const barSummary = useMemo(() => (bar ? monthBarSummary(bar) : ""), [bar])
+  const headline = useMemo(() => (plan ? planHeadline(plan) : null), [plan])
+  const queue = useMemo(() => (plan ? wishQueue(plan) : null), [plan])
+  const showSpending = !!plan && showsSpending(plan.status, plan.periodStart, toISODate(new Date()))
+  const title = planMonthTitle(year, month, new Date().getFullYear())
+  const periodText = plan
+    ? planPeriodLabel(plan.periodStart, plan.periodEnd)
+    : planPeriodLabel(period.startISO, period.endISO)
+  const guide = plan ? planGuide(plan.status) : null
+  const canConfirm = !!plan && canConfirmPlan(plan.status, editable)
+  const showWeekLink = !!plan && plan.status === "CONFIRMED" && plan.weeklyLimitEnabled
 
   const saveWish = useCallback(
     async (input: WishInput, existing: PlanWish | null) => {
@@ -98,6 +124,17 @@ export function usePlanViewModel() {
     editable,
     budget: plan ? effectiveBudget(plan) : 0,
     totals,
+    bar,
+    barSummary,
+    headline,
+    queue,
+    showSpending,
+    title,
+    periodText,
+    guide,
+    canConfirm,
+    showWeekLink,
+    monthStartDay,
     categories,
     cards,
     canMarkCasal,
