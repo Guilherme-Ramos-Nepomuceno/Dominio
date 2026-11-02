@@ -6,8 +6,9 @@ import { useWeek } from "@/hooks/use-week"
 import { useAccount } from "@/components/account/account-context"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency } from "@/lib/date-utils"
-import { formatWeekday, weekProgress } from "@/lib/week"
+import { formatWeekday, paceBadge, weekProgress } from "@/lib/week"
 import { cn } from "@/lib/utils"
+import { PaceBadge } from "./pace-badge"
 
 const TONE_BAR = { ok: "bg-income", warning: "bg-amber-500", over: "bg-expense" } as const
 
@@ -44,7 +45,7 @@ export function WeekAvailableCard() {
     <Link
       href="/week"
       className="block rounded-[20px] bg-card border border-border/50 p-5 hover:border-primary/40 transition-colors"
-      aria-label={`Disponível na semana: ${formatCurrency(week.available)}`}
+      aria-label={`Disponível na semana: ${formatCurrency(week.available)} · ${paceBadge(week.paceStatus).label}`}
     >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <CalendarCheck size={14} weight="bold" />
@@ -53,9 +54,12 @@ export function WeekAvailableCard() {
         </span>
         <CaretRight size={14} weight="bold" />
       </div>
-      <p className={cn("mt-1 text-3xl font-bold tabular-nums", week.available < 0 ? "text-expense" : "text-foreground")}>
-        {formatCurrency(week.available)}
-      </p>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <p className={cn("text-3xl font-bold", week.available < 0 ? "text-expense" : "text-foreground")}>
+          {formatCurrency(week.available)}
+        </p>
+        <PaceBadge status={week.paceStatus} className="shrink-0" />
+      </div>
       <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
         <div className={cn("h-full rounded-full", TONE_BAR[progress.tone])} style={{ width: `${progress.pct}%` }} />
       </div>

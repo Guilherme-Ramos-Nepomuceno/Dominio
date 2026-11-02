@@ -1,17 +1,44 @@
 "use client"
 
+import type { ReactNode } from "react"
 import Link from "next/link"
-import { ArrowClockwise, CaretRight, Fire, Target, TrendDown, TrendUp, Tray, CalendarX, Equals } from "@phosphor-icons/react"
+import { ArrowClockwise, CaretRight, Fire, Target, TrendDown, TrendUp, CalendarX, Equals, ClockCounterClockwise } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCurrency, formatDate } from "@/lib/date-utils"
-import { daysLeftLabel, formatWeekRange, formatWeekday, paceMessage, streakLabel } from "@/lib/week"
-import { findCategory, UNCATEGORIZED_LABEL } from "@/lib/category-utils"
+import { PaceBadge } from "@/components/week/pace-badge"
+import { formatCurrency } from "@/lib/date-utils"
+import { daysLeftLabel, formatWeekRange, formatWeekday, lastWeekLabel, projectionMessage, streakLabel } from "@/lib/week"
 import { cn } from "@/lib/utils"
 import { useWeekViewModel } from "../hooks/use-week-view-model"
+import { WeekDaysChart } from "./week-days-chart"
+import { MonthProjectionChart } from "./month-projection-chart"
+import { PeriodWeeksList } from "./period-weeks-list"
+import { WeekCategories } from "./week-categories"
 
 const TONE_BAR = { ok: "bg-income", warning: "bg-amber-500", over: "bg-expense" } as const
+
+function Card({ title, subtitle, children, label }: { title: string; subtitle?: ReactNode; children: ReactNode; label?: string }) {
+  return (
+    <section className="rounded-[20px] bg-card border border-border/50 p-5" aria-label={label ?? title}>
+      <h2 className="text-base font-bold text-foreground">{title}</h2>
+      {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
+      <div className="mt-4">{children}</div>
+    </section>
+  )
+}
+
+function WeekSkeleton() {
+  return (
+    <div className="max-w-2xl mx-auto space-y-4" aria-busy="true" aria-label="Carregando a semana">
+      <Skeleton className="h-52 rounded-[20px]" />
+      <Skeleton className="h-60 rounded-[20px]" />
+      <Skeleton className="h-72 rounded-[20px]" />
+      <Skeleton className="h-56 rounded-[20px]" />
+      <Skeleton className="h-40 rounded-[20px]" />
+    </div>
+  )
+}
 
 export function WeekView() {
   const vm = useWeekViewModel()
@@ -29,11 +56,7 @@ export function WeekView() {
           <p className="text-sm text-muted-foreground">A semana de um parceiro não aparece por aqui.</p>
         </div>
       ) : vm.isLoading ? (
-        <div className="max-w-2xl mx-auto space-y-3">
-          <Skeleton className="h-44 rounded-[20px]" />
-          <Skeleton className="h-16 rounded-[20px]" />
-          <Skeleton className="h-48 rounded-[20px]" />
-        </div>
+        <WeekSkeleton />
       ) : vm.loadError || !week ? (
         <div className="rounded-[20px] bg-card p-8 text-center border border-border/50 space-y-3">
           <p className="text-sm text-muted-foreground">Não foi possível carregar sua semana agora.</p>
@@ -64,21 +87,22 @@ export function WeekView() {
               <Target size={22} weight="duotone" className="text-muted-foreground shrink-0" />
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium">Você ainda não planejou este mês</span>
-                <span className="block text-xs text-muted-foreground">Por enquanto, a base é a sua meta de gastos. Planeje para um limite sob medida.</span>
+                <span className="block text-xs text-muted-foreground">
+                  Os números abaixo são baseados na meta mensal. Planeje o mês para um limite sob medida.
+                </span>
               </span>
+              <span className="text-xs font-semibold text-primary shrink-0">Planejar</span>
               <CaretRight size={14} weight="bold" className="text-muted-foreground shrink-0" />
             </Link>
           )}
 
-          {/* Número principal */}
+          {/* 1. Hero */}
           <section className="rounded-[20px] bg-card border border-border/50 p-6 text-center" aria-label="Disponível na semana">
-            <p className="text-sm text-muted-foreground">Disponível até {formatWeekday(week.weekEnd)}</p>
-            <p
-              className={cn(
-                "mt-1 text-5xl font-bold tabular-nums tracking-tight",
-                week.available < 0 ? "text-expense" : "text-foreground",
-              )}
-            >
+            <div className="flex justify-center">
+              <PaceBadge status={week.paceStatus} />
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">Disponível até {formatWeekday(week.weekEnd)}</p>
+            <p className={cn("mt-1 text-5xl font-bold tracking-tight", week.available < 0 ? "text-expense" : "text-foreground")}>
               {formatCurrency(week.available)}
             </p>
             {week.available > 0 ? (
@@ -95,7 +119,14 @@ export function WeekView() {
 
             {vm.progress && (
               <div className="mt-5 text-left">
-                <div className="h-3 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-3 rounded-full bg-muted overflow-hidden"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(vm.progress.pct)}
+                  aria-label="Gasto da semana em relação ao limite"
+                >
                   <div
                     className={cn("h-full rounded-full transition-[width] duration-500", TONE_BAR[vm.progress.tone])}
                     style={{ width: `${vm.progress.pct}%` }}
@@ -103,77 +134,70 @@ export function WeekView() {
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground tabular-nums">
                   {formatCurrency(week.spentThisWeek)} gastos de {formatCurrency(week.limit)} da semana
+                  {week.expectedSpentToDate > 0 && <> · o esperado até hoje era {formatCurrency(week.expectedSpentToDate)}</>}
                 </p>
               </div>
             )}
           </section>
 
-          {/* Ritmo do mês e sequência */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* 2. Esta semana */}
+          <Card title="Esta semana" subtitle="Quanto saiu em cada dia, perto do ideal diário do limite">
+            <WeekDaysChart bars={vm.bars} idealPerDay={week.idealPerDay} />
+          </Card>
+
+          {/* 3. Projeção do mês */}
+          <Card
+            title="Projeção do mês"
+            subtitle={week.hasPlan ? "Gasto variável acumulado × o planejado" : "Gasto variável acumulado × a meta mensal (sem plano)"}
+          >
+            <MonthProjectionChart week={week} />
             {(() => {
-              const pace = paceMessage(week.monthPace.projectedDiff, formatCurrency)
+              const pace = projectionMessage(week.monthPace, formatCurrency)
               const Icon = pace.tone === "ok" ? TrendDown : pace.tone === "over" ? TrendUp : Equals
               return (
-                <div className="flex items-start gap-3 rounded-[20px] bg-card border border-border/50 p-4">
+                <p className="mt-3 flex items-start gap-2 text-sm text-foreground">
                   <Icon
-                    size={22}
+                    size={18}
                     weight="bold"
-                    className={cn("shrink-0", pace.tone === "ok" ? "text-income" : pace.tone === "over" ? "text-expense" : "text-muted-foreground")}
+                    aria-hidden
+                    className={cn(
+                      "shrink-0 mt-0.5",
+                      pace.tone === "ok" ? "text-income" : pace.tone === "over" ? "text-expense" : "text-muted-foreground",
+                    )}
                   />
-                  <p className="text-sm text-foreground">{pace.text}</p>
-                </div>
+                  {pace.text}
+                </p>
               )
             })()}
+          </Card>
+
+          {/* 4. Semanas do mês */}
+          <Card title="Semanas do mês">
+            <PeriodWeeksList weeks={week.weeks} />
+          </Card>
+
+          {/* 5. Para onde foi */}
+          <Card title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
+            <WeekCategories categories={week.categories} />
+          </Card>
+
+          {/* 6. Resumo */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Resumo">
             <div className="flex items-center gap-3 rounded-[20px] bg-card border border-border/50 p-4">
-              <Fire size={22} weight={week.streak > 0 ? "fill" : "regular"} className={week.streak > 0 ? "text-amber-500" : "text-muted-foreground"} />
+              <Fire
+                size={22}
+                weight={week.streak > 0 ? "fill" : "regular"}
+                aria-hidden
+                className={week.streak > 0 ? "text-amber-500 shrink-0" : "text-muted-foreground shrink-0"}
+              />
               <p className="text-sm text-foreground">{streakLabel(week.streak) ?? "Termine a semana dentro do limite para começar uma sequência."}</p>
             </div>
-          </div>
-
-          {/* Gastos da semana */}
-          <section className="space-y-2" aria-label="Gastos da semana">
-            <div className="flex items-center justify-between px-1">
-              <h2 className="text-lg font-bold">Gastos da semana</h2>
-              {vm.transactions.uncategorized > 0 && (
-                <Link href="/inbox" className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
-                  <Tray size={14} weight="bold" />
-                  Classificar {vm.transactions.uncategorized}
-                </Link>
-              )}
+            <div className="flex items-center gap-3 rounded-[20px] bg-card border border-border/50 p-4">
+              <ClockCounterClockwise size={22} weight="bold" aria-hidden className="text-muted-foreground shrink-0" />
+              <p className="text-sm text-foreground tabular-nums">
+                {lastWeekLabel(week.lastWeek, formatCurrency) ?? "Ainda não há uma semana passada para comparar."}
+              </p>
             </div>
-            {vm.transactions.list.length === 0 ? (
-              <div className="rounded-[20px] bg-card p-6 text-center border border-border/50">
-                <p className="text-sm text-muted-foreground">Nenhum gasto que conta no limite nesta semana.</p>
-              </div>
-            ) : (
-              <ul className="rounded-[20px] bg-card border border-border/50 divide-y divide-border/50">
-                {vm.transactions.list.map((t) => {
-                  const category = findCategory(vm.categories, t.categoryId)
-                  return (
-                    <li key={t.id} className="flex items-center gap-3 px-4 py-3">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: category?.color ?? "transparent", border: category ? undefined : "1.5px dashed #9ca3af" }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground truncate">{t.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(t.date)} ·{" "}
-                          {category ? (
-                            category.name
-                          ) : (
-                            <Link href="/inbox" className="font-medium text-amber-700 dark:text-amber-400 hover:underline">
-                              {UNCATEGORIZED_LABEL}
-                            </Link>
-                          )}
-                        </p>
-                      </div>
-                      <p className="text-sm font-semibold tabular-nums shrink-0">{formatCurrency(t.amount)}</p>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
           </section>
         </div>
       )}
