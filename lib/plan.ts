@@ -201,10 +201,10 @@ export function mapPlan(p: any): Plan {
 // ---------------------------------------------------------------------------
 
 export const PLAN_STATUS_LABEL: Record<PlanStatus, string> = {
-  NONE: "Rascunho sugerido",
+  NONE: "Proposta",
   DRAFT: "Rascunho",
   CONFIRMED: "Confirmado",
-  CLOSED: "Fechado",
+  CLOSED: "Encerrado",
 }
 
 export function isPlanEditable(status: PlanStatus): boolean {

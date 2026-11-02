@@ -117,6 +117,35 @@
   --sidebar-ring: oklch(0.58 0.2 210);
 }
 
+/* Planejar mês: uma cor fixa por grupo (kind) — a mesma na barra do mês, na
+   legenda, na lista e no detalhe do grupo (lib/plan-layout.ts → groupColor).
+   Paleta categórica validada com o validate_palette.js da skill dataviz em
+   todos os pares, no claro (fundo #f1f5f5) e no escuro (fundo #040609); o
+   escuro são os mesmos matizes ajustados para o fundo escuro. Rosa e amarelo
+   ficam abaixo de 3:1 no claro e amarelo×verde no escuro está na faixa de
+   piso de CVD: por isso a barra sempre tem legenda, rótulos na lista e 2px de
+   respiro entre os segmentos. Vermelho (--expense) fica reservado para estouro. */
+:root {
+  --plan-essentials: #2a78d6;
+  --plan-lifestyle: #e87ba4;
+  --plan-future: #008300;
+  --plan-wishes: #eda100;
+  --plan-uncategorized: #a3a8ae;
+  --plan-track: #dfe4e6;
+  /* Planejado ainda não gasto (barra do mês com o plano confirmado). */
+  --plan-tint: 0.35;
+}
+
+.dark {
+  --plan-essentials: #3987e5;
+  --plan-lifestyle: #d55181;
+  --plan-future: #008300;
+  --plan-wishes: #c98500;
+  --plan-uncategorized: #62676e;
+  --plan-track: #1b1f24;
+  --plan-tint: 0.5;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
