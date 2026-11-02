@@ -134,6 +134,10 @@
   --plan-track: #dfe4e6;
   /* Planejado ainda não gasto (barra do mês com o plano confirmado). */
   --plan-tint: 0.35;
+  /* Ícones/texto curto de estado sobre fundo tingido (vitórias, ritmo): o
+     verde/âmbar puros ficam abaixo de 3:1 no claro; estes passam 4.5:1 no card. */
+  --positive-ink: #1e6b15;
+  --attention-ink: #8a5100;
 }
 
 .dark {
@@ -144,6 +148,8 @@
   --plan-uncategorized: #62676e;
   --plan-track: #1b1f24;
   --plan-tint: 0.5;
+  --positive-ink: var(--income);
+  --attention-ink: #fbbf24;
 }
 
 @theme inline {
@@ -168,6 +174,8 @@
   --color-ring: var(--ring);
 
   --color-income: var(--income);
+  --color-positive-ink: var(--positive-ink);
+  --color-attention-ink: var(--attention-ink);
   --color-expense: var(--expense);
   --color-savings: var(--savings);
   --color-wallet: var(--wallet);

@@ -14,6 +14,7 @@ import {
 } from "./plan"
 import type { PaymentMethod } from "./types"
 import { mapWeek, type WeekData } from "./week"
+import { mapWins, type WinsData } from "./wins"
 import { buildCloseBody, mapClosingData, mapClosingSummary, type ClosingData, type ClosingSummary } from "./closing"
 
 function assertWritable(): void {
@@ -198,6 +199,12 @@ export async function buyWish(id: string, input: BuyWishInput): Promise<Wish> {
 export async function getWeek(year: number, month: number, date?: string): Promise<WeekData> {
   const query = date ? `?date=${encodeURIComponent(date)}` : ""
   return mapWeek(await fetchApi(`/plans/${year}/${month}/week${query}`))
+}
+
+// Vitórias da semana e do mês (reforço positivo). `date` = dia de referência da semana.
+export async function getWins(year: number, month: number, date?: string): Promise<WinsData> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ""
+  return mapWins(await fetchApi(`/plans/${year}/${month}/wins${query}`))
 }
 
 export async function getClosingSummary(year: number, month: number): Promise<ClosingData> {
