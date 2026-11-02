@@ -17,7 +17,8 @@ import {
 
 // Gasto variável acumulado no mês: linha cheia até hoje, tracejada da
 // projeção dali até o fim, faixa provável sombreada (lavagem de ~12%) e o
-// planejado como linha de referência rotulada. Uma cor só (a da série); o
+// planejado como linha de referência rotulada. Com confiança baixa (começo
+// do mês) não há projeção nenhuma: só o real e o planejado, num gráfico mais baixo. Uma cor só (a da série); o
 // que distingue real × projeção é o traço, explicado na legenda.
 
 const SERIES = "var(--chart-3)"
@@ -45,10 +46,11 @@ function WeekTick({ x, y, payload, weekStarts }: any) {
   )
 }
 
-function MonthTooltip({ active, payload }: any) {
+function MonthTooltip({ active, payload, showProjection }: any) {
   if (!active || !payload?.length) return null
   const point = payload[0].payload as MonthChartPoint
   const isReal = point.real !== null
+  if (!isReal && !showProjection) return null
   const value = isReal ? point.real : point.projected
   if (value === null) return null
   return (
@@ -93,7 +95,7 @@ export function MonthProjectionChart({ week }: { week: WeekData }) {
   const showProjection = week.monthPace.confidence !== "LOW"
   const max = Math.max(
     week.variablePlanned,
-    ...data.map((d) => Math.max(d.real ?? 0, showProjection ? (d.band?.[1] ?? d.projected ?? 0) : d.projected ?? 0)),
+    ...data.map((d) => Math.max(d.real ?? 0, showProjection ? (d.band?.[1] ?? d.projected ?? 0) : 0)),
   )
   const yTicks = niceTicks(max * 1.05)
   const summary = monthChartSummary(week, formatCurrency)
@@ -104,9 +106,11 @@ export function MonthProjectionChart({ week }: { week: WeekData }) {
         <li className="flex items-center gap-1.5">
           <LegendKey kind="solid" /> Gasto até hoje
         </li>
-        <li className="flex items-center gap-1.5">
-          <LegendKey kind="dashed" /> Projeção
-        </li>
+        {showProjection && (
+          <li className="flex items-center gap-1.5">
+            <LegendKey kind="dashed" /> Projeção
+          </li>
+        )}
         {showProjection && (
           <li className="flex items-center gap-1.5">
             <LegendKey kind="band" /> Faixa provável
@@ -117,7 +121,7 @@ export function MonthProjectionChart({ week }: { week: WeekData }) {
         </li>
       </ul>
       <div role="img" aria-label={summary}>
-        <ChartContainer config={config} className="aspect-auto h-52 w-full">
+        <ChartContainer config={config} className={showProjection ? "aspect-auto h-48 w-full" : "aspect-auto h-36 w-full"}>
           <ComposedChart data={data} margin={{ top: 20, right: 8, bottom: 0, left: 0 }} accessibilityLayer={false}>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="" />
             <XAxis
@@ -139,7 +143,7 @@ export function MonthProjectionChart({ week }: { week: WeekData }) {
               tickFormatter={compactAmount}
               fontSize={11}
             />
-            <Tooltip cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeOpacity: 0.5 }} content={<MonthTooltip />} isAnimationActive={false} />
+            <Tooltip cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeOpacity: 0.5 }} content={<MonthTooltip showProjection={showProjection} />} isAnimationActive={false} />
             {showProjection && (
               <Area dataKey="band" stroke="none" fill={SERIES} fillOpacity={0.12} isAnimationActive={false} activeDot={false} connectNulls={false} />
             )}
@@ -155,18 +159,19 @@ export function MonthProjectionChart({ week }: { week: WeekData }) {
                 fontSize: 11,
               }}
             />
-            <Line
-              dataKey="projected"
-              stroke={SERIES}
-              strokeWidth={2}
-              strokeDasharray="5 4"
-              strokeOpacity={showProjection ? 1 : 0.5}
-              strokeLinecap="round"
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-              connectNulls={false}
-            />
+            {showProjection && (
+              <Line
+                dataKey="projected"
+                stroke={SERIES}
+                strokeWidth={2}
+                strokeDasharray="5 4"
+                strokeLinecap="round"
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+                connectNulls={false}
+              />
+            )}
             <Line
               dataKey="real"
               stroke={SERIES}

@@ -68,7 +68,7 @@ export function WeekDaysChart({ bars, idealPerDay }: { bars: DayBar[]; idealPerD
   return (
     <figure className="m-0">
       <div role="img" aria-label={summary}>
-        <ChartContainer config={config} className="aspect-auto h-44 w-full">
+        <ChartContainer config={config} className="aspect-auto h-36 w-full">
           <BarChart data={bars} margin={{ top: 18, right: 4, bottom: 0, left: 4 }} barCategoryGap="18%" accessibilityLayer={false}>
             <XAxis dataKey="date" tickLine={false} axisLine={false} interval={0} height={34} tick={<DayTick bars={bars} />} />
             <YAxis hide domain={[0, max > 0 ? max * 1.15 : 1]} />

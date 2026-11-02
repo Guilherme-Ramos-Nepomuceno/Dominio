@@ -2,21 +2,32 @@
 
 import type { ReactNode } from "react"
 import Link from "next/link"
-import { ArrowClockwise, CaretRight, Fire, Target, TrendDown, TrendUp, CalendarX, Equals, ClockCounterClockwise } from "@phosphor-icons/react"
+import { ArrowClockwise, CaretRight, Fire, Target, TrendDown, TrendUp, CalendarX, Equals, ClockCounterClockwise, Path } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PaceBadge } from "@/components/week/pace-badge"
+import { WinsStrip } from "@/components/wins/wins-strip"
 import { formatCurrency } from "@/lib/date-utils"
-import { daysLeftLabel, formatWeekRange, formatWeekday, lastWeekLabel, projectionMessage, streakLabel } from "@/lib/week"
+import { daysLeftLabel, formatWeekRange, formatWeekday, lastWeekLabel, projectionMessage, streakLabel, type HeroBarTone } from "@/lib/week"
+import { recoveryMessage } from "@/lib/wins"
 import { cn } from "@/lib/utils"
 import { useWeekViewModel } from "../hooks/use-week-view-model"
 import { WeekDaysChart } from "./week-days-chart"
 import { MonthProjectionChart } from "./month-projection-chart"
 import { PeriodWeeksList } from "./period-weeks-list"
 import { WeekCategories } from "./week-categories"
+import { DayStrip } from "./day-strip"
+import { WeekClosedCard } from "./week-closed-card"
+import { WishProgressList } from "./wish-progress-list"
 
-const TONE_BAR = { ok: "bg-income", warning: "bg-amber-500", over: "bg-expense" } as const
+// Barra do herói na cor do estado do ritmo — a mesma do selo acima dela.
+const TONE_BAR: Record<HeroBarTone, string> = {
+  good: "bg-income",
+  neutral: "bg-foreground/45",
+  warning: "bg-amber-400",
+  over: "bg-expense",
+}
 
 function Card({ title, subtitle, children, label }: { title: string; subtitle?: ReactNode; children: ReactNode; label?: string }) {
   return (
@@ -31,11 +42,11 @@ function Card({ title, subtitle, children, label }: { title: string; subtitle?: 
 function WeekSkeleton() {
   return (
     <div className="max-w-2xl mx-auto space-y-4" aria-busy="true" aria-label="Carregando a semana">
-      <Skeleton className="h-52 rounded-[20px]" />
-      <Skeleton className="h-60 rounded-[20px]" />
       <Skeleton className="h-72 rounded-[20px]" />
+      <Skeleton className="h-20 rounded-[20px]" />
+      <Skeleton className="h-52 rounded-[20px]" />
       <Skeleton className="h-56 rounded-[20px]" />
-      <Skeleton className="h-40 rounded-[20px]" />
+      <Skeleton className="h-28 rounded-[20px]" />
     </div>
   )
 }
@@ -43,6 +54,7 @@ function WeekSkeleton() {
 export function WeekView() {
   const vm = useWeekViewModel()
   const week = vm.week
+  const wins = vm.wins
 
   return (
     <AppLayout>
@@ -66,19 +78,25 @@ export function WeekView() {
           </button>
         </div>
       ) : !week.enabled ? (
-        <div className="max-w-2xl mx-auto rounded-[20px] bg-card p-8 text-center border border-border/50 space-y-3">
-          <CalendarX size={40} weight="duotone" className="mx-auto text-muted-foreground" />
-          <h2 className="text-lg font-semibold">Limite semanal desligado</h2>
-          <p className="text-sm text-muted-foreground">
-            Ligue o limite semanal no plano do mês para ver quanto ainda dá para gastar em cada semana.
-          </p>
-          <Link href="/plan" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-background text-sm font-semibold">
-            <Target size={16} weight="bold" />
-            Abrir o plano
-          </Link>
+        <div className="max-w-2xl mx-auto space-y-4">
+          <div className="rounded-[20px] bg-card p-8 text-center border border-border/50 space-y-3">
+            <CalendarX size={40} weight="duotone" className="mx-auto text-muted-foreground" />
+            <h2 className="text-lg font-semibold">Limite semanal desligado</h2>
+            <p className="text-sm text-muted-foreground">
+              Ligue o limite semanal no plano do mês para ver quanto ainda dá para gastar em cada semana.
+            </p>
+            <Link href="/plan" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-background text-sm font-semibold">
+              <Target size={16} weight="bold" />
+              Abrir o plano
+            </Link>
+          </div>
+          {wins && wins.week.wins.length > 0 && (
+            <WinsStrip wins={wins.week.wins} scope="week" hasPlan={week.hasPlan} periodKey={week.weekStart} />
+          )}
         </div>
       ) : (
-        <div className="max-w-2xl mx-auto space-y-4 pb-6">
+        // pb extra: o último cartão nunca fica embaixo do botão "+" flutuante.
+        <div className="max-w-2xl mx-auto space-y-4 pb-24 md:pb-20">
           {!week.hasPlan && (
             <Link
               href="/plan"
@@ -96,7 +114,7 @@ export function WeekView() {
             </Link>
           )}
 
-          {/* 1. Hero */}
+          {/* 1. Herói: disponível, ritmo, dias e barra */}
           <section className="rounded-[20px] bg-card border border-border/50 p-6 text-center" aria-label="Disponível na semana">
             <div className="flex justify-center">
               <PaceBadge status={week.paceStatus} />
@@ -116,11 +134,27 @@ export function WeekView() {
                 {formatWeekday(week.weekEnd)}.
               </p>
             )}
+            {(() => {
+              const recovery = recoveryMessage(wins?.week.recovery ?? null)
+              if (!recovery) return null
+              return (
+                <p className="mx-auto mt-3 flex max-w-sm items-start justify-center gap-2 text-left text-sm text-foreground">
+                  <Path size={16} weight="bold" aria-hidden className="mt-0.5 shrink-0 text-attention-ink" />
+                  {recovery}
+                </p>
+              )
+            })()}
+
+            {wins && wins.week.dayStatus.length > 0 && (
+              <div className="mt-5">
+                <DayStrip days={wins.week.dayStatus} todayISO={vm.todayISO} />
+              </div>
+            )}
 
             {vm.progress && (
               <div className="mt-5 text-left">
                 <div
-                  className="h-3 rounded-full bg-muted overflow-hidden"
+                  className="h-2.5 rounded-full bg-muted overflow-hidden"
                   role="progressbar"
                   aria-valuemin={0}
                   aria-valuemax={100}
@@ -128,7 +162,7 @@ export function WeekView() {
                   aria-label="Gasto da semana em relação ao limite"
                 >
                   <div
-                    className={cn("h-full rounded-full transition-[width] duration-500", TONE_BAR[vm.progress.tone])}
+                    className={cn("h-full rounded-full transition-[width] duration-500", TONE_BAR[vm.barTone])}
                     style={{ width: `${vm.progress.pct}%` }}
                   />
                 </div>
@@ -140,12 +174,40 @@ export function WeekView() {
             )}
           </section>
 
-          {/* 2. Esta semana */}
+          {/* 2. Fechamento da semana (último dia, dentro do limite) */}
+          {wins?.week.weekClosed && <WeekClosedCard closed={wins.week.weekClosed} weekEnd={week.weekEnd} />}
+
+          {/* 3. Vitórias + sequência e semana passada, juntas */}
+          {wins && (
+            <div className="space-y-2">
+              <WinsStrip wins={wins.week.wins} scope="week" hasPlan={week.hasPlan} periodKey={week.weekStart} />
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground" aria-label="Resumo">
+                {/* A sequência já aparece como vitória quando é ≥ 2. */}
+                {!wins.week.wins.some((w) => w.kind === "WEEKS_STREAK") && (
+                  <li className="flex items-center gap-1.5">
+                    <Fire size={14} weight={week.streak > 0 ? "fill" : "regular"} aria-hidden className={week.streak > 0 ? "text-attention-ink" : ""} />
+                    {streakLabel(week.streak) ?? "Feche a semana no limite para começar uma sequência"}
+                  </li>
+                )}
+                {week.lastWeek && (
+                  <li className="flex items-center gap-1.5 tabular-nums">
+                    <ClockCounterClockwise size={14} weight="bold" aria-hidden />
+                    {lastWeekLabel(week.lastWeek, formatCurrency)}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {/* 4. Economia que vira desejo */}
+          {wins && <WishProgressList items={wins.month.wishProgress} />}
+
+          {/* 5. Esta semana */}
           <Card title="Esta semana" subtitle="Quanto saiu em cada dia, perto do ideal diário do limite">
             <WeekDaysChart bars={vm.bars} idealPerDay={week.idealPerDay} />
           </Card>
 
-          {/* 3. Projeção do mês */}
+          {/* 6. Projeção do mês */}
           <Card
             title="Projeção do mês"
             subtitle={week.hasPlan ? "Gasto variável acumulado × o planejado" : "Gasto variável acumulado × a meta mensal (sem plano)"}
@@ -162,7 +224,7 @@ export function WeekView() {
                     aria-hidden
                     className={cn(
                       "shrink-0 mt-0.5",
-                      pace.tone === "ok" ? "text-income" : pace.tone === "over" ? "text-expense" : "text-muted-foreground",
+                      pace.tone === "ok" ? "text-positive-ink" : pace.tone === "over" ? "text-expense" : "text-muted-foreground",
                     )}
                   />
                   {pace.text}
@@ -171,34 +233,15 @@ export function WeekView() {
             })()}
           </Card>
 
-          {/* 4. Semanas do mês */}
+          {/* 7. Semanas do mês */}
           <Card title="Semanas do mês">
             <PeriodWeeksList weeks={week.weeks} />
           </Card>
 
-          {/* 5. Para onde foi */}
+          {/* 8. Para onde foi */}
           <Card title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
             <WeekCategories categories={week.categories} />
           </Card>
-
-          {/* 6. Resumo */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Resumo">
-            <div className="flex items-center gap-3 rounded-[20px] bg-card border border-border/50 p-4">
-              <Fire
-                size={22}
-                weight={week.streak > 0 ? "fill" : "regular"}
-                aria-hidden
-                className={week.streak > 0 ? "text-amber-500 shrink-0" : "text-muted-foreground shrink-0"}
-              />
-              <p className="text-sm text-foreground">{streakLabel(week.streak) ?? "Termine a semana dentro do limite para começar uma sequência."}</p>
-            </div>
-            <div className="flex items-center gap-3 rounded-[20px] bg-card border border-border/50 p-4">
-              <ClockCounterClockwise size={22} weight="bold" aria-hidden className="text-muted-foreground shrink-0" />
-              <p className="text-sm text-foreground tabular-nums">
-                {lastWeekLabel(week.lastWeek, formatCurrency) ?? "Ainda não há uma semana passada para comparar."}
-              </p>
-            </div>
-          </section>
         </div>
       )}
     </AppLayout>

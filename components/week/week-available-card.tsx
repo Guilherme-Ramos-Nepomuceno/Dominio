@@ -6,11 +6,12 @@ import { useWeek } from "@/hooks/use-week"
 import { useAccount } from "@/components/account/account-context"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency } from "@/lib/date-utils"
-import { formatWeekday, paceBadge, weekProgress } from "@/lib/week"
+import { formatWeekday, heroBarTone, paceBadge, weekProgress } from "@/lib/week"
 import { cn } from "@/lib/utils"
 import { PaceBadge } from "./pace-badge"
 
-const TONE_BAR = { ok: "bg-income", warning: "bg-amber-500", over: "bg-expense" } as const
+// Barra na cor do estado do ritmo (a mesma do selo ao lado).
+const TONE_BAR = { good: "bg-income", neutral: "bg-foreground/45", warning: "bg-amber-400", over: "bg-expense" } as const
 
 // Primeiro card da Home: quanto ainda dá para gastar nesta semana (abre /week).
 // Na conta do casal só aparece com o limite semanal ligado.
@@ -61,7 +62,7 @@ export function WeekAvailableCard() {
         <PaceBadge status={week.paceStatus} className="shrink-0" />
       </div>
       <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
-        <div className={cn("h-full rounded-full", TONE_BAR[progress.tone])} style={{ width: `${progress.pct}%` }} />
+        <div className={cn("h-full rounded-full", TONE_BAR[heroBarTone(week.paceStatus, week.spentThisWeek, week.limit)])} style={{ width: `${progress.pct}%` }} />
       </div>
       <p className="mt-2 text-xs text-muted-foreground tabular-nums">
         {week.available > 0 ? `${formatCurrency(week.perDayRemaining)} por dia · ` : ""}

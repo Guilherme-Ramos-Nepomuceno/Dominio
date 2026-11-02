@@ -9,10 +9,12 @@ import { cn } from "@/lib/utils"
 const TONE = {
   good: "bg-income/15 text-foreground",
   neutral: "bg-muted text-muted-foreground",
-  over: "bg-expense/15 text-foreground",
+  over: "bg-amber-400/20 text-foreground",
 } as const
 
-const ICON_TONE = { good: "text-income", neutral: "", over: "text-expense" } as const
+// "Acima do ritmo" é atenção (âmbar), não estouro: vermelho fica para quando o
+// limite já passou. Mesma cor da barra do herói (lib/week.ts → heroBarTone).
+const ICON_TONE = { good: "text-positive-ink", neutral: "", over: "text-attention-ink" } as const
 
 const ICON = { good: TrendDown, neutral: Equals, over: TrendUp } as const
 
