@@ -44,7 +44,7 @@ test("mapeia os campos novos da semana (e tolera a resposta antiga)", () => {
   assert.equal(w.monthSeries[0].projected, null)
   assert.equal(w.weeks[0].spent, null)
   assert.equal(w.categories[0].categoryId, null)
-  assert.deepEqual(w.lastWeek, { spent: 205.5, limit: 400 })
+  assert.deepEqual(w.lastWeek, { spent: 205.5, limit: 400, hasPlan: true })
 })
 
 test("selo de ritmo: texto para cada estado", () => {
@@ -140,7 +140,7 @@ test("para onde foi: barras relativas, % do planejado e sem categoria", () => {
 test("semana passada", () => {
   assert.equal(lastWeekLabel(null, fmt), null)
   assert.equal(lastWeekLabel({ spent: 300, limit: 400 }, fmt), "Semana passada: R$ 300.00, 75% do limite")
-  assert.equal(lastWeekLabel({ spent: 30, limit: 0 }, fmt), "Semana passada: R$ 30.00")
+  assert.equal(lastWeekLabel({ spent: 30, limit: 0 }, fmt), "Semana passada: R$ 30.00 gastos")
 })
 
 test("ticks redondos do eixo", () => {

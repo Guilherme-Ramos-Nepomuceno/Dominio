@@ -69,7 +69,8 @@ export interface WeekData {
   monthSeries: MonthSeriesPoint[]
   weeks: PeriodWeek[]
   categories: WeekCategory[]
-  lastWeek: { spent: number; limit: number } | null
+  // hasPlan = aquela semana tinha plano (sem plano o limite vinha da meta mensal).
+  lastWeek: { spent: number; limit: number; hasPlan: boolean } | null
 }
 
 const num = (v: unknown): number => {
@@ -144,7 +145,14 @@ export function mapWeek(w: any): WeekData {
       plannedVariable: numOrNull(c?.plannedVariable),
       spentInPeriod: num(c?.spentInPeriod),
     })),
-    lastWeek: w?.lastWeek ? { spent: num(w.lastWeek.spent), limit: num(w.lastWeek.limit) } : null,
+    lastWeek: w?.lastWeek
+      ? {
+          spent: num(w.lastWeek.spent),
+          limit: num(w.lastWeek.limit),
+          // API antiga (sem o campo): só havia limite com plano ou meta — mantém o %.
+          hasPlan: w.lastWeek.hasPlan === undefined ? true : !!w.lastWeek.hasPlan,
+        }
+      : null,
   }
 }
 
@@ -393,9 +401,10 @@ export function categoryRows(categories: WeekCategory[], format: Fmt): CategoryR
   }))
 }
 
-export function lastWeekLabel(lastWeek: { spent: number; limit: number } | null, format: Fmt): string | null {
+// Sem plano na semana passada, "% do limite" não quer dizer nada: só o gasto.
+export function lastWeekLabel(lastWeek: { spent: number; limit: number; hasPlan?: boolean } | null, format: Fmt): string | null {
   if (!lastWeek) return null
-  if (lastWeek.limit <= 0) return `Semana passada: ${format(lastWeek.spent)}`
+  if (lastWeek.limit <= 0 || lastWeek.hasPlan === false) return `Semana passada: ${format(lastWeek.spent)} gastos`
   return `Semana passada: ${format(lastWeek.spent)}, ${Math.round((lastWeek.spent / lastWeek.limit) * 100)}% do limite`
 }
 
@@ -408,4 +417,42 @@ export function niceTicks(max: number, target = 3): number[] {
   const ticks: number[] = []
   for (let v = 0; v < max + step - 1e-9; v += step) ticks.push(Math.round(v * 100) / 100)
   return ticks
+}
+
+// --- Herói: cor da barra = estado do ritmo (o mesmo do selo) ---
+
+export type HeroBarTone = "good" | "neutral" | "warning" | "over"
+
+// Barra e selo contam a mesma história: abaixo do ritmo = positiva, no ritmo
+// = neutra, acima do ritmo = atenção (âmbar). Vermelho só quando o limite da
+// semana já estourou.
+export function heroBarTone(paceStatus: PaceStatus, spent: number, limit: number): HeroBarTone {
+  if (spent > limit + 1e-9 && spent > 0) return "over"
+  if (paceStatus === "OVER") return "warning"
+  if (paceStatus === "UNDER") return "good"
+  return "neutral"
+}
+
+// --- Semanas do mês: uma pílula por semana ---
+
+export interface WeekPill {
+  key: string
+  short: string
+  kind: "under" | "over" | "current" | "future"
+  stateText: string
+  detail: string
+  ariaLabel: string
+}
+
+export function weekPills(weeks: PeriodWeek[], format: Fmt): WeekPill[] {
+  return weekRows(weeks, format).map((row, i) => {
+    const short = `S${weeks[i].index}`
+    const stateText =
+      row.kind === "under" ? "dentro do limite" : row.kind === "over" ? "acima do limite" : row.kind === "current" ? "semana atual" : "prevista"
+    const detail =
+      row.kind === "future"
+        ? `${row.title} · ${row.range} · limite previsto ${row.limitText}`
+        : `${row.title} · ${row.range} · gasto ${row.spentText} de ${row.limitText} (${row.diffText})`
+    return { key: row.key, short, kind: row.kind, stateText, detail, ariaLabel: `${row.title}, ${stateText}` }
+  })
 }
