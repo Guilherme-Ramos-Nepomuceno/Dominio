@@ -97,6 +97,7 @@ test("groupStatusLabel e vsLastMonthHint", () => {
   assert.equal(norm(groupStatusLabel({ status: "UNDER", remaining: 2900 })?.text ?? null), "dentro do plano, R$ 2.900 disponível")
   assert.equal(groupStatusLabel({ status: "ON_TRACK", remaining: 10 })?.tone, "neutral")
   assert.equal(groupStatusLabel({ status: "OVER", remaining: -5 })?.text, "acima do plano")
+  assert.equal(groupStatusLabel({ status: "OVER", remaining: 376 })?.text, "acima do ritmo")
   assert.equal(groupStatusLabel(undefined), null)
   assert.equal(previousMonthName(11), "outubro")
   assert.equal(previousMonthName(1), "dezembro")

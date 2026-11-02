@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { CaretRight } from "@phosphor-icons/react"
+import { CaretRight, Check, Equals, TrendUp } from "@phosphor-icons/react"
 import type { Plan } from "@/lib/plan"
 import {
   formatMoneyWhole,
@@ -11,6 +11,7 @@ import {
   spentProgress,
   type MonthBar as MonthBarData,
 } from "@/lib/plan-layout"
+import { groupStatusLabel, vsLastMonthHint, type WinsData } from "@/lib/wins"
 import { cn } from "@/lib/utils"
 import { MonthBar } from "./month-bar"
 import { ColorDot, SectionTitle, SpentBar } from "./plan-ui"
@@ -20,13 +21,23 @@ interface PlanGroupListProps {
   bar: MonthBarData
   groupHref: (groupId: string) => string
   className?: string
+  /** Status de cada grupo (só exibido com o plano confirmado/fechado). */
+  groupStatus?: WinsData["month"]["groupStatus"]
+  /** Diferença do variável planejado para o mês anterior, por grupo. */
+  vsLastMonth?: WinsData["month"]["vsLastMonth"]
 }
+
+const STATUS_ICON = { good: Check, neutral: Equals, over: TrendUp } as const
+const STATUS_ICON_TONE = { good: "text-positive-ink", neutral: "text-muted-foreground", over: "text-expense" } as const
 
 // "Para onde vai": uma linha leve por grupo, na mesma ordem e cor da barra do
 // mês — nome, planejado (sem centavos) e a barrinha gasto/planejado. O
 // detalhe (comprometido × variável) fica no detalhe do grupo.
-export function PlanGroupList({ plan, bar, groupHref, className }: PlanGroupListProps) {
+export function PlanGroupList({ plan, bar, groupHref, className, groupStatus, vsLastMonth }: PlanGroupListProps) {
   const byId = new Map(plan.groups.map((g) => [g.id, g]))
+  const showStatus = plan.status === "CONFIRMED" || plan.status === "CLOSED"
+  const statusById = new Map((groupStatus ?? []).map((g) => [g.groupId, g]))
+  const diffById = new Map((vsLastMonth ?? []).map((g) => [g.groupId, g.plannedDiff]))
   const rows = bar.segments.filter((s) => s.type !== "free")
 
   return (
@@ -60,6 +71,9 @@ export function PlanGroupList({ plan, bar, groupHref, className }: PlanGroupList
           const planned = isWishes ? plan.wishesPlanned : (group?.planned ?? s.amount)
           const spent = group?.spent ?? 0
           const progress = spentProgress(spent, planned)
+          const status = showStatus && s.groupId && !isWishes ? groupStatusLabel(statusById.get(s.groupId)) : null
+          const hint = s.groupId && !isWishes ? vsLastMonthHint(diffById.get(s.groupId), plan.month) : null
+          const StatusIcon = status ? STATUS_ICON[status.tone] : null
           return (
             <li key={s.key}>
               <Link href={href} className="group flex items-center gap-3 py-3.5">
@@ -80,6 +94,18 @@ export function PlanGroupList({ plan, bar, groupHref, className }: PlanGroupList
                       {progress.over ? `${formatMoneyWhole(progress.overAmount)} acima` : `${formatMoneyWhole(spent)} gasto`}
                     </span>
                   </div>
+                  {(status || hint) && (
+                    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                      {status && StatusIcon && (
+                        <span className={cn("inline-flex items-center gap-1", status.tone === "good" && "font-medium text-foreground/85")}>
+                          <StatusIcon size={11} weight="bold" className={STATUS_ICON_TONE[status.tone]} aria-hidden />
+                          <span className="tabular-nums">{status.text}</span>
+                        </span>
+                      )}
+                      {status && hint && <span aria-hidden>·</span>}
+                      {hint && <span className="tabular-nums">{hint}</span>}
+                    </p>
+                  )}
                 </div>
                 <CaretRight
                   size={14}

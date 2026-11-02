@@ -21,6 +21,7 @@ import {
 import { toISODate } from "@/lib/period"
 import type { Card, Category } from "@/lib/types"
 import { toast } from "@/hooks/use-toast"
+import { useWins } from "@/hooks/use-wins"
 import { usePlan } from "./use-plan"
 
 export function usePlanViewModel() {
@@ -28,6 +29,9 @@ export function usePlanViewModel() {
   const { selection, family, isReadOnly } = useAccount()
   const planState = usePlan(selectedMonth)
   const { plan, year, month, reload } = planState
+  // Vitórias do mês selecionado. Falha aqui não derruba a tela.
+  const { wins } = useWins(selectedMonth, !isReadOnly)
+  const [showConfirmSummary, setShowConfirmSummary] = useState(false)
 
   const [categories, setCategories] = useState<Category[]>([])
   const [cards, setCards] = useState<Card[]>([])
@@ -113,7 +117,8 @@ export function usePlanViewModel() {
     setIsConfirming(false)
     if (ok) {
       trackEvent("plan_confirmed", { wishes: openWishes.length })
-      toast({ title: "Plano confirmado!", description: "Agora é acompanhar a semana.", variant: "success" })
+      // No lugar do toast: o resumo do "mês organizado".
+      setShowConfirmSummary(true)
     }
   }, [planState, openWishes.length])
 
@@ -150,6 +155,9 @@ export function usePlanViewModel() {
     confirmDeleteWish,
     confirmPlan,
     isConfirming,
+    wins,
+    showConfirmSummary,
+    closeConfirmSummary: () => setShowConfirmSummary(false),
   }
 }
 

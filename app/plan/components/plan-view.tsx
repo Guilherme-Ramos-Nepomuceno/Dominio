@@ -24,6 +24,8 @@ import { WishList } from "./wish-list"
 import { PlanSettings } from "./plan-settings"
 import { WishFormSheet } from "./wish-form-sheet"
 import { BuyWishSheet } from "./buy-wish-sheet"
+import { ConfirmSummaryDialog } from "./confirm-summary-dialog"
+import { WinsStrip } from "@/components/wins/wins-strip"
 
 // Status = bolinha + rótulo (nunca só a cor).
 const STATUS_DOT: Record<PlanStatus, string> = {
@@ -122,6 +124,15 @@ export function PlanView() {
 
             <div>
               <PlanHero plan={plan} headline={vm.headline} budget={vm.budget} editable={vm.editable} onSaveBudget={vm.setBudget} />
+              {vm.wins && (
+                <WinsStrip
+                  className="mt-6"
+                  wins={vm.wins.month.wins}
+                  scope="month"
+                  hasPlan={plan.status !== "NONE"}
+                  periodKey={`${plan.year}-${plan.month}`}
+                />
+              )}
               <MonthBar
                 className="mt-8"
                 bar={vm.bar}
@@ -131,7 +142,13 @@ export function PlanView() {
               />
             </div>
 
-            <PlanGroupList plan={plan} bar={vm.bar} groupHref={(id) => `/plan/${id}`} />
+            <PlanGroupList
+              plan={plan}
+              bar={vm.bar}
+              groupHref={(id) => `/plan/${id}`}
+              groupStatus={vm.wins?.month.groupStatus}
+              vsLastMonth={vm.wins?.month.vsLastMonth}
+            />
 
             <WishList
               wishes={vm.openWishes}
@@ -141,6 +158,8 @@ export function PlanView() {
               leftover={plan.leftover}
               editable={vm.editable}
               highlightedIds={vm.highlightedWishIds}
+              boughtWithinPlanIds={vm.wins?.month.wishesBoughtWithinPlanIds ?? []}
+              wishesBoughtThisYear={vm.wins?.month.wishesBoughtThisYear ?? 0}
               onReorder={vm.reorder}
               onAdd={() => vm.setEditingWish("new")}
               onEdit={(w) => vm.setEditingWish(w)}
@@ -183,6 +202,7 @@ export function PlanView() {
         onClose={() => vm.setEditingWish(null)}
         onSave={vm.saveWish}
       />
+      <ConfirmSummaryDialog open={vm.showConfirmSummary} plan={plan} onClose={vm.closeConfirmSummary} />
       <BuyWishSheet wish={vm.buyingWish} cards={vm.cards} onClose={() => vm.setBuyingWish(null)} onBought={vm.reload} />
 
       <AlertDialog open={!!vm.deletingWish} onOpenChange={(open) => !open && vm.setDeletingWish(null)}>

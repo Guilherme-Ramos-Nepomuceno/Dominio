@@ -257,7 +257,8 @@ export function groupStatusLabel(
   status: { status: GroupPaceStatus; remaining: number } | undefined,
 ): { text: string; tone: "good" | "neutral" | "over" } | null {
   if (!status) return null
-  if (status.status === "OVER") return { text: "acima do plano", tone: "over" }
+  // Ainda com saldo = gastando rápido demais; sem saldo = já passou do planejado.
+  if (status.status === "OVER") return { text: status.remaining < 0 ? "acima do plano" : "acima do ritmo", tone: "over" }
   if (status.status === "ON_TRACK") return { text: "no ritmo", tone: "neutral" }
   if (status.remaining >= 1) return { text: `dentro do plano, ${formatMoneyWhole(status.remaining)} disponível`, tone: "good" }
   return { text: "dentro do plano", tone: "good" }

@@ -18,6 +18,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { moveItem, type PlanWish } from "@/lib/plan"
 import { formatMoneyWhole, wishFitLabel, type WishQueue } from "@/lib/plan-layout"
+import { wishesRealizedLabel } from "@/lib/wins"
 import type { Category } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { SectionTitle } from "./plan-ui"
@@ -30,6 +31,9 @@ interface WishListProps {
   leftover: number
   editable: boolean
   highlightedIds: string[]
+  /** Comprados que couberam na sobra do plano (rótulo "sem sair do plano"). */
+  boughtWithinPlanIds?: string[]
+  wishesBoughtThisYear?: number
   onReorder: (ids: string[]) => void
   onAdd: () => void
   onEdit: (wish: PlanWish) => void
@@ -105,6 +109,8 @@ export function WishList({
   leftover,
   editable,
   highlightedIds,
+  boughtWithinPlanIds = [],
+  wishesBoughtThisYear = 0,
   onReorder,
   onAdd,
   onEdit,
@@ -175,7 +181,15 @@ export function WishList({
   return (
     <section id="desejos" className="scroll-mt-24 space-y-4" aria-labelledby="plan-wishes-title">
       <div className="flex items-baseline justify-between gap-3">
-        <SectionTitle id="plan-wishes-title">O que cabe este mês</SectionTitle>
+        <div className="min-w-0">
+          <SectionTitle id="plan-wishes-title">O que cabe este mês</SectionTitle>
+          {wishesRealizedLabel(wishesBoughtThisYear) && (
+            <p className="mt-1 inline-flex items-center gap-1 text-xs text-foreground/80">
+              <Sparkle size={12} weight="fill" className="text-positive-ink" aria-hidden />
+              {wishesRealizedLabel(wishesBoughtThisYear)}
+            </p>
+          )}
+        </div>
         <p className="text-sm tabular-nums">
           {queue.available > 0 ? (
             <>
@@ -351,7 +365,15 @@ export function WishList({
                 {boughtWishes.map((wish) => (
                   <li key={wish.id} className="flex items-center gap-2 py-1 text-sm">
                     <ShoppingBag size={14} className="text-muted-foreground shrink-0" />
-                    <span className="flex-1 min-w-0 truncate text-muted-foreground line-through">{wish.name}</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate text-muted-foreground line-through">{wish.name}</span>
+                      {boughtWithinPlanIds.includes(wish.id) && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground/80">
+                          comprado sem sair do plano
+                          <Check size={11} weight="bold" className="text-positive-ink" aria-hidden />
+                        </span>
+                      )}
+                    </span>
                     <span className="tabular-nums text-muted-foreground">
                       {formatMoneyWhole(wish.actualAmount ?? wish.estimatedAmount)}
                     </span>
