@@ -183,6 +183,13 @@ export function monthBarSummary(bar: MonthBar): string {
   return bar.over > 0 ? `${head} O plano passa ${formatShortfall(bar.over)} do orçamento.` : head
 }
 
+// Legenda do gasto embaixo da barra: o tom forte de cada segmento somado.
+// O sem categoria é todo gasto (ele só existe porque já saiu).
+export function monthBarSpentCaption(bar: MonthBar): string {
+  const spent = bar.segments.filter((s) => s.type !== "free").reduce((sum, s) => sum + s.spent, 0)
+  return `${formatMoneyWhole(spent)} já gasto de ${formatMoneyWhole(bar.allocated)} planejado`
+}
+
 // O gasto real só faz sentido na barra com o plano confirmado (ou fechado) e
 // depois que o período começou — antes disso tudo seria "zero gasto".
 export function showsSpending(status: PlanStatus, periodStart: string, todayISO: string): boolean {

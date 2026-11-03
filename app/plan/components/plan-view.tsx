@@ -155,7 +155,6 @@ export function PlanView() {
               boughtWishes={vm.boughtWishes}
               categories={vm.categories}
               queue={vm.queue}
-              leftover={plan.leftover}
               editable={vm.editable}
               highlightedIds={vm.highlightedWishIds}
               boughtWithinPlanIds={vm.wins?.month.wishesBoughtWithinPlanIds ?? []}

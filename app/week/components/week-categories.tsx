@@ -7,6 +7,7 @@ import { categoryRows, type WeekCategory } from "@/lib/week"
 
 // "Para onde foi": gasto da semana por categoria. As barras usam uma cor só
 // (é uma série) — a identidade vem do nome e do ponto com a cor da categoria.
+// "Sem categoria" fica em cinza, como na barra do mês do Planejar.
 export function WeekCategories({ categories }: { categories: WeekCategory[] }) {
   const rows = categoryRows(categories, formatCurrency)
   if (rows.length === 0) {
@@ -33,7 +34,10 @@ export function WeekCategories({ categories }: { categories: WeekCategory[] }) {
             <span className="text-sm font-semibold tabular-nums shrink-0">{row.spentText}</span>
           </div>
           <div className="mt-1.5 h-1.5 rounded-full bg-muted overflow-hidden" aria-hidden>
-            <div className="h-full rounded-full" style={{ width: `${row.barPct}%`, background: "var(--chart-3)" }} />
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${row.barPct}%`, background: row.categoryId === null ? "var(--plan-uncategorized)" : "var(--chart-3)" }}
+            />
           </div>
           {row.plannedText && <p className="mt-1 text-xs text-muted-foreground">{row.plannedText}</p>}
         </li>

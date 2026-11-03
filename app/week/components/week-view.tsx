@@ -9,11 +9,19 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PaceBadge } from "@/components/week/pace-badge"
 import { WinsStrip } from "@/components/wins/wins-strip"
 import { formatCurrency } from "@/lib/date-utils"
-import { daysLeftLabel, formatWeekRange, formatWeekday, lastWeekLabel, projectionMessage, streakLabel, type HeroBarTone } from "@/lib/week"
+import {
+  daysLeftLabel,
+  formatWeekRange,
+  formatWeekday,
+  lastWeekLabel,
+  projectionMessage,
+  showMonthChart,
+  streakLabel,
+  type HeroBarTone,
+} from "@/lib/week"
 import { recoveryMessage } from "@/lib/wins"
 import { cn } from "@/lib/utils"
 import { useWeekViewModel } from "../hooks/use-week-view-model"
-import { WeekDaysChart } from "./week-days-chart"
 import { MonthProjectionChart } from "./month-projection-chart"
 import { PeriodWeeksList } from "./period-weeks-list"
 import { WeekCategories } from "./week-categories"
@@ -44,7 +52,6 @@ function WeekSkeleton() {
     <div className="max-w-2xl mx-auto space-y-4" aria-busy="true" aria-label="Carregando a semana">
       <Skeleton className="h-72 rounded-[20px]" />
       <Skeleton className="h-20 rounded-[20px]" />
-      <Skeleton className="h-52 rounded-[20px]" />
       <Skeleton className="h-56 rounded-[20px]" />
       <Skeleton className="h-28 rounded-[20px]" />
     </div>
@@ -55,6 +62,8 @@ export function WeekView() {
   const vm = useWeekViewModel()
   const week = vm.week
   const wins = vm.wins
+  const recovery = recoveryMessage(wins?.week.recovery ?? null)
+  const showChart = week ? showMonthChart(week.monthSeries) : false
 
   return (
     <AppLayout>
@@ -123,7 +132,14 @@ export function WeekView() {
             <p className={cn("mt-1 text-5xl font-bold tracking-tight", week.available < 0 ? "text-expense" : "text-foreground")}>
               {formatCurrency(week.available)}
             </p>
-            {week.available > 0 ? (
+            {/* Acima do ritmo, a frase de recuperação toma o lugar do "por dia":
+                um valor diário só, e o que dá para fazer com ele. */}
+            {week.available > 0 && recovery ? (
+              <p className="mx-auto mt-2 flex max-w-sm items-start justify-center gap-2 text-left text-sm text-foreground">
+                <Path size={16} weight="bold" aria-hidden className="mt-0.5 shrink-0 text-attention-ink" />
+                {recovery}
+              </p>
+            ) : week.available > 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">{formatCurrency(week.perDayRemaining)} por dia</span> ·{" "}
                 {daysLeftLabel(week.daysLeftInWeek)}
@@ -134,20 +150,10 @@ export function WeekView() {
                 {formatWeekday(week.weekEnd)}.
               </p>
             )}
-            {(() => {
-              const recovery = recoveryMessage(wins?.week.recovery ?? null)
-              if (!recovery) return null
-              return (
-                <p className="mx-auto mt-3 flex max-w-sm items-start justify-center gap-2 text-left text-sm text-foreground">
-                  <Path size={16} weight="bold" aria-hidden className="mt-0.5 shrink-0 text-attention-ink" />
-                  {recovery}
-                </p>
-              )
-            })()}
 
             {wins && wins.week.dayStatus.length > 0 && (
               <div className="mt-5">
-                <DayStrip days={wins.week.dayStatus} todayISO={vm.todayISO} />
+                <DayStrip days={wins.week.dayStatus} todayISO={vm.todayISO} spending={week.days} idealPerDay={week.idealPerDay} />
               </div>
             )}
 
@@ -168,7 +174,6 @@ export function WeekView() {
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground tabular-nums">
                   {formatCurrency(week.spentThisWeek)} gastos de {formatCurrency(week.limit)} da semana
-                  {week.expectedSpentToDate > 0 && <> · o esperado até hoje era {formatCurrency(week.expectedSpentToDate)}</>}
                 </p>
               </div>
             )}
@@ -202,43 +207,49 @@ export function WeekView() {
           {/* 4. Economia que vira desejo */}
           {wins && <WishProgressList items={wins.month.wishProgress} />}
 
-          {/* 5. Esta semana */}
-          <Card title="Esta semana" subtitle="Quanto saiu em cada dia, perto do ideal diário do limite">
-            <WeekDaysChart bars={vm.bars} idealPerDay={week.idealPerDay} />
-          </Card>
-
-          {/* 6. Projeção do mês */}
-          <Card
-            title="Projeção do mês"
-            subtitle={week.hasPlan ? "Gasto variável acumulado × o planejado" : "Gasto variável acumulado × a meta mensal (sem plano)"}
-          >
-            <MonthProjectionChart week={week} />
-            {(() => {
-              const pace = projectionMessage(week.monthPace, formatCurrency)
-              const Icon = pace.tone === "ok" ? TrendDown : pace.tone === "over" ? TrendUp : Equals
+          {/* 5. Projeção do mês — o dia a dia da semana já está nas bolinhas do herói */}
+          {(() => {
+            const pace = projectionMessage(week.monthPace, formatCurrency)
+            const Icon = pace.tone === "ok" ? TrendDown : pace.tone === "over" ? TrendUp : Equals
+            const line = (
+              <p className={cn("flex items-start gap-2 text-sm text-foreground", showChart && "mt-3")}>
+                <Icon
+                  size={18}
+                  weight="bold"
+                  aria-hidden
+                  className={cn(
+                    "shrink-0 mt-0.5",
+                    pace.tone === "ok" ? "text-positive-ink" : pace.tone === "over" ? "text-expense" : "text-muted-foreground",
+                  )}
+                />
+                {pace.text}
+              </p>
+            )
+            // Poucos dias de gasto: só a frase, sem um cartão inteiro de gráfico vazio.
+            if (!showChart) {
               return (
-                <p className="mt-3 flex items-start gap-2 text-sm text-foreground">
-                  <Icon
-                    size={18}
-                    weight="bold"
-                    aria-hidden
-                    className={cn(
-                      "shrink-0 mt-0.5",
-                      pace.tone === "ok" ? "text-positive-ink" : pace.tone === "over" ? "text-expense" : "text-muted-foreground",
-                    )}
-                  />
-                  {pace.text}
-                </p>
+                <section className="rounded-[20px] bg-card border border-border/50 px-5 py-4" aria-label="Projeção do mês">
+                  {line}
+                </section>
               )
-            })()}
-          </Card>
+            }
+            return (
+              <Card
+                title="Projeção do mês"
+                subtitle={week.hasPlan ? "Gasto variável acumulado × o planejado" : "Gasto variável acumulado × a meta mensal (sem plano)"}
+              >
+                <MonthProjectionChart week={week} />
+                {line}
+              </Card>
+            )
+          })()}
 
-          {/* 7. Semanas do mês */}
+          {/* 6. Semanas do mês */}
           <Card title="Semanas do mês">
             <PeriodWeeksList weeks={week.weeks} />
           </Card>
 
-          {/* 8. Para onde foi */}
+          {/* 7. Para onde foi */}
           <Card title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
             <WeekCategories categories={week.categories} />
           </Card>

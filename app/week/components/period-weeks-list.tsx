@@ -3,11 +3,12 @@
 import { useState } from "react"
 import { Check, Triangle } from "@phosphor-icons/react"
 import { formatCurrency } from "@/lib/date-utils"
+import { formatMoneyWhole } from "@/lib/plan-layout"
 import { weekPills, type PeriodWeek } from "@/lib/week"
 import { cn } from "@/lib/utils"
 
 // Semanas do mês como uma faixa compacta: uma pílula por semana (✓ dentro,
-// ▲ acima, a atual com anel, futuras tracejadas). Tocar mostra o detalhe
+// ▲ acima, a atual com anel, futuras tracejadas) com o limite embaixo. Tocar mostra o detalhe
 // daquela semana logo abaixo; começa na semana atual.
 export function PeriodWeeksList({ weeks }: { weeks: PeriodWeek[] }) {
   const pills = weekPills(weeks, formatCurrency)
@@ -29,18 +30,25 @@ export function PeriodWeeksList({ weeks }: { weeks: PeriodWeek[] }) {
               aria-pressed={isSelected}
               aria-label={p.ariaLabel}
               aria-current={p.kind === "current" ? "true" : undefined}
-              className={cn(
-                "flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-full text-xs font-semibold transition-colors",
-                p.kind === "under" && "bg-income/15 text-foreground",
-                p.kind === "over" && "bg-expense/10 text-foreground",
-                p.kind === "current" && "bg-primary/5 text-foreground ring-1 ring-inset ring-primary/40",
-                p.kind === "future" && "border border-dashed border-border text-muted-foreground",
-                isSelected && "outline outline-2 outline-offset-2 outline-foreground/60",
-              )}
+              className="flex min-w-0 flex-1 flex-col items-center gap-1"
             >
-              {p.short}
-              {p.kind === "under" && <Check size={12} weight="bold" className="text-positive-ink" aria-hidden />}
-              {p.kind === "over" && <Triangle size={9} weight="fill" className="text-expense" aria-hidden />}
+              <span
+                className={cn(
+                  "flex h-9 w-full items-center justify-center gap-1 rounded-full text-xs font-semibold transition-colors",
+                  p.kind === "under" && "bg-income/15 text-foreground",
+                  p.kind === "over" && "bg-expense/10 text-foreground",
+                  p.kind === "current" && "bg-primary/5 text-foreground ring-1 ring-inset ring-primary/40",
+                  p.kind === "future" && "border border-dashed border-border text-muted-foreground",
+                  isSelected && "outline outline-2 outline-offset-2 outline-foreground/60",
+                )}
+              >
+                {p.short}
+                {p.kind === "under" && <Check size={12} weight="bold" className="text-positive-ink" aria-hidden />}
+                {p.kind === "over" && <Triangle size={9} weight="fill" className="text-expense" aria-hidden />}
+              </span>
+              <span aria-hidden className="text-[11px] tabular-nums text-muted-foreground">
+                {formatMoneyWhole(p.limit)}
+              </span>
             </button>
           )
         })}

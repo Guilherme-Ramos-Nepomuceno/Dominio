@@ -8,6 +8,7 @@ import {
   formatShortfall,
   groupColor,
   monthBar,
+  monthBarSpentCaption,
   monthBarSummary,
   planGuide,
   planHeadline,
@@ -157,6 +158,11 @@ test("barra do mês: plano acima do orçamento mostra o excesso", () => {
   assert.equal(bar.segments.some((s) => s.type === "free"), false)
   assert.equal(bar.segments.some((s) => s.kind === "WISHES"), false)
   assert.ok(monthBarSummary(bar).includes(brl("passa R$ 572 do orçamento")))
+})
+
+test("barra do mês: legenda do gasto soma os grupos e o sem categoria", () => {
+  // 173,9 (Estilo de vida) + 22 (sem categoria) = 195,9 → R$ 196 de R$ 4.822.
+  assert.equal(monthBarSpentCaption(monthBar(mapPlan(rawPlan))), brl("R$ 196 já gasto de R$ 4.822 planejado"))
 })
 
 test("barra do mês: sem orçamento nem plano fica vazia", () => {

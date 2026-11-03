@@ -153,6 +153,12 @@ export const WIN_ICON: Record<WinKind, WinIcon> = {
   WISH_BOUGHT_IN_PLAN: "bag",
 }
 
+// "Mês organizado" sozinho é só o plano confirmado, não um comportamento:
+// aparece como uma linha discreta, sem o destaque verde das outras vitórias.
+export function isQuietWin(wins: Win[]): boolean {
+  return wins.length === 1 && wins[0].kind === "PLAN_CONFIRMED"
+}
+
 // Sem vitória não se inventa uma: um incentivo neutro e útil.
 export function winsEncouragement(scope: "week" | "month", hasPlan: boolean): { title: string; detail: string; href: string | null } {
   if (scope === "month" && !hasPlan) {

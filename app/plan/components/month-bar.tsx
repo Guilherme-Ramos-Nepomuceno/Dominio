@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { WarningCircle } from "@phosphor-icons/react"
-import { formatMoneyWhole, formatShortfall, type MonthBar as MonthBarData, type MonthBarSegment } from "@/lib/plan-layout"
+import { formatMoneyWhole, formatShortfall, monthBarSpentCaption, type MonthBar as MonthBarData, type MonthBarSegment } from "@/lib/plan-layout"
 import { cn } from "@/lib/utils"
 import { ColorDot } from "./plan-ui"
 
@@ -98,6 +98,10 @@ export function MonthBar({ bar, summary, showSpending, groupHref, className }: M
         </p>
       )}
 
+      {showSpending && segments.length > 0 && (
+        <p className="mt-2 text-xs font-medium text-foreground/80 tabular-nums">{monthBarSpentCaption(bar)}</p>
+      )}
+
       {segments.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground" aria-hidden>
           {segments.map((s) => (
@@ -111,7 +115,6 @@ export function MonthBar({ bar, summary, showSpending, groupHref, className }: M
               {s.label}
             </li>
           ))}
-          {showSpending && <li className="text-muted-foreground/80">· tom forte = já gasto</li>}
         </ul>
       )}
     </div>

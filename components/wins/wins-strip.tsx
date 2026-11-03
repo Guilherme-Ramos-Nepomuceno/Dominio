@@ -17,7 +17,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react"
 import { oncePerSession, trackEvent } from "@/lib/events"
-import { WIN_ICON, winsEncouragement, type Win, type WinIcon } from "@/lib/wins"
+import { WIN_ICON, isQuietWin, winsEncouragement, type Win, type WinIcon } from "@/lib/wins"
 import { cn } from "@/lib/utils"
 
 const ICONS: Record<WinIcon, Icon> = {
@@ -75,6 +75,22 @@ export function WinsStrip({ wins, scope, hasPlan, periodKey, className }: WinsSt
         ) : (
           <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card p-3.5">{body}</div>
         )}
+      </section>
+    )
+  }
+
+  if (isQuietWin(wins)) {
+    const win = wins[0]
+    const IconCmp = ICONS[WIN_ICON[win.kind]]
+    return (
+      <section aria-label="Suas vitórias" className={className}>
+        <p className="flex items-center gap-2 text-sm text-foreground/85">
+          <IconCmp size={16} weight="fill" className="shrink-0 text-positive-ink" aria-hidden />
+          <span className="min-w-0">
+            <span className="font-medium text-foreground">{win.title}</span>
+            {win.detail && <span className="text-muted-foreground"> · {win.detail}</span>}
+          </span>
+        </p>
       </section>
     )
   }

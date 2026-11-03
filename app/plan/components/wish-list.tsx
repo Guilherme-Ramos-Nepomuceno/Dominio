@@ -15,7 +15,13 @@ import {
   Plus,
   Gift,
 } from "@phosphor-icons/react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { moveItem, type PlanWish } from "@/lib/plan"
 import { formatMoneyWhole, wishFitLabel, type WishQueue } from "@/lib/plan-layout"
 import { wishesRealizedLabel } from "@/lib/wins"
@@ -28,7 +34,6 @@ interface WishListProps {
   boughtWishes: PlanWish[]
   categories: Category[]
   queue: WishQueue
-  leftover: number
   editable: boolean
   highlightedIds: string[]
   /** Comprados que couberam na sobra do plano (rótulo "sem sair do plano"). */
@@ -68,7 +73,7 @@ function WishQueueBar({ queue }: { queue: WishQueue }) {
   const fitting = queue.slices.filter((s) => !s.bought).length
   const summary =
     queue.available > 0
-      ? `${formatMoneyWhole(queue.used)} de ${formatMoneyWhole(queue.available)} livres vão para ${fitting} ${
+      ? `${formatMoneyWhole(queue.used)} dos ${formatMoneyWhole(queue.available)} para desejos vão para ${fitting} ${
           fitting === 1 ? "desejo que cabe" : "desejos que cabem"
         }.`
       : "Não sobra nada para desejos este mês."
@@ -100,13 +105,13 @@ interface DragState {
 
 // "O que cabe este mês": quanto há livre, a barra que se enche com os desejos
 // e a lista por prioridade. Reordenar: arrastar pela alça (mouse ou toque,
-// com pointer events) ou pelos botões subir/descer (teclado e leitores de tela).
+// com pointer events) ou por "Subir/Descer prioridade" no menu de cada desejo
+// (teclado e leitores de tela).
 export function WishList({
   wishes,
   boughtWishes,
   categories,
   queue,
-  leftover,
   editable,
   highlightedIds,
   boughtWithinPlanIds = [],
@@ -194,10 +199,10 @@ export function WishList({
           {queue.available > 0 ? (
             <>
               <span className="font-semibold text-foreground">{formatMoneyWhole(queue.available)}</span>
-              <span className="text-muted-foreground"> livres</span>
+              <span className="text-muted-foreground"> para desejos</span>
             </>
           ) : (
-            <span className="text-muted-foreground">nada livre</span>
+            <span className="text-muted-foreground">nada para desejos</span>
           )}
         </p>
       </div>
@@ -208,7 +213,7 @@ export function WishList({
           <p className="mt-3 font-medium text-foreground">O que você quer comprar este mês?</p>
           <p className="mt-1 text-sm text-muted-foreground text-pretty">
             {queue.available > 0
-              ? `Anote aqui e veja na hora se cabe nos ${formatMoneyWhole(queue.available)} livres.`
+              ? `Anote aqui e veja na hora se cabe nos ${formatMoneyWhole(queue.available)} para desejos.`
               : "Anote aqui — quando sobrar espaço no plano, você vê o que cabe."}
           </p>
           {editable && (
@@ -250,38 +255,18 @@ export function WishList({
                     )}
                   >
                     {editable && (
-                      <div className="flex flex-col items-center shrink-0 -my-1">
-                        <button
-                          type="button"
-                          aria-label={`Subir prioridade de ${wish.name}`}
-                          disabled={index === 0}
-                          onClick={() => moveBy(wish.id, -1)}
-                          className="p-0.5 text-muted-foreground/70 hover:text-foreground disabled:opacity-20"
-                        >
-                          <CaretUp size={12} weight="bold" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Arrastar ${wish.name} para reordenar`}
-                          onPointerDown={(e) => onPointerDown(e, wish.id)}
-                          onPointerMove={onPointerMove}
-                          onPointerUp={onPointerUp}
-                          onPointerCancel={onPointerUp}
-                          tabIndex={-1}
-                          className="p-0.5 text-muted-foreground/70 cursor-grab active:cursor-grabbing touch-none"
-                        >
-                          <DotsSixVertical size={16} weight="bold" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Descer prioridade de ${wish.name}`}
-                          disabled={index === ordered.length - 1}
-                          onClick={() => moveBy(wish.id, 1)}
-                          className="p-0.5 text-muted-foreground/70 hover:text-foreground disabled:opacity-20"
-                        >
-                          <CaretDown size={12} weight="bold" />
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Arrastar ${wish.name} para reordenar`}
+                        onPointerDown={(e) => onPointerDown(e, wish.id)}
+                        onPointerMove={onPointerMove}
+                        onPointerUp={onPointerUp}
+                        onPointerCancel={onPointerUp}
+                        tabIndex={-1}
+                        className="-my-1 shrink-0 p-0.5 text-muted-foreground/70 cursor-grab active:cursor-grabbing touch-none"
+                      >
+                        <DotsSixVertical size={16} weight="bold" />
+                      </button>
                     )}
 
                     <span className="w-5 shrink-0 text-center text-xs font-semibold tabular-nums text-muted-foreground">
@@ -331,6 +316,13 @@ export function WishList({
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem disabled={index === 0} onSelect={() => moveBy(wish.id, -1)}>
+                              <CaretUp size={14} /> Subir prioridade
+                            </DropdownMenuItem>
+                            <DropdownMenuItem disabled={index === ordered.length - 1} onSelect={() => moveBy(wish.id, 1)}>
+                              <CaretDown size={14} /> Descer prioridade
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onSelect={() => onEdit(wish)}>
                               <PencilSimple size={14} /> Editar
                             </DropdownMenuItem>
@@ -383,12 +375,6 @@ export function WishList({
             </div>
           )}
 
-          <div className="flex items-baseline justify-between gap-3 border-t border-border pt-3 text-sm">
-            <span className="text-muted-foreground">Sobra depois dos desejos</span>
-            <span className={cn("font-semibold tabular-nums", leftover < -0.004 ? "text-expense" : "text-foreground")}>
-              {formatMoneyWhole(leftover)}
-            </span>
-          </div>
         </>
       )}
     </section>

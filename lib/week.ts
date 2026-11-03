@@ -244,44 +244,6 @@ export function projectionMessage(
   return { text: `No ritmo atual, você termina ${format(Math.abs(diff))} acima do plano.`, tone: "over" }
 }
 
-const WEEKDAYS_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
-
-export interface DayBar {
-  date: string
-  label: string
-  dayOfMonth: number
-  spent: number
-  isFuture: boolean
-  isToday: boolean
-}
-
-// Barras da semana. "Hoje" = o último dia que já não é futuro.
-export function dayBars(days: WeekDay[]): DayBar[] {
-  let todayIndex = -1
-  days.forEach((d, i) => {
-    if (!d.isFuture) todayIndex = i
-  })
-  return days.map((d, i) => {
-    const date = parseLocalDate(d.date)
-    return {
-      date: d.date,
-      label: date ? WEEKDAYS_SHORT[date.getDay()] : "",
-      dayOfMonth: date ? date.getDate() : 0,
-      spent: d.isFuture ? 0 : d.spent,
-      isFuture: d.isFuture,
-      isToday: i === todayIndex,
-    }
-  })
-}
-
-// Resumo em texto do gráfico da semana (aria-label).
-export function weekChartSummary(bars: DayBar[], idealPerDay: number, format: Fmt): string {
-  const past = bars.filter((b) => !b.isFuture)
-  if (past.length === 0) return `Nenhum dia da semana passou ainda. Ideal: ${format(idealPerDay)} por dia.`
-  const parts = past.map((b) => `${b.label}${b.isToday ? " (hoje)" : ""} ${format(b.spent)}`)
-  return `Gasto por dia nesta semana: ${parts.join(", ")}. Ideal: ${format(idealPerDay)} por dia.`
-}
-
 export interface MonthChartPoint {
   date: string
   dayOfMonth: number
@@ -442,6 +404,8 @@ export interface WeekPill {
   stateText: string
   detail: string
   ariaLabel: string
+  // Limite da semana, exibido embaixo da pílula.
+  limit: number
 }
 
 export function weekPills(weeks: PeriodWeek[], format: Fmt): WeekPill[] {
@@ -453,6 +417,38 @@ export function weekPills(weeks: PeriodWeek[], format: Fmt): WeekPill[] {
       row.kind === "future"
         ? `${row.title} · ${row.range} · limite previsto ${row.limitText}`
         : `${row.title} · ${row.range} · gasto ${row.spentText} de ${row.limitText} (${row.diffText})`
-    return { key: row.key, short, kind: row.kind, stateText, detail, ariaLabel: `${row.title}, ${stateText}` }
+    return {
+      key: row.key,
+      short,
+      kind: row.kind,
+      stateText,
+      detail,
+      ariaLabel: `${row.title}, ${stateText}, limite ${row.limitText}`,
+      limit: weeks[i].limit,
+    }
   })
+}
+
+// --- Projeção do mês: gráfico só com dados suficientes ---
+
+export const MIN_DAYS_FOR_MONTH_CHART = 5
+
+// Com menos de 5 dias de gasto o gráfico é uma linha quase reta perto do zero:
+// a tela mostra só a frase. A projeção em si continua seguindo a confiança da API.
+export function showMonthChart(series: MonthSeriesPoint[]): boolean {
+  return series.filter((p) => p.cumulativeSpent !== null).length >= MIN_DAYS_FOR_MONTH_CHART
+}
+
+// --- Faixa de dias: o valor do dia ao tocar ---
+
+// "segunda, 3 nov: R$ 45,00 gastos · ideal R$ 30,00". Futuro não tem valor.
+export function dayDetail(
+  day: { date: string; spent: number; isFuture: boolean } | undefined,
+  idealPerDay: number,
+  format: Fmt,
+): string | null {
+  if (!day || day.isFuture) return null
+  const ideal = idealPerDay > 0 ? ` · ideal ${format(idealPerDay)}` : ""
+  const spent = day.spent > 0 ? `${format(day.spent)} gastos` : "sem gasto"
+  return `${formatWeekday(day.date)}: ${spent}${ideal}`
 }

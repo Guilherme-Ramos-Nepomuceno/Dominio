@@ -4,8 +4,6 @@ import {
   mapWeek,
   paceBadge,
   projectionMessage,
-  dayBars,
-  weekChartSummary,
   monthChartData,
   lastRealPoint,
   monthChartSummary,
@@ -61,23 +59,6 @@ test("projeção: sem número com confiança baixa", () => {
   assert.equal(projectionMessage({ projectedDiff: -80, confidence: "MEDIUM" }, fmt).text, "No ritmo atual, você termina R$ 80.00 acima do plano.")
   assert.equal(projectionMessage({ projectedDiff: -80, confidence: "MEDIUM" }, fmt).tone, "over")
   assert.equal(projectionMessage({ projectedDiff: 0.2, confidence: "HIGH" }, fmt).tone, "neutral")
-})
-
-test("barras da semana: rótulos, hoje e futuro", () => {
-  const bars = dayBars([
-    { date: "2026-11-01", spent: 157, isFuture: false },
-    { date: "2026-11-02", spent: 38.9, isFuture: false },
-    { date: "2026-11-03", spent: 99, isFuture: true },
-  ])
-  assert.deepEqual(bars.map((b) => [b.label, b.dayOfMonth, b.spent, b.isToday, b.isFuture]), [
-    ["dom", 1, 157, false, false],
-    ["seg", 2, 38.9, true, false],
-    ["ter", 3, 0, false, true],
-  ])
-  assert.equal(
-    weekChartSummary(bars, 48.33, fmt),
-    "Gasto por dia nesta semana: dom R$ 157.00, seg (hoje) R$ 38.90. Ideal: R$ 48.33 por dia.",
-  )
 })
 
 test("série do mês: real, projeção e faixa", () => {

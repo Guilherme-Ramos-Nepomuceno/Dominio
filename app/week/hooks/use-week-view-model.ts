@@ -7,7 +7,7 @@ import { useAccount } from "@/components/account/account-context"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { trackEvent } from "@/lib/events"
 import { toISODate } from "@/lib/period"
-import { dayBars, heroBarTone, weekProgress } from "@/lib/week"
+import { heroBarTone, weekProgress } from "@/lib/week"
 
 export function useWeekViewModel() {
   const { isReadOnly } = useAccount()
@@ -22,8 +22,7 @@ export function useWeekViewModel() {
 
   const progress = useMemo(() => (week ? weekProgress(week.spentThisWeek, week.limit) : null), [week])
   const barTone = week ? heroBarTone(week.paceStatus, week.spentThisWeek, week.limit) : "neutral"
-  const bars = useMemo(() => dayBars(week?.days ?? []), [week])
   const todayISO = toISODate(new Date())
 
-  return { isReadOnly, week, wins, isLoading, loadError, reload, progress, barTone, bars, todayISO, monthKey: currentMonth }
+  return { isReadOnly, week, wins, isLoading, loadError, reload, progress, barTone, todayISO, monthKey: currentMonth }
 }

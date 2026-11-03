@@ -38,7 +38,9 @@ export function PlanGroupList({ plan, bar, groupHref, className, groupStatus, vs
   const showStatus = plan.status === "CONFIRMED" || plan.status === "CLOSED"
   const statusById = new Map((groupStatus ?? []).map((g) => [g.groupId, g]))
   const diffById = new Map((vsLastMonth ?? []).map((g) => [g.groupId, g.plannedDiff]))
-  const rows = bar.segments.filter((s) => s.type !== "free")
+  // Desejos ficam fora: a barra do mês já mostra a parte deles e a seção de
+  // desejos logo abaixo é o lugar de mexer neles.
+  const rows = bar.segments.filter((s) => s.type !== "free" && s.kind !== "WISHES")
 
   return (
     <section className={cn("space-y-1", className)} aria-labelledby="plan-groups-title">
@@ -65,14 +67,12 @@ export function PlanGroupList({ plan, bar, groupHref, className, groupStatus, vs
           }
 
           const group = s.groupId ? byId.get(s.groupId) : undefined
-          const isWishes = s.kind === "WISHES"
-          // Desejos não têm categorias planejáveis: o planejado é a lista de desejos abaixo.
-          const href = isWishes ? "#desejos" : groupHref(s.groupId ?? "")
-          const planned = isWishes ? plan.wishesPlanned : (group?.planned ?? s.amount)
+          const href = groupHref(s.groupId ?? "")
+          const planned = group?.planned ?? s.amount
           const spent = group?.spent ?? 0
           const progress = spentProgress(spent, planned)
-          const status = showStatus && s.groupId && !isWishes ? groupStatusLabel(statusById.get(s.groupId)) : null
-          const hint = s.groupId && !isWishes ? vsLastMonthHint(diffById.get(s.groupId), plan.month) : null
+          const status = showStatus && s.groupId ? groupStatusLabel(statusById.get(s.groupId)) : null
+          const hint = s.groupId ? vsLastMonthHint(diffById.get(s.groupId), plan.month) : null
           const StatusIcon = status ? STATUS_ICON[status.tone] : null
           return (
             <li key={s.key}>

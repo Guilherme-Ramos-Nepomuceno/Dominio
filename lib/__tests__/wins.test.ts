@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import {
   mapWins,
   winsEncouragement,
+  isQuietWin,
   dayDots,
   dayDotsSummary,
   recoveryMessage,
@@ -15,7 +16,7 @@ import {
   confirmSummary,
   confirmSummaryLines,
 } from "../wins.ts"
-import { heroBarTone, lastWeekLabel, mapWeek, weekPills } from "../week.ts"
+import { dayDetail, heroBarTone, lastWeekLabel, mapWeek, showMonthChart, weekPills } from "../week.ts"
 import { fabVisibleAfterScroll } from "../scroll.ts"
 
 const brl = (v: number) => `R$ ${v.toFixed(2)}`
@@ -46,6 +47,14 @@ test("mapWins: tolera campos ausentes, descarta tipos desconhecidos e corta em 3
   assert.deepEqual(wins.month.wins, [])
   assert.equal(wins.month.wishesBoughtThisYear, 0)
   assert.deepEqual(mapWins(null).week.wins, [])
+})
+
+test("isQuietWin: só quando \"Mês organizado\" é a única vitória", () => {
+  const win = (kind: string) => ({ id: kind, kind, title: kind, detail: null, value: null, priority: 0 }) as any
+  assert.equal(isQuietWin([win("PLAN_CONFIRMED")]), true)
+  assert.equal(isQuietWin([win("PLAN_CONFIRMED"), win("GROUP_UNDER")]), false)
+  assert.equal(isQuietWin([win("GROUP_UNDER")]), false)
+  assert.equal(isQuietWin([]), false)
 })
 
 test("winsEncouragement: neutro, nunca uma vitória inventada", () => {
@@ -163,7 +172,22 @@ test("weekPills: uma pílula por semana com estado e detalhe", () => {
     ["S4", "future"],
   ])
   assert.equal(pills[3].detail, "Semana 4 · 22 – 30 nov · limite previsto R$ 600.00")
-  assert.equal(pills[0].ariaLabel, "Semana 1, dentro do limite")
+  assert.equal(pills[0].ariaLabel, "Semana 1, dentro do limite, limite R$ 466.67")
+  assert.deepEqual(pills.map((p) => p.limit), [466.67, 400, 500, 600])
+})
+
+test("showMonthChart: só a partir de 5 dias com gasto acumulado", () => {
+  const point = (date: string, cumulativeSpent: number | null) => ({ date, cumulativeSpent, projected: null, projectedLow: null, projectedHigh: null })
+  const four = ["01", "02", "03", "04"].map((d) => point(`2026-11-${d}`, 10))
+  assert.equal(showMonthChart([...four, point("2026-11-05", null)]), false)
+  assert.equal(showMonthChart([...four, point("2026-11-05", 50)]), true)
+})
+
+test("dayDetail: valor do dia e o ideal; futuro não tem detalhe", () => {
+  assert.equal(dayDetail({ date: "2026-11-03", spent: 45, isFuture: false }, 30, brl), "terça, 3 nov: R$ 45.00 gastos · ideal R$ 30.00")
+  assert.equal(dayDetail({ date: "2026-11-02", spent: 0, isFuture: false }, 0, brl), "segunda, 2 nov: sem gasto")
+  assert.equal(dayDetail({ date: "2026-11-04", spent: 0, isFuture: true }, 30, brl), null)
+  assert.equal(dayDetail(undefined, 30, brl), null)
 })
 
 test("fabVisibleAfterScroll: esconde ao descer, mostra ao subir e no topo", () => {
