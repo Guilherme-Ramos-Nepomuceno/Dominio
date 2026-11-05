@@ -217,11 +217,12 @@ export function usePendingSummary() {
       return true
     })
 
-    // Só mostra o que já venceu ou vence hoje — uma recorrência com vencimento daqui
-    // a alguns dias não deve gerar alerta antecipado na tela principal.
-    const endOfToday = new Date()
-    endOfToday.setHours(23, 59, 59, 999)
-    const due = visible.filter((t) => new Date(t.date) <= endOfToday)
+    // Só o que já venceu, vence hoje ou vence amanhã (aviso na véspera) — uma
+    // recorrência com vencimento daqui a alguns dias não gera alerta antecipado.
+    const endOfTomorrow = new Date()
+    endOfTomorrow.setDate(endOfTomorrow.getDate() + 1)
+    endOfTomorrow.setHours(23, 59, 59, 999)
+    const due = visible.filter((t) => new Date(t.date) <= endOfTomorrow)
 
     const grouped = new Map<string, Transaction>()
     const singles: Transaction[] = []

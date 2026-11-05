@@ -8,6 +8,8 @@ import { closePlan, getClosingSummary, getPlan } from "@/lib/planning-api"
 import { getGoals, getSavingsGoals } from "@/lib/storage"
 import {
   buildCloseBody,
+  closingTiming,
+  withBoughtWishes,
   defaultDecisions,
   validateLeftover,
   type ClosingData,
@@ -15,7 +17,8 @@ import {
   type WishDecision,
 } from "@/lib/closing"
 import type { PlanStatus } from "@/lib/plan"
-import { addMonths, monthKey, parseMonthKey } from "@/lib/period"
+import { monthBar, planHeadline } from "@/lib/plan-layout"
+import { addMonths, monthKey, parseMonthKey, toISODate } from "@/lib/period"
 import { parseMoneyInput, formatMoneyInput } from "@/lib/plan"
 import { trackEvent } from "@/lib/events"
 import type { Goal, SavingsGoal } from "@/lib/types"
@@ -40,6 +43,13 @@ export function useClosePlanViewModel() {
 
   const [targetMonth, setTargetMonth] = useState<string | null>(null)
   const [status, setStatus] = useState<PlanStatus | null>(null)
+  const [followingPlanStatus, setFollowingPlanStatus] = useState<PlanStatus | null>(null)
+  // Fim do período e sobra prevista do plano (a mesma do Planejar).
+  const [planInfo, setPlanInfo] = useState<{
+    periodEnd: string
+    forecastLeftover: number
+    groups: Array<{ id: string; kind: string | null; name: string; color: string | null; planned: number; spent: number; categoryIds: string[] }>
+  } | null>(null)
   const [data, setData] = useState<ClosingData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -74,11 +84,35 @@ export function useClosePlanViewModel() {
     setLoadError(false)
     const { year, month } = parseMonthKey(targetMonth)
     try {
-      const [plan, closing] = await Promise.all([
+      const following = addMonths(year, month, 1)
+      const [plan, closing, followingPlan] = await Promise.all([
         getPlan(year, month),
         getClosingSummary(year, month).catch(() => null),
+        // Só para o atalho depois de fechar: "Planejar" ou "Ver o plano".
+        getPlan(following.year, following.month).catch(() => null),
       ])
       setStatus(plan.status)
+      setFollowingPlanStatus(followingPlan?.status ?? null)
+      setPlanInfo({
+        periodEnd: plan.periodEnd,
+        forecastLeftover: planHeadline(plan).value,
+        // Mesmos grupos, cores e valores da barra do Planejar, com a compra de
+        // cada desejo contada em Desejos (e não no grupo da categoria dela).
+        groups: withBoughtWishes(
+          monthBar(plan)
+            .segments.filter((seg) => seg.type === "group")
+            .map((seg) => ({
+              id: seg.groupId ?? seg.key,
+              kind: seg.kind,
+              name: seg.label,
+              color: seg.color,
+              planned: seg.amount,
+              spent: seg.spent,
+              categoryIds: plan.groups.find((g) => g.id === seg.groupId)?.categories.map((c) => c.categoryId) ?? [],
+            })),
+          plan.wishes,
+        ),
+      })
       setData(closing)
       setDecisions(defaultDecisions(closing?.openWishes ?? []))
       setDestination(null)
@@ -107,11 +141,21 @@ export function useClosePlanViewModel() {
       .catch(() => {})
   }, [isReadOnly])
 
-  const monthLabel = useMemo(() => {
-    if (!targetMonth) return ""
-    const { year, month } = parseMonthKey(targetMonth)
+  const labelOf = (key: string | null) => {
+    if (!key) return ""
+    const { year, month } = parseMonthKey(key)
     return `${MONTH_NAMES[month - 1]} de ${year}`
-  }, [targetMonth])
+  }
+  const monthLabel = useMemo(() => labelOf(targetMonth), [targetMonth])
+  // O outro mês que dá para fechar (passado ↔ atual), num link discreto.
+  const otherMonth = targetMonth === previousMonth ? currentMonth : previousMonth
+  const otherMonthName = MONTH_NAMES[parseMonthKey(otherMonth).month - 1]
+  const monthName = targetMonth ? MONTH_NAMES[parseMonthKey(targetMonth).month - 1] : ""
+  // O mês seguinte ao que está sendo fechado (para "Planejar …" depois de fechar).
+  const followingMonthName = targetMonth
+    ? MONTH_NAMES[addMonths(parseMonthKey(targetMonth).year, parseMonthKey(targetMonth).month, 1).month - 1]
+    : ""
+  const timing = planInfo ? closingTiming(planInfo.periodEnd, toISODate(new Date())) : { inProgress: false, endLabel: "" }
 
   const close = useCallback(async () => {
     if (!targetMonth || !data) return
@@ -143,8 +187,15 @@ export function useClosePlanViewModel() {
     isReadOnly,
     targetMonth,
     setTargetMonth,
-    monthOptions: [previousMonth, currentMonth],
     monthLabel,
+    otherMonth,
+    otherMonthName,
+    timing,
+    forecastLeftover: planInfo?.forecastLeftover ?? null,
+    groups: planInfo?.groups ?? [],
+    monthName,
+    followingMonthName,
+    followingPlanStatus,
     status,
     data,
     isLoading: isLoading || (!targetMonth && !isReadOnly),

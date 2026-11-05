@@ -3,12 +3,21 @@
 import { useState, useMemo, useEffect } from "react"
 import { MiniBarChart, type ChartDataPoint } from "./mini-bar-chart"
 import { formatCurrency } from "@/lib/date-utils"
-import { getPlanPeriod, isInPlanMonth } from "@/lib/period"
+import { getPlanPeriod } from "@/lib/period"
 import { useSelectedMonth } from "@/lib/selected-month-context"
-import type { PeriodType, Card, Transaction } from "@/lib/types"
+import type { PeriodType, Card, Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { CreditCard, Wallet, Circle } from "@phosphor-icons/react"
-import { getTransactions, getCards } from "@/lib/storage"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
+import { getTransactions, getCards, getCategories } from "@/lib/storage"
+import { effectiveTransactionType, findCategory } from "@/lib/category-utils"
+
+type ExpenseView = "all" | "debit" | "credit"
+
+const EXPENSE_VIEWS: Record<ExpenseView, { label: string; hint: string; dot: string; color: string }> = {
+  all: { label: "Tudo", hint: "Débito e crédito", dot: "bg-expense", color: "#F87171" },
+  debit: { label: "Débito", hint: "Débito, Pix e boleto", dot: "bg-expense", color: "#F87171" },
+  credit: { label: "Crédito", hint: "Compras no cartão de crédito", dot: "bg-amber-500", color: "#F59E0B" },
+}
 
 interface IncomeExpenseCardsProps {
   income: number
@@ -33,17 +42,22 @@ interface IncomeExpenseCardsProps {
   // recentes"; se o Home tentasse re-filtrar sozinho por dateStr, não achava
   // nada mesmo com a barra visivelmente maior que zero.
   onDayClick?: (dateStr: string, transactionsForDay: any[]) => void
+  // A Home mostra só as despesas por dia (receita costuma ser uma ou duas
+  // barras no mês e não ajuda a ler o dia a dia).
+  showIncome?: boolean
+  title?: string
 }
 
 export function IncomeExpenseCards({
   income,
-  expense,
   transactions = [],
   allTransactions,
   selectedMonth,
   period,
   onPeriodChange,
   onDayClick,
+  showIncome = true,
+  title = "Entradas e saídas",
 }: IncomeExpenseCardsProps) {
   // "Mês" segue o período do plano (pode não começar no dia 1).
   const { currentMonth, monthStartDay } = useSelectedMonth()
@@ -58,15 +72,18 @@ export function IncomeExpenseCards({
   // do cabeçalho pra outro mês.
   const isMonthView = period === "month" || !isCurrentMonth
   const weekChartSource = period === "week" && allTransactions ? allTransactions : transactions
-  const [expenseView, setExpenseView] = useState<"all" | "credit">("all")
+  // Tudo = débito + crédito; os outros dois são recortes do mesmo total.
+  const [expenseView, setExpenseView] = useState<ExpenseView>("all")
 
   const [allHistory, setAllHistory] = useState<Transaction[]>([])
   const [cards, setCards] = useState<Card[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
     const load = async () => {
       setAllHistory(await getTransactions())
       setCards(await getCards())
+      setCategories(await getCategories())
     }
     load()
 
@@ -74,50 +91,39 @@ export function IncomeExpenseCards({
     return () => window.removeEventListener("storage-update", load)
   }, [])
 
-  // 1. Lógica Inteligente de Processamento
-  const { displayedExpenseValue, processedExpenseTransactions } = useMemo(() => {
-    if (expenseView === "all") {
-        return {
-            displayedExpenseValue: expense,
-            processedExpenseTransactions: weekChartSource.filter(t => t.type === 'expense')
-        }
-    }
+  // 1. Gastos: as pagas mais as ainda não pagas com data até hoje (compra na
+  // fatura, conta que vence hoje) — o mesmo que a barra do mês soma. Débito e
+  // crédito são recortes desse total.
+  const { processedExpenseTransactions, pendingCreditValue } = useMemo(() => {
+    const endOfToday = new Date()
+    endOfToday.setHours(23, 59, 59, 999)
+    const paid = weekChartSource.filter(t => t.type === 'expense')
+    const paidIds = new Set(paid.map(t => t.id))
+    const pending = allHistory.filter(t =>
+        !paidIds.has(t.id) &&
+        t.status !== 'paid' && t.status !== 'cancelled' &&
+        new Date(t.date) <= endOfToday &&
+        effectiveTransactionType(categories, t) === 'expense' &&
+        !findCategory(categories, t.categoryId)?.excludedFromTotals
+    )
+    const spent = [...paid, ...pending]
 
-    // "Fatura Pendente" aqui é por DATA da própria compra (mês civil
-    // selecionado, ou últimos 7 dias na visão semanal) — de propósito
-    // diferente da tela Faturas/Fechamento, que usam invoiceId/fechamento
-    // do cartão: aqui é "o que eu já gastei nesse mês que ainda não paguei",
-    // mesmo que tecnicamente caia na fatura do mês seguinte.
-    const creditCards = cards.filter(c => c.hasCredit).map(c => c.id)
-    const creditHistory = allHistory.filter(t => {
-        if (!creditCards.includes(t.cardId || "") || t.type !== 'expense') return false
+    // Crédito: pago com o cartão de crédito (cartão só de crédito, ou o
+    // cartão múltiplo com a forma "crédito"). O resto é débito, Pix ou boleto.
+    const isCredit = (t: Transaction) => {
+        if (t.paymentMethod === "credit") return true
         const card = cards.find(c => c.id === t.cardId)
-        if (card?.hasDebit) return t.paymentMethod === "credit"
-        return true
-    })
-    const projectedTransactions = creditHistory.filter(t => t.status !== 'paid' && t.status !== 'cancelled')
-
-    const finalFiltered = isMonthView
-        ? projectedTransactions.filter(t => isInPlanMonth(t.date, selectedMonth ?? currentMonth, monthStartDay))
-        : (() => {
-            const now = new Date()
-            const oneWeekAgo = new Date()
-            oneWeekAgo.setDate(now.getDate() - 7)
-            oneWeekAgo.setHours(0, 0, 0, 0)
-            return projectedTransactions.filter(t => {
-                const tDate = new Date(t.date)
-                tDate.setHours(0, 0, 0, 0)
-                return tDate >= oneWeekAgo && tDate <= now
-            })
-        })()
-
-    const totalPending = finalFiltered.reduce((sum, t) => sum + t.amount, 0)
-
-    return {
-        displayedExpenseValue: totalPending,
-        processedExpenseTransactions: finalFiltered
+        return !!card?.hasCredit && !card.hasDebit
     }
-  }, [weekChartSource, expense, expenseView, allHistory, cards, isMonthView, selectedMonth, currentMonth, monthStartDay])
+    const shown = expenseView === "all" ? spent : spent.filter(t => isCredit(t) === (expenseView === "credit"))
+    return {
+        processedExpenseTransactions: shown,
+        // Compras no crédito do recorte ainda na fatura (somadas depois, pelo gráfico).
+        pendingCreditValue: (dates: Set<string>) => shown
+            .filter(t => isCredit(t) && t.status !== 'paid' && dates.has(new Date(t.date).toLocaleDateString('sv-SE')))
+            .reduce((sum, t) => sum + t.amount, 0),
+    }
+  }, [weekChartSource, expenseView, allHistory, cards, categories])
 
 
   // 2. Geração dos Gráficos
@@ -190,18 +196,21 @@ export function IncomeExpenseCards({
     () => incomeChartData.reduce((sum, d) => sum + d.value, 0),
     [incomeChartData],
   )
-  const finalDisplayedExpenseValue = expenseView === "all"
-    ? expenseChartData.reduce((sum, d) => sum + d.value, 0)
-    : displayedExpenseValue
+  const finalDisplayedExpenseValue = expenseChartData.reduce((sum, d) => sum + d.value, 0)
+  const pendingInInvoice = expenseView === "credit"
+    ? pendingCreditValue(new Set(expenseChartData.filter(d => d.value > 0).map(d => d.dateStr!)))
+    : 0
 
   return (
-    <div className="space-y-4 mt-4">
+    <section aria-labelledby="home-flow-title" className="space-y-2">
       {/* Seletor Deslizante (Semana/Mês) — "Semanal" só existe no mês atual
           (mostra os últimos 7 dias reais); navegando pra outro mês só sobra
           "Mensal", então nem faz sentido mostrar um toggle de uma opição só. */}
+      <div className="flex items-center justify-between gap-3">
+      <SectionTitle id="home-flow-title">{title}</SectionTitle>
       {isCurrentMonth ? (
-        <div className="flex justify-center">
-          <div className="relative grid grid-cols-2 bg-card p-1 rounded-lg border border-white/5 w-50">
+        <div>
+          <div className="relative grid grid-cols-2 bg-muted/40 p-0.5 rounded-lg w-40">
               <div
                 className={cn(
                   "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-foreground rounded-md shadow-sm transition-transform duration-300 ease-in-out",
@@ -211,7 +220,7 @@ export function IncomeExpenseCards({
               <button
                   onClick={() => onPeriodChange("week")}
                   className={cn(
-                  "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+                  "relative z-10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
                   period === "week" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
                   )}
               >
@@ -220,7 +229,7 @@ export function IncomeExpenseCards({
               <button
                   onClick={() => onPeriodChange("month")}
                   className={cn(
-                  "relative z-10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
+                  "relative z-10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
                   period === "month" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
                   )}
               >
@@ -229,12 +238,15 @@ export function IncomeExpenseCards({
           </div>
         </div>
       ) : null}
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 md:gap-8 divide-y divide-border md:divide-y-0", showIncome && "md:grid-cols-2")}>
         
+        {showIncome && (
+          <>
         {/* --- CARD RECEITA (ESTRUTURA AJUSTADA) --- */}
         {/* Adicionado 'flex flex-col justify-between' para igualar ao card de despesa */}
-        <div className="rounded-2xl bg-card p-6 border border-white/5 relative group flex flex-col justify-between">
+        <div className="py-4 relative group flex flex-col justify-between">
            
            {/* NOVO CABEÇALHO (Para alinhar com o cabeçalho do card de despesas) */}
            <div className="flex items-start justify-between mb-2">
@@ -250,7 +262,7 @@ export function IncomeExpenseCards({
               {/* Ajustado h-[100px] para h-[60px] e justify-between para justify-end */}
               <div className="flex flex-col justify-end h-15">
                   <div>
-                    <p className="text-3xl font-bold text-text-primary tracking-tight">
+                    <p className="text-2xl font-semibold text-text-primary tracking-tight tabular-nums">
                       {formatCurrency(displayedIncomeValue)}
                     </p>
                   </div>
@@ -259,7 +271,7 @@ export function IncomeExpenseCards({
                  <MiniBarChart
                     data={incomeChartData}
                     color="#A3E635"
-                    height={80}
+                    height={56}
                     onBarClick={(p) => {
                       if (!p.dateStr) return
                       onDayClick?.(p.dateStr, weekChartSource.filter((t) => new Date(t.date).toLocaleDateString("sv-SE") === p.dateStr))
@@ -268,63 +280,55 @@ export function IncomeExpenseCards({
               </div>
            </div>
         </div>
+          </>
+        )}
 
         {/* --- CARD DESPESA (MANTIDO IGUAL) --- */}
-        <div className="rounded-2xl bg-card p-6 border border-white/5 relative group flex flex-col justify-between">
+        <div className="py-4 relative group flex flex-col justify-between">
           
-          {/* Header com Toggle */}
-          <div className="flex items-start justify-between mb-2">
+          {/* Cabeçalho: Tudo · Débito · Crédito */}
+          <div className="flex items-center justify-between gap-3 mb-2">
               <div className="flex items-center gap-2">
-                <div className={cn("w-1.5 h-1.5 rounded-full transition-colors", expenseView === 'credit' ? "bg-amber-500" : "bg-expense")}></div>
-                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
-                    {expenseView === 'credit' ? "Fatura Pendente" : "Despesas"}
-                </p>
+                <div className={cn("w-1.5 h-1.5 rounded-full", EXPENSE_VIEWS[expenseView].dot)}></div>
+                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Despesas</p>
               </div>
-
-              {/* Botão Toggle */}
-              <div className="bg-muted/30 p-0.5 rounded-lg flex border border-white/5">
-                  <button 
-                    onClick={() => setExpenseView("all")}
-                    className={cn(
-                        "p-1.5 rounded-md transition-all",
-                        expenseView === "all" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    title="Geral"
-                  >
-                    <Wallet size={14} weight="fill" />
-                  </button>
-                  <button 
-                    onClick={() => setExpenseView("credit")}
-                    className={cn(
-                        "p-1.5 rounded-md transition-all",
-                        expenseView === "credit" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    title="Fatura de Crédito"
-                  >
-                    <CreditCard size={14} weight="fill" />
-                  </button>
+              <div role="radiogroup" aria-label="Forma de pagamento" className="flex rounded-lg bg-muted/40 p-0.5">
+                  {(Object.keys(EXPENSE_VIEWS) as ExpenseView[]).map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      role="radio"
+                      aria-checked={expenseView === view}
+                      onClick={() => setExpenseView(view)}
+                      className={cn(
+                        "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                        expenseView === view ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {EXPENSE_VIEWS[view].label}
+                    </button>
+                  ))}
               </div>
           </div>
 
           <div className="flex items-end justify-between relative z-10 gap-4">
               <div className="flex flex-col justify-end h-15">
                   <div>
-                    <p className="text-3xl font-bold text-text-primary tracking-tight transition-all key={expenseView}">
+                    <p className="text-2xl font-semibold text-text-primary tracking-tight tabular-nums">
                       {formatCurrency(finalDisplayedExpenseValue)}
                     </p>
-                    {expenseView === 'credit' && (
-                        <p className="text-[10px] text-amber-500 flex items-center gap-1 mt-1">
-                            <Circle weight="fill" size={6} />
-                            Previsto na Fatura
-                        </p>
-                    )}
+                    <p className="text-[10px] text-muted-foreground mt-1 tabular-nums">
+                        {expenseView === "credit" && pendingInInvoice > 0
+                            ? `${formatCurrency(pendingInInvoice)} ainda na fatura`
+                            : EXPENSE_VIEWS[expenseView].hint}
+                    </p>
                   </div>
               </div>
-              <div className="w-[55%] pb-1">
+              <div className="pb-1 w-[55%]">
                 <MiniBarChart
                     data={expenseChartData}
-                    color={expenseView === 'credit' ? "#F59E0B" : "#F87171"}
-                    height={80}
+                    color={EXPENSE_VIEWS[expenseView].color}
+                    height={56}
                     onBarClick={(p) => {
                       if (!p.dateStr) return
                       onDayClick?.(p.dateStr, processedExpenseTransactions.filter((t) => new Date(t.date).toLocaleDateString("sv-SE") === p.dateStr))
@@ -335,6 +339,6 @@ export function IncomeExpenseCards({
         </div>
 
       </div>
-    </div>
+    </section>
   )
 }

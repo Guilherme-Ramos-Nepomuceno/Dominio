@@ -42,7 +42,9 @@ export function useInvoicesViewModel() {
 
     useEffect(() => {
         if (selectedCardId === null && cards.length > 0) {
-            setSelectedCardId(cards[0].id)
+            // Vindo de Cartões (?card=id), abre direto naquele cartão.
+            const fromUrl = new URLSearchParams(window.location.search).get("card")
+            setSelectedCardId(cards.some((c) => c.id === fromUrl) ? fromUrl : cards[0].id)
         }
     }, [cards, selectedCardId])
 

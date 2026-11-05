@@ -60,6 +60,30 @@ export async function deleteCategoryRule(id: string): Promise<void> {
   await fetchApi(`/category-rules/${id}`, { method: "DELETE" })
 }
 
+// Regras sugeridas pelo histórico: estabelecimento que a pessoa já
+// classificou à mão sempre na mesma categoria. Confirmar = criar a regra.
+export interface RuleSuggestion {
+  merchantKey: string
+  categoryId: string
+  label: string
+  count: number
+}
+
+export async function getRuleSuggestions(): Promise<RuleSuggestion[]> {
+  const raw = await fetchApi("/category-rules/suggestions")
+  return (Array.isArray(raw) ? raw : []).map((s: any) => ({
+    merchantKey: String(s.merchantKey),
+    categoryId: String(s.categoryId),
+    label: String(s.label ?? s.merchantKey),
+    count: Number(s.count) || 0,
+  }))
+}
+
+export async function dismissRuleSuggestion(merchantKey: string): Promise<void> {
+  assertWritable()
+  await fetchApi("/category-rules/suggestions/dismiss", { method: "POST", body: JSON.stringify({ merchantKey }) })
+}
+
 export async function getPluggyCategoryMap(): Promise<PluggyCategoryMapping[]> {
   return mapPluggyCategoryMap(await fetchApi("/pluggy/category-map"))
 }

@@ -176,9 +176,9 @@ export function PlanView() {
             />
 
             {vm.canConfirm && (
-              // Fixo no rodapé (acima do menu inferior no celular), deixando à
-              // direita o espaço do botão "+" do registro rápido.
-              <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 pr-[4.75rem] md:bottom-8 md:pr-[5.5rem] xl:pr-0">
+              // Fixo no rodapé (acima do menu inferior no celular); no desktop deixa
+              // à direita o espaço do botão "+" do registro rápido.
+              <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-8 md:pr-[5.5rem] xl:pr-0">
                 <button
                   type="button"
                   onClick={vm.confirmPlan}

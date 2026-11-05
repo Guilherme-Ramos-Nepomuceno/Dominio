@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bank, Plus, ArrowsClockwise, CheckCircle, CaretLeft, Question, ArrowsLeftRight, Wallet, CreditCard } from "@phosphor-icons/react"
+import { Bank, Plus, ArrowsClockwise, CheckCircle, CaretLeft, CaretRight, CaretDown, ArrowRight, Question, ArrowsLeftRight, Wallet, CreditCard } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { ReviewStep } from "@/app/cards/components/import-review/review-step"
 import type { ReviewRow } from "@/app/cards/components/import-review/types"
 import { AddCardDialog } from "@/app/cards/components/add-card-dialog"
@@ -22,6 +24,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useBankSyncViewModel } from "../hooks/use-bank-sync-view-model"
 import { PluggyCategoryMapSection } from "./pluggy-category-map-section"
+import { AppSelect } from "@/components/ui/app-select"
 
 // ReviewRow "genérico" não carrega id/itemId (só existem na Pluggy, não no
 // import de OFX que também usa esse mesmo componente) — estende localmente
@@ -46,6 +49,9 @@ interface TransferSelection {
   transferCardId?: string
 }
 
+const fieldClass =
+  "w-full rounded-xl border border-border bg-transparent px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+
 function formatInvoiceMonth(month: string) {
   const [year, m] = month.split("-")
   return `${m}/${year}`
@@ -64,6 +70,8 @@ export function BankSyncView() {
   const [newItemSyncFrom, setNewItemSyncFrom] = useState("")
   const [syncFromDraft, setSyncFromDraft] = useState<Record<string, string>>({})
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
+  const [showAddItem, setShowAddItem] = useState(false)
+  const [showCredentials, setShowCredentials] = useState(false)
   const [addCardForAccount, setAddCardForAccount] = useState<{ itemId: string; pluggyAccountId: string } | null>(null)
   const [mappingDraft, setMappingDraft] = useState<Record<string, { cardId: string; paymentMethod: PaymentMethod | "" }>>({})
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
@@ -516,12 +524,29 @@ export function BankSyncView() {
   if (!vm.isLoaded) {
     return (
       <AppLayout>
-        <PageHeader title="Sincronização bancária" subtitle="Carregando..." />
+        <PageHeader back="/all-menus" title="Sincronização bancária" />
+        <div className="max-w-2xl mx-auto space-y-10" aria-busy>
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-40 rounded-full" />
+            <Skeleton className="h-12 w-56 rounded-xl" />
+            <Skeleton className="h-12 w-full rounded-full" />
+          </div>
+          <Skeleton className="h-32 rounded-xl" />
+        </div>
       </AppLayout>
     )
   }
 
-  const hasMappedAccounts = (vm.connection?.items ?? []).some((i) => i.accountMappings.length > 0)
+  const connected = !!vm.connection?.connected
+  const items = vm.connection?.items ?? []
+  const hasMappedAccounts = items.some((i) => i.accountMappings.length > 0)
+  const pendingTotal = banks.reduce((sum, b) => sum + b.total, 0)
+  const toReview = pendingTotal + transferPairs.length
+  const lastSyncedAt = items
+    .map((i) => i.lastSyncedAt)
+    .filter((d): d is string => !!d)
+    .sort()
+    .at(-1)
   const visibleBankRows = selectedBank
     ? sideFilter === "all"
       ? selectedBank.rows
@@ -536,466 +561,482 @@ export function BankSyncView() {
   const uncategorizedInSelected = visibleBankRows.filter((r) => r.include && isConfirmable(r) && !isDone(r)).length
   const hasBothSides = !!selectedBank && selectedBank.debit.total > 0 && selectedBank.credit.total > 0
 
+  const credentialsForm = (
+    <div className="space-y-3">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <input
+          type="text"
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          placeholder="clientId"
+          aria-label="clientId da Pluggy"
+          className={fieldClass}
+        />
+        <input
+          type="password"
+          value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)}
+          placeholder="clientSecret"
+          aria-label="clientSecret da Pluggy"
+          className={fieldClass}
+        />
+      </div>
+      <button
+        type="button"
+        disabled={!clientId.trim() || !clientSecret.trim() || vm.isSavingCredentials}
+        onClick={() => vm.saveCredentials(clientId.trim(), clientSecret.trim())}
+        className="flex h-11 w-full items-center justify-center rounded-full bg-primary text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+      >
+        {vm.isSavingCredentials ? "Salvando..." : "Conectar"}
+      </button>
+    </div>
+  )
+
   return (
     <AppLayout>
-      <PageHeader
-        title="Sincronização bancária"
-        subtitle="Conecte sua Pluggy pra importar o extrato automaticamente, sem upload manual."
-      />
+      <PageHeader back="/all-menus" title="Sincronização bancária" subtitle={selectedBank ? undefined : "Extrato do banco direto no app, pela Pluggy"} />
 
-      <div className="space-y-6 pb-10">
-        {/* Credenciais */}
-        <section className="rounded-[1vw] border border-border bg-card p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Bank size={20} weight="bold" className="text-primary" />
-            <h2 className="font-semibold text-foreground">Credenciais da Pluggy</h2>
-            {vm.connection?.connected && <CheckCircle size={16} weight="fill" className="text-income" />}
-          </div>
-
-          {!vm.connection?.connected ? (
-            <>
-              <p className="text-xs text-muted-foreground">
-                Cada pessoa usa a própria conta pessoal e gratuita da Pluggy (não custa nada pra uso pessoal). Crie a sua em{" "}
-                <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer" className="text-primary underline">meu.pluggy.ai</a>
-                {" "}(vincule seu banco lá), depois pegue clientId/clientSecret em{" "}
-                <a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer" className="text-primary underline">dashboard.pluggy.ai</a>.
-              </p>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  placeholder="clientId"
-                  className="px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <input
-                  type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                  placeholder="clientSecret"
-                  className="px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <button
-                type="button"
-                disabled={!clientId.trim() || !clientSecret.trim() || vm.isSavingCredentials}
-                onClick={() => vm.saveCredentials(clientId.trim(), clientSecret.trim())}
-                className="w-full py-2.5 rounded-lg bg-primary text-background font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {vm.isSavingCredentials ? "Salvando..." : "Conectar"}
-              </button>
-            </>
-          ) : (
-            <p className="text-sm text-income">Conectado.</p>
-          )}
-        </section>
-
-        {/* Itens conectados */}
-        {vm.connection?.connected && (
-          <section className="rounded-[1vw] border border-border bg-card p-5 space-y-4">
-            <h2 className="font-semibold text-foreground">Bancos conectados</h2>
-
-            {vm.connection.items.map((item) => {
-              const accounts = vm.accountsByItem[item.id]
-              const mappedAccountIds = new Set(item.accountMappings.map((m) => m.pluggyAccountId))
-              const unmapped = accounts?.filter((a) => !mappedAccountIds.has(a.id)) ?? []
-              // Cartões mapeados nesse item — pra lembrar qual cartão (e de qual
-              // banco) o corte de sincronização abaixo afeta, em vez de só o id
-              // opaco da Pluggy.
-              const mappedCards = item.accountMappings
-                .map((m) => vm.cards.find((c) => c.id === m.cardId))
-                .filter((c): c is Card => !!c)
-              const mappedCardNames = Array.from(new Set(mappedCards.map((c) => c.name)))
-              const itemBankName = mappedCards[0]?.bankName
-              const ItemBankIcon = itemBankName ? getBankIcon(itemBankName) : Bank
-
-              return (
-                <div key={item.id} className="rounded-lg border border-border p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      {mappedCardNames.length > 0 && (
-                        <div className="flex flex-col items-center gap-0.5 shrink-0 mt-0.5">
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center"
-                            style={{ backgroundColor: (itemBankName ? bankColors[itemBankName] : "#71717a") + "20" }}
-                          >
-                            <ItemBankIcon size={16} weight="bold" style={{ color: itemBankName ? bankColors[itemBankName] : "#71717a" }} />
-                          </div>
-                          {itemBankName && <span className="text-[9px] text-muted-foreground">{bankLogos[itemBankName]}</span>}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {mappedCardNames.length > 0 ? mappedCardNames.join(" + ") : item.pluggyItemId}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{item.pluggyItemId}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.accountMappings.length} conta{item.accountMappings.length === 1 ? "" : "s"} mapeada{item.accountMappings.length === 1 ? "" : "s"}
-                          {item.lastSyncedAt && ` — última sincronização ${new Date(item.lastSyncedAt).toLocaleString("pt-BR")}`}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setExpandedItemId(expandedItemId === item.id ? null : item.id)
-                        vm.loadAccountsForItem(item.id)
-                      }}
-                      className="text-xs font-medium text-primary hover:underline shrink-0"
-                    >
-                      {expandedItemId === item.id ? "Fechar" : "Mapear contas"}
-                    </button>
-                  </div>
-
-                  {/* Corte de sincronização — enquanto o item nunca sincronizou, define
-                      a partir de onde a primeira sincronização vai puxar (evita trazer
-                      até 12 meses de histórico de uma vez). Depois disso, também serve
-                      pra descartar pendências antigas que já tenham caído na fila. */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-                    <label className="text-xs text-muted-foreground shrink-0">
-                      {item.lastSyncedAt ? "Descartar pendências antes de" : "Sincronizar a partir de"}
-                    </label>
-                    <MonthYearPicker
-                      value={syncFromDraft[item.id] ?? item.syncFromDate?.slice(0, 7) ?? ""}
-                      onChange={(v) => setSyncFromDraft((prev) => ({ ...prev, [item.id]: v }))}
-                      className="py-1 text-xs w-44"
-                    />
-                    <button
-                      type="button"
-                      disabled={!syncFromDraft[item.id]}
-                      onClick={() => vm.updateSyncFromDate(item.id, `${syncFromDraft[item.id]}-01`, true)}
-                      className="px-2.5 py-1 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                    >
-                      Aplicar
-                    </button>
-                    {item.syncFromDate && (
-                      <button
-                        type="button"
-                        onClick={() => vm.updateSyncFromDate(item.id, null)}
-                        className="text-[11px] underline text-muted-foreground hover:text-foreground"
-                      >
-                        Remover corte
-                      </button>
-                    )}
-                  </div>
-
-                  {expandedItemId === item.id && (
-                    <div className="space-y-3 pt-2 border-t border-border">
-                      {vm.loadingAccountsItemId === item.id && <p className="text-xs text-muted-foreground">Carregando contas...</p>}
-                      {accounts && unmapped.length === 0 && <p className="text-xs text-muted-foreground">Todas as contas desse item já estão mapeadas.</p>}
-                      {unmapped.map((account) => {
-                        const draft = draftFor(item.id, account.id)
-                        const selectedCard = vm.cards.find((c) => c.id === draft.cardId)
-                        const needsPaymentMethod = !!selectedCard?.hasCredit && !!selectedCard?.hasDebit
-
-                        return (
-                          <div key={account.id} className="rounded-lg bg-muted/40 p-3 space-y-2">
-                            <p className="text-sm text-foreground">{account.name} <span className="text-xs text-muted-foreground">({account.type})</span></p>
-                            <div className="flex flex-wrap gap-2 items-center">
-                              <div className="w-56 shrink-0">
-                                <TransferCardPicker
-                                  options={vm.cards}
-                                  value={draft.cardId}
-                                  onChange={(cardId) => setDraft(item.id, account.id, { cardId, paymentMethod: "" })}
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setAddCardForAccount({ itemId: item.id, pluggyAccountId: account.id })}
-                                className="text-xs font-medium text-primary hover:underline"
-                              >
-                                + Novo cartão
-                              </button>
-                              {needsPaymentMethod && (
-                                <select
-                                  value={draft.paymentMethod}
-                                  onChange={(e) => setDraft(item.id, account.id, { paymentMethod: e.target.value as PaymentMethod })}
-                                  className="px-3 py-1.5 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                                >
-                                  <option value="">Débito ou crédito?</option>
-                                  <option value="debit">Débito</option>
-                                  <option value="credit">Crédito</option>
-                                </select>
-                              )}
-                              <button
-                                type="button"
-                                disabled={!draft.cardId || (needsPaymentMethod && !draft.paymentMethod)}
-                                onClick={() => vm.mapAccount(item.id, account.id, draft.cardId, draft.paymentMethod || undefined)}
-                                className="px-3 py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-                              >
-                                Mapear
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            <div className="space-y-2 pt-2 border-t border-border">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newItemId}
-                  onChange={(e) => setNewItemId(e.target.value)}
-                  placeholder="itemId copiado do dashboard.pluggy.ai"
-                  className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <button
-                  type="button"
-                  disabled={!newItemId.trim() || vm.isAddingItem}
-                  onClick={() => {
-                    vm.addItem(newItemId.trim(), newItemSyncFrom ? `${newItemSyncFrom}-01` : undefined)
-                    setNewItemId("")
-                    setNewItemSyncFrom("")
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50 shrink-0"
-                >
-                  <Plus size={14} weight="bold" />
-                  Adicionar item
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground shrink-0">Sincronizar a partir de (opcional)</label>
-                <MonthYearPicker value={newItemSyncFrom} onChange={setNewItemSyncFrom} className="py-1 text-xs w-44" />
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Deixe em branco pra trazer todo o histórico disponível (até 12 meses) na primeira sincronização.
+      {selectedBank ? (
+        // Revisão de um banco: só a lista, com o voltar em cima.
+        <div className="max-w-3xl mx-auto space-y-5 pb-10">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedGroupKey(null)}
+              className="-ml-1.5 rounded-full p-1.5 hover:bg-muted transition-colors shrink-0"
+              aria-label="Voltar para os bancos"
+            >
+              <CaretLeft size={18} weight="bold" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate font-semibold text-foreground">{selectedBank.label}</h2>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {selectedBank.done} de {selectedBank.total} categorizadas
               </p>
             </div>
+            <ProgressRing percent={selectedBank.total === 0 ? 0 : (selectedBank.done / selectedBank.total) * 100} size={36} strokeWidth={3} />
+          </div>
 
-            {hasMappedAccounts && (
+          {hasBothSides && (
+            <div className="flex items-center gap-1.5">
+              {(
+                [
+                  { key: "all" as const, label: "Tudo", count: selectedBank.total },
+                  { key: "debit" as const, label: "Débito", count: selectedBank.debit.total, icon: Wallet, done: selectedBank.debit.done },
+                  { key: "credit" as const, label: "Crédito", count: selectedBank.credit.total, icon: CreditCard, done: selectedBank.credit.done },
+                ]
+              ).map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setSideFilter(opt.key)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                    sideFilter === opt.key ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {opt.icon && <opt.icon size={12} weight="bold" />}
+                  {opt.label}
+                  <span className="tabular-nums opacity-70">{opt.key === "all" ? opt.count : `${opt.done}/${opt.count}`}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <ReviewStep
+            rows={visibleBankRows}
+            categories={vm.categories}
+            updateRow={handleUpdateRow}
+            includedCount={includedInSelected}
+            totalCount={visibleBankRows.length}
+            isSaving={vm.isConfirming}
+            canConfirm={!vm.isConfirming && includedInSelected > 0}
+            confirmLabel={
+              vm.isConfirming
+                ? "Confirmando..."
+                : `Confirmar ${includedInSelected} transaç${includedInSelected === 1 ? "ão" : "ões"}${uncategorizedInSelected > 0 ? ` (${uncategorizedInSelected} ${uncategorizedInSelected === 1 ? "vai" : "vão"} para A classificar)` : ""}`
+            }
+            onConfirm={async () => {
+              const rows = visibleBankRows
+              const result = await vm.confirmPending(rows.map((r) => r.id))
+              if (result) await createTransferMirrorLegs(rows, result)
+              // Só volta pra lista de bancos se não sobrou nada pra revisar
+              // nesse banco — filtrando por lado, confirmar um não deve
+              // fechar o outro que ainda está pendente.
+              const remaining = selectedBank.total - rows.length
+              if (remaining <= 0) setSelectedGroupKey(null)
+              else setSideFilter("all")
+            }}
+            renderPendingBlock={renderPendingBlock}
+            renderTransferBlock={renderTransferBlock}
+            onCreateCategory={vm.createCategory}
+          />
+        </div>
+      ) : !connected ? (
+        // Ainda sem Pluggy: os passos e as credenciais, nada mais.
+        <div className="max-w-2xl mx-auto space-y-8 pb-10">
+          <ol className="space-y-4">
+            {[
+              <>
+                Crie sua conta gratuita em{" "}
+                <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer" className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4">
+                  meu.pluggy.ai
+                </a>{" "}
+                e conecte seu banco lá.
+              </>,
+              <>
+                Pegue o clientId e o clientSecret em{" "}
+                <a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer" className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4">
+                  dashboard.pluggy.ai
+                </a>
+                .
+              </>,
+              <>Cole os dois aqui embaixo.</>,
+            ].map((step, i) => (
+              <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground tabular-nums">{i + 1}</span>
+                <span className="pt-0.5">{step}</span>
+              </li>
+            ))}
+          </ol>
+          {credentialsForm}
+          <p className="text-xs text-muted-foreground">Cada pessoa usa a própria conta da Pluggy — para uso pessoal não custa nada.</p>
+        </div>
+      ) : (
+        // Página corrida, no desenho do Planejar: herói solto (o que falta
+        // revisar) com a ação de sincronizar, depois as listas.
+        <div className="max-w-2xl mx-auto space-y-10 pb-10">
+          {/* 1. Herói */}
+          <section aria-labelledby="sync-hero-label" className="space-y-4">
+            <div>
+              <p id="sync-hero-label" className="text-sm text-muted-foreground">
+                {toReview > 0 ? "Para revisar" : "Extrato em dia"}
+              </p>
+              {toReview > 0 ? (
+                <p className="mt-1 text-5xl font-semibold tracking-tight leading-none tabular-nums text-foreground">
+                  {toReview}
+                  <span className="ml-2 text-xl font-medium text-muted-foreground">{toReview === 1 ? "lançamento" : "lançamentos"}</span>
+                </p>
+              ) : (
+                <p className="mt-1 flex items-center gap-2 text-2xl font-semibold text-foreground">
+                  <CheckCircle size={24} weight="fill" className="text-positive-ink" aria-hidden />
+                  Nada pendente
+                </p>
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                {lastSyncedAt ? `Última sincronização ${new Date(lastSyncedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "Ainda não sincronizado"}
+              </p>
+            </div>
+            {hasMappedAccounts ? (
               <button
                 type="button"
                 onClick={vm.sync}
                 disabled={vm.isSyncing}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-primary text-background font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-60"
               >
                 <ArrowsClockwise size={16} weight="bold" className={cn(vm.isSyncing && "animate-spin")} />
                 {vm.isSyncing ? "Sincronizando..." : "Sincronizar agora"}
               </button>
+            ) : (
+              <p className="text-sm text-muted-foreground">Ligue as contas do banco aos seus cartões (em Bancos conectados) para sincronizar.</p>
             )}
           </section>
-        )}
 
-        {/* Mapa categoria do banco → categoria da conta */}
-        {vm.connection?.connected && !selectedBank && <PluggyCategoryMapSection />}
+          {/* 2. Transferências identificadas — pares de contas já mapeadas,
+              prontos pra confirmar de uma vez, sem entrar em cada banco. */}
+          {transferPairs.length > 0 && (
+            <section aria-labelledby="sync-transfers-title">
+              <SectionTitle id="sync-transfers-title">Transferências entre contas</SectionTitle>
+              <p className="mt-1 text-xs text-muted-foreground">Já reconhecidas — confirme sem precisar categorizar.</p>
+              <ul className="mt-1 divide-y divide-border">
+                {transferPairs.map((pair) => {
+                  const { from, to } = pair
+                  const fromCard = allKnownCards.find((c) => c.id === from.cardId)
+                  const toCard = allKnownCards.find((c) => c.id === to.cardId)
+                  const fromOwner = cardOwnerLabel(from.cardId)
+                  const toOwner = cardOwnerLabel(to.cardId)
+                  const key = `${from.id}:${to.id}`
+                  const isConfirming = confirmingPairKey === key
 
-        {/* Transferências identificadas — pares de contas já mapeadas, prontos
-            pra confirmar de uma vez, sem precisar entrar em cada banco. */}
-        {transferPairs.length > 0 && !selectedBank && (
-          <section className="rounded-[1vw] border border-border bg-card p-5 space-y-3">
-            <h2 className="font-semibold text-foreground flex items-center gap-2">
-              <ArrowsLeftRight size={18} weight="bold" className="text-primary" />
-              Transferências identificadas
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Já reconhecemos essas movimentações entre contas — confirme de uma vez, sem precisar categorizar nada.
-            </p>
-            <div className="space-y-2">
-              {transferPairs.map((pair) => {
-                const { from, to } = pair
-                const fromCard = allKnownCards.find((c) => c.id === from.cardId)
-                const toCard = allKnownCards.find((c) => c.id === to.cardId)
-                const FromIcon = fromCard ? getBankIcon(fromCard.bankName) : ArrowsLeftRight
-                const ToIcon = toCard ? getBankIcon(toCard.bankName) : ArrowsLeftRight
-                const fromOwner = cardOwnerLabel(from.cardId)
-                const toOwner = cardOwnerLabel(to.cardId)
-                const key = `${from.id}:${to.id}`
-                const isConfirming = confirmingPairKey === key
+                  return (
+                    <li key={key} className="flex items-center gap-3 py-3.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          <span className="truncate">{fromCard?.name ?? "Conta"}</span>
+                          <ArrowRight size={12} weight="bold" className="shrink-0 text-muted-foreground" aria-label="para" />
+                          <span className="truncate">{toCard?.name ?? "Conta"}</span>
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground tabular-nums">
+                          {[
+                            new Date(from.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+                            fromOwner && toOwner && fromOwner !== toOwner ? `${fromOwner} → ${toOwner}` : fromOwner || toOwner,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-semibold tabular-nums text-foreground">{formatCurrency(from.amount)}</span>
+                      <button
+                        type="button"
+                        disabled={isConfirming}
+                        onClick={() => confirmTransferPair(pair)}
+                        className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                      >
+                        {isConfirming ? "..." : "Confirmar"}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+
+          {/* 3. Pendências de revisão — separadas por banco */}
+          {banks.length > 0 && (
+            <section aria-labelledby="sync-banks-title">
+              <SectionTitle id="sync-banks-title">Revisar por banco</SectionTitle>
+              <ul className="mt-1 divide-y divide-border">
+                {banks.map((bank) => {
+                  const BankIcon = bank.bankName ? getBankIcon(bank.bankName) : Bank
+                  const percent = bank.total === 0 ? 0 : (bank.done / bank.total) * 100
+                  // Confirmar é tudo-ou-nada por lado — com os dois lados, mostra
+                  // débito e crédito separados para ver qual falta terminar.
+                  const detail =
+                    bank.debit.total > 0 && bank.credit.total > 0
+                      ? `Débito ${bank.debit.done}/${bank.debit.total} · Crédito ${bank.credit.done}/${bank.credit.total}`
+                      : bank.debit.total > 0
+                        ? `Débito · ${bank.debit.done} de ${bank.debit.total} categorizadas`
+                        : bank.credit.total > 0
+                          ? `Crédito · ${bank.credit.done} de ${bank.credit.total} categorizadas`
+                          : `${bank.done} de ${bank.total} categorizadas`
+                  return (
+                    <li key={bank.key}>
+                      <button type="button" onClick={() => setSelectedGroupKey(bank.key)} className="group flex w-full items-center gap-3 py-3.5 text-left">
+                        <BankIcon size={22} weight="duotone" className="shrink-0" style={{ color: bank.bankName ? bankColors[bank.bankName] : undefined }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground">{bank.label}</span>
+                          <span className="block truncate text-xs text-muted-foreground tabular-nums">{detail}</span>
+                        </span>
+                        <ProgressRing percent={percent} size={32} strokeWidth={3} />
+                        <CaretRight size={12} weight="bold" className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+
+          {/* 4. Bancos conectados — ajustes de cada um ficam recolhidos */}
+          <section aria-labelledby="sync-items-title">
+            <SectionTitle id="sync-items-title">Bancos conectados</SectionTitle>
+            <ul className="mt-1 divide-y divide-border">
+              {items.map((item) => {
+                const accounts = vm.accountsByItem[item.id]
+                const mappedAccountIds = new Set(item.accountMappings.map((m) => m.pluggyAccountId))
+                const unmapped = accounts?.filter((a) => !mappedAccountIds.has(a.id)) ?? []
+                // Cartões mapeados nesse item — pra lembrar qual cartão (e de qual
+                // banco) o corte de sincronização afeta, em vez de só o id da Pluggy.
+                const mappedCards = item.accountMappings.map((m) => vm.cards.find((c) => c.id === m.cardId)).filter((c): c is Card => !!c)
+                const mappedCardNames = Array.from(new Set(mappedCards.map((c) => c.name)))
+                const itemBankName = mappedCards[0]?.bankName
+                const ItemBankIcon = itemBankName ? getBankIcon(itemBankName) : Bank
+                const isOpen = expandedItemId === item.id
 
                 return (
-                  <div key={key} className="flex items-center gap-2 p-3 rounded-lg border border-border bg-background">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: (fromCard ? bankColors[fromCard.bankName] : "#71717a") + "20" }}
-                      >
-                        <FromIcon size={16} weight="fill" style={{ color: fromCard ? bankColors[fromCard.bankName] : "#71717a" }} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{fromCard?.name ?? "Conta"}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {[fromCard ? bankLogos[fromCard.bankName] : undefined, fromOwner].filter(Boolean).join(" · ")}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-0.5 shrink-0 px-1">
-                      <ArrowsLeftRight size={16} weight="bold" className="text-muted-foreground" />
-                      <p className="text-xs font-bold text-foreground whitespace-nowrap">{formatCurrency(from.amount)}</p>
-                      <p className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {new Date(from.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{toCard?.name ?? "Conta"}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {[toCard ? bankLogos[toCard.bankName] : undefined, toOwner].filter(Boolean).join(" · ")}
-                        </p>
-                      </div>
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: (toCard ? bankColors[toCard.bankName] : "#71717a") + "20" }}
-                      >
-                        <ToIcon size={16} weight="fill" style={{ color: toCard ? bankColors[toCard.bankName] : "#71717a" }} />
-                      </div>
-                    </div>
-
+                  <li key={item.id} className="py-3.5">
                     <button
                       type="button"
-                      disabled={isConfirming}
-                      onClick={() => confirmTransferPair(pair)}
-                      className="ml-2 shrink-0 px-3 py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      onClick={() => {
+                        setExpandedItemId(isOpen ? null : item.id)
+                        vm.loadAccountsForItem(item.id)
+                      }}
+                      aria-expanded={isOpen}
+                      className="flex w-full items-center gap-3 text-left"
                     >
-                      {isConfirming ? "..." : "Confirmar"}
+                      <ItemBankIcon size={22} weight="duotone" className="shrink-0" style={{ color: itemBankName ? bankColors[itemBankName] : undefined }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {mappedCardNames.length > 0 ? mappedCardNames.join(" + ") : "Banco sem conta ligada"}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {item.accountMappings.length === 0
+                            ? "Toque para ligar as contas aos seus cartões"
+                            : `${item.accountMappings.length} conta${item.accountMappings.length === 1 ? "" : "s"}${itemBankName ? ` · ${bankLogos[itemBankName]}` : ""}${
+                                item.syncFromDate ? ` · desde ${item.syncFromDate.slice(5, 7)}/${item.syncFromDate.slice(0, 4)}` : ""
+                              }`}
+                        </span>
+                      </span>
+                      <CaretDown size={12} weight="bold" className={cn("shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
                     </button>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
 
-        {/* Pendências de revisão — separadas por banco */}
-        {banks.length > 0 && !selectedBank && (
-          <section className="rounded-[1vw] border border-border bg-card p-5 space-y-3">
-            <h2 className="font-semibold text-foreground">Escolha um banco pra revisar</h2>
-            <div className="space-y-2">
-              {banks.map((bank) => {
-                const BankIcon = bank.bankName ? getBankIcon(bank.bankName) : Bank
-                const percent = bank.total === 0 ? 0 : (bank.done / bank.total) * 100
-                return (
-                  <button
-                    key={bank.key}
-                    type="button"
-                    onClick={() => setSelectedGroupKey(bank.key)}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:border-primary/50 transition-colors text-left"
-                  >
-                    <div
-                      className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: (bank.bankName ? bankColors[bank.bankName] : "#71717a") + "20" }}
-                    >
-                      <BankIcon size={18} weight="bold" style={{ color: bank.bankName ? bankColors[bank.bankName] : "#71717a" }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{bank.label}</p>
-                      {/* Confirmar é tudo-ou-nada por lado — mostra débito e
-                          crédito separados quando o banco tem os dois, pra dar
-                          pra ver qual lado falta terminar. Quando só sobrou um
-                          lado nessa revisão (o outro já foi todo pareado ou
-                          confirmado), especifica qual é em vez de deixar o
-                          texto genérico sem dizer se é débito ou crédito. */}
-                      {bank.debit.total > 0 && bank.credit.total > 0 ? (
-                        <div className="flex items-center gap-2.5 mt-0.5">
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <Wallet size={11} weight="bold" />
-                            {bank.debit.done}/{bank.debit.total}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <CreditCard size={11} weight="bold" />
-                            {bank.credit.done}/{bank.credit.total}
-                          </span>
+                    {isOpen && (
+                      <div className="mt-3 space-y-4 border-l-2 border-border pl-4">
+                        <p className="break-all text-[11px] text-muted-foreground">Item {item.pluggyItemId}</p>
+
+                        {/* Contas do banco → cartões do app */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-foreground">Contas</p>
+                          {vm.loadingAccountsItemId === item.id && <p className="text-xs text-muted-foreground">Carregando contas...</p>}
+                          {accounts && unmapped.length === 0 && <p className="text-xs text-muted-foreground">Todas as contas já estão ligadas a um cartão.</p>}
+                          {unmapped.map((account) => {
+                            const draft = draftFor(item.id, account.id)
+                            const selectedCard = vm.cards.find((c) => c.id === draft.cardId)
+                            const needsPaymentMethod = !!selectedCard?.hasCredit && !!selectedCard?.hasDebit
+
+                            return (
+                              <div key={account.id} className="space-y-2 rounded-xl border border-border p-3">
+                                <p className="text-sm text-foreground">
+                                  {account.name} <span className="text-xs text-muted-foreground">({account.type})</span>
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="w-56 shrink-0">
+                                    <TransferCardPicker
+                                      options={vm.cards}
+                                      value={draft.cardId}
+                                      onChange={(cardId) => setDraft(item.id, account.id, { cardId, paymentMethod: "" })}
+                                    />
+                                  </div>
+                                  {needsPaymentMethod && (
+                                    <AppSelect
+                                      variant="pill"
+                                      aria-label="Débito ou crédito"
+                                      value={draft.paymentMethod}
+                                      onChange={(v) => setDraft(item.id, account.id, { paymentMethod: v as PaymentMethod })}
+                                      placeholder="Débito ou crédito?"
+                                      options={[
+                                        { value: "debit", label: "Débito" },
+                                        { value: "credit", label: "Crédito" },
+                                      ]}
+                                    />
+                                  )}
+                                  <button
+                                    type="button"
+                                    disabled={!draft.cardId || (needsPaymentMethod && !draft.paymentMethod)}
+                                    onClick={() => vm.mapAccount(item.id, account.id, draft.cardId, draft.paymentMethod || undefined)}
+                                    className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                  >
+                                    Ligar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddCardForAccount({ itemId: item.id, pluggyAccountId: account.id })}
+                                    className="text-xs font-medium text-muted-foreground underline decoration-muted-foreground/30 underline-offset-4 hover:text-foreground"
+                                  >
+                                    Novo cartão
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
-                      ) : bank.debit.total > 0 ? (
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Wallet size={11} weight="bold" />
-                          Débito: {bank.debit.done} de {bank.debit.total} categorizadas
-                        </p>
-                      ) : bank.credit.total > 0 ? (
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <CreditCard size={11} weight="bold" />
-                          Crédito: {bank.credit.done} de {bank.credit.total} categorizadas
-                        </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{bank.done} de {bank.total} categorizadas</p>
-                      )}
-                    </div>
-                    <ProgressRing percent={percent} size={40} strokeWidth={3.5} />
-                  </button>
+
+                        {/* Corte de sincronização — antes da primeira sincronização, define
+                            a partir de onde puxar (evita trazer até 12 meses de uma vez).
+                            Depois, descarta pendências antigas que já caíram na fila. */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-foreground">
+                            {item.lastSyncedAt ? "Descartar pendências antes de" : "Sincronizar a partir de"}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <MonthYearPicker
+                              value={syncFromDraft[item.id] ?? item.syncFromDate?.slice(0, 7) ?? ""}
+                              onChange={(v) => setSyncFromDraft((prev) => ({ ...prev, [item.id]: v }))}
+                              className="w-44 py-1 text-xs"
+                            />
+                            <button
+                              type="button"
+                              disabled={!syncFromDraft[item.id]}
+                              onClick={() => vm.updateSyncFromDate(item.id, `${syncFromDraft[item.id]}-01`, true)}
+                              className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                            >
+                              Aplicar
+                            </button>
+                            {item.syncFromDate && (
+                              <button
+                                type="button"
+                                onClick={() => vm.updateSyncFromDate(item.id, null)}
+                                className="text-[11px] text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                              >
+                                Remover corte
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </li>
                 )
               })}
-            </div>
-          </section>
-        )}
 
-        {selectedBank && (
-          <section className="rounded-[1vw] border border-border bg-card p-5">
-            <div className="flex items-center gap-3 mb-4">
+              <li className="py-3.5">
+                {showAddItem ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newItemId}
+                        onChange={(e) => setNewItemId(e.target.value)}
+                        placeholder="itemId do dashboard.pluggy.ai"
+                        aria-label="itemId da Pluggy"
+                        autoFocus
+                        className={cn(fieldClass, "flex-1 min-w-0")}
+                      />
+                      <button
+                        type="button"
+                        disabled={!newItemId.trim() || vm.isAddingItem}
+                        onClick={() => {
+                          vm.addItem(newItemId.trim(), newItemSyncFrom ? `${newItemSyncFrom}-01` : undefined)
+                          setNewItemId("")
+                          setNewItemSyncFrom("")
+                          setShowAddItem(false)
+                        }}
+                        className="shrink-0 rounded-full bg-primary px-4 text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Sincronizar a partir de (opcional)</span>
+                      <MonthYearPicker value={newItemSyncFrom} onChange={setNewItemSyncFrom} className="w-44 py-1 text-xs" />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Em branco, a primeira sincronização traz todo o histórico disponível (até 12 meses).</p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddItem(true)}
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Plus size={14} weight="bold" />
+                    Adicionar banco
+                  </button>
+                )}
+              </li>
+            </ul>
+          </section>
+
+          {/* 5. Mapa categoria do banco → categoria da conta */}
+          <PluggyCategoryMapSection />
+
+          {/* 6. Credenciais: já conectadas, ficam numa linha no fim */}
+          <section aria-labelledby="sync-credentials-title" className="space-y-3">
+            <SectionTitle id="sync-credentials-title">Pluggy</SectionTitle>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle size={16} weight="fill" className="text-positive-ink" aria-hidden />
+              <span className="flex-1 text-foreground">Credenciais conectadas</span>
               <button
                 type="button"
-                onClick={() => setSelectedGroupKey(null)}
-                className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
-                title="Voltar pros bancos"
+                onClick={() => setShowCredentials((v) => !v)}
+                className="text-xs font-medium text-muted-foreground underline decoration-muted-foreground/30 underline-offset-4 hover:text-foreground"
               >
-                <CaretLeft size={18} weight="bold" />
+                {showCredentials ? "Fechar" : "Trocar"}
               </button>
-              <h2 className="font-semibold text-foreground flex-1 min-w-0 truncate">{selectedBank.label}</h2>
-              <ProgressRing percent={selectedBank.total === 0 ? 0 : (selectedBank.done / selectedBank.total) * 100} size={36} strokeWidth={3} />
             </div>
-
-            {hasBothSides && (
-              <div className="flex items-center gap-1.5 mb-4 -mt-1">
-                {(
-                  [
-                    { key: "all" as const, label: "Tudo", count: selectedBank.total },
-                    { key: "debit" as const, label: "Débito", count: selectedBank.debit.total, icon: Wallet, done: selectedBank.debit.done },
-                    { key: "credit" as const, label: "Crédito", count: selectedBank.credit.total, icon: CreditCard, done: selectedBank.credit.done },
-                  ]
-                ).map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setSideFilter(opt.key)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors",
-                      sideFilter === opt.key ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {opt.icon && <opt.icon size={12} weight="bold" />}
-                    {opt.label}
-                    <span className="text-[10px] opacity-70">{opt.key === "all" ? opt.count : `${opt.done}/${opt.count}`}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <ReviewStep
-              rows={visibleBankRows}
-              categories={vm.categories}
-              updateRow={handleUpdateRow}
-              includedCount={includedInSelected}
-              totalCount={visibleBankRows.length}
-              isSaving={vm.isConfirming}
-              canConfirm={!vm.isConfirming && includedInSelected > 0}
-              confirmLabel={
-                vm.isConfirming
-                  ? "Confirmando..."
-                  : `Confirmar ${includedInSelected} transaç${includedInSelected === 1 ? "ão" : "ões"}${uncategorizedInSelected > 0 ? ` (${uncategorizedInSelected} ${uncategorizedInSelected === 1 ? "vai" : "vão"} para A classificar)` : ""}`
-              }
-              onConfirm={async () => {
-                const rows = visibleBankRows
-                const result = await vm.confirmPending(rows.map((r) => r.id))
-                if (result) await createTransferMirrorLegs(rows, result)
-                // Só volta pra lista de bancos se não sobrou nada pra revisar
-                // nesse banco — filtrando por lado, confirmar um não deve
-                // fechar o outro que ainda está pendente.
-                const remaining = selectedBank.total - rows.length
-                if (remaining <= 0) setSelectedGroupKey(null)
-                else setSideFilter("all")
-              }}
-              renderPendingBlock={renderPendingBlock}
-              renderTransferBlock={renderTransferBlock}
-              onCreateCategory={vm.createCategory}
-            />
+            {showCredentials && credentialsForm}
           </section>
-        )}
-      </div>
+        </div>
+      )}
 
       {addCardForAccount && (
         <AddCardDialog

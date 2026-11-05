@@ -1,38 +1,49 @@
 "use client"
 
 import Link from "next/link"
+import { CaretRight } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { InboxCountBadge } from "@/components/inbox/inbox-count-badge"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { useAllMenusViewModel } from "../hooks/use-all-menus-view-model"
 
+// Página corrida, no desenho do Planejar: títulos de seção em caixa alta e
+// listas com divisórias, sem um cartão em volta de cada grupo.
 export function AllMenusView() {
-    const { allMenus, inboxCount } = useAllMenusViewModel()
+    const { menuGroups, inboxCount } = useAllMenusViewModel()
 
     return (
         <AppLayout>
-            <PageHeader title="Todos os Menus" subtitle="Acesse todas as funcionalidades" />
+            <div className="max-w-2xl mx-auto space-y-10 pb-24 md:pb-10">
+                <PageHeader title="Todos os menus" subtitle="Acesse todas as funcionalidades" />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {allMenus.map((menu) => {
-                    const Icon = menu.icon
+                {menuGroups.map((group) => {
+                    const id = `menu-${group.title.toLowerCase()}`
                     return (
-                        <Link
-                            key={menu.href}
-                            href={menu.href}
-                            className="flex items-start gap-4 p-5 rounded-2xl bg-card border border-border/50 hover:border-primary/50 hover:shadow-md transition-all"
-                        >
-                            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                <Icon size={24} weight="fill" className="text-primary" />
-                            </div>
-                            <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
-                                    {menu.label}
-                                    {menu.href === "/inbox" && <InboxCountBadge count={inboxCount} />}
-                                </h3>
-                                <p className="text-sm text-muted-foreground">{menu.description}</p>
-                            </div>
-                        </Link>
+                        <section key={group.title} aria-labelledby={id}>
+                            <SectionTitle id={id}>{group.title}</SectionTitle>
+                            <ul className="mt-2 divide-y divide-border">
+                                {group.items.map((menu) => {
+                                    const Icon = menu.icon
+                                    return (
+                                        <li key={menu.href}>
+                                            <Link href={menu.href} className="group flex items-center gap-3 py-3.5">
+                                                <Icon size={20} weight="duotone" className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                                <span className="flex-1 min-w-0">
+                                                    <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                                        {menu.label}
+                                                        {menu.href === "/inbox" && <InboxCountBadge count={inboxCount} />}
+                                                    </span>
+                                                    <span className="block text-xs text-muted-foreground truncate">{menu.description}</span>
+                                                </span>
+                                                <CaretRight size={12} weight="bold" className="shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
+                                            </Link>
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        </section>
                     )
                 })}
             </div>

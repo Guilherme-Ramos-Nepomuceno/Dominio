@@ -1,7 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { formatCurrency } from "@/lib/date-utils"
+import { groupByDay } from "@/lib/home"
+import { toISODate } from "@/lib/period"
 import { getCategories } from "@/lib/storage"
 import type { Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -10,6 +13,10 @@ import { Heart } from "@phosphor-icons/react"
 import { EditTransactionDialog } from "./edit-transaction-dialog"
 import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
 import { AutoCategoryBadge } from "@/components/rules/auto-category-badge"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
+import { useCategoryGroups } from "@/hooks/use-category-groups"
+import { transactionIconColor } from "@/lib/plan-layout"
+import { useAccount } from "@/components/account/account-context"
 
 interface RecentTransactionsProps {
   transactions: Transaction[]
@@ -22,8 +29,11 @@ interface RecentTransactionsProps {
 }
 
 export function RecentTransactions({ transactions, maxItems = 5, filterLabel, onClearFilter }: RecentTransactionsProps) {
+  // Na conta do casal todo lançamento já é do casal: o coração só repete.
+  const showCasal = useAccount().selection.type !== "couple"
   const [categories, setCategories] = useState<Category[]>([])
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const groups = useCategoryGroups()
 
   useEffect(() => {
     (async () => {
@@ -37,7 +47,7 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
 
   if (transactions.length === 0) {
     return (
-      <div className="rounded-[20px] bg-card p-8 text-center border border-border/50">
+      <div className="py-8 text-center">
         <div className="inline-flex p-4 rounded-full bg-muted/50 mb-4">
           <PhosphorIcons.Receipt size={32} weight="light" className="text-muted-foreground" />
         </div>
@@ -57,69 +67,85 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
   }
 
   return (
-    <div className="rounded-[20px] bg-card p-6 shadow-sm border border-border/50">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-foreground">
-          {filterLabel ? `Transações de ${filterLabel}` : "Transações Recentes"}
-        </h3>
-        {filterLabel && onClearFilter && (
+    <section aria-labelledby="home-transactions-title">
+      <div className="flex items-baseline justify-between mb-2">
+        <SectionTitle id="home-transactions-title">
+          {filterLabel ? `Transações de ${filterLabel}` : "Transações recentes"}
+        </SectionTitle>
+        {filterLabel && onClearFilter ? (
           <button type="button" onClick={onClearFilter} className="text-xs font-medium text-primary hover:underline shrink-0">
             Ver mais recentes
           </button>
+        ) : (
+          // O extrato completo, com busca e filtros, fica na Bússola.
+          <Link href="/stats" className="text-xs font-medium text-primary hover:underline shrink-0">
+            Ver todas
+          </Link>
         )}
       </div>
 
       <div className="space-y-3">
-        {sortedTransactions.map((transaction) => {
-          const category = findCategory(categories, transaction.categoryId)
-          // Tipo da categoria quando existe (comportamento de antes); sem
-          // categoria, o tipo da própria transação.
-          const isExpense = (category?.type ?? transaction.type) === "expense"
-          const isUncategorized = !transaction.categoryId
+        {groupByDay(sortedTransactions, toISODate(new Date())).map((group) => (
+          <section key={group.key} aria-label={group.label}>
+            <h3 className="pt-1 text-xs font-medium text-muted-foreground">{group.label}</h3>
+            <div className="divide-y divide-border">
+              {group.items.map((transaction) => {
+                const category = findCategory(categories, transaction.categoryId)
+                // Tipo da categoria quando existe (comportamento de antes); sem
+                // categoria, o tipo da própria transação.
+                const isExpense = (category?.type ?? transaction.type) === "expense"
+                const isUncategorized = !transaction.categoryId
 
-          // Get icon dynamically
-          const IconComponent =
-            (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) ||
-            (isUncategorized ? PhosphorIcons.Tag : PhosphorIcons.Circle)
+                // Get icon dynamically
+                const IconComponent =
+                  (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) ||
+                  (isUncategorized ? PhosphorIcons.Tag : PhosphorIcons.Circle)
 
-          return (
-            <button
-              key={transaction.id}
-              type="button"
-              onClick={() => setEditingTransaction(transaction)}
-              className="w-full flex items-center gap-4 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className={cn("w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground", isUncategorized && "opacity-60")}>
-                {/* @ts-ignore - Dynamic icon component */}
-                <IconComponent size={22} weight="duotone" />
-              </div>
+                return (
+                  <button
+                    key={transaction.id}
+                    type="button"
+                    onClick={() => setEditingTransaction(transaction)}
+                    className="w-full flex items-center gap-3 py-3 text-left hover:opacity-80 transition-opacity"
+                  >
+                    {/* Ícone na cor do grupo do plano (a mesma da barra do mês). */}
+                    <div
+                      className={cn("w-8 h-8 flex items-center justify-center shrink-0", isUncategorized && "opacity-60")}
+                      style={{ color: transactionIconColor(groups, transaction.categoryId, isExpense ? "expense" : "income") }}
+                    >
+                      {/* @ts-ignore - Dynamic icon component */}
+                      <IconComponent size={22} weight="duotone" />
+                    </div>
 
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground text-sm truncate">{transaction.description}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className={cn("text-xs text-muted-foreground", isUncategorized && "italic opacity-80")}>
-                    {transactionCategoryLabel(categories, transaction)}
-                  </p>
-                  <AutoCategoryBadge transaction={transaction} />
-                  {transaction.installments && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                      {transaction.currentInstallment}/{transaction.installments}x
-                    </span>
-                  )}
-                  {transaction.isCasal && (
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary">
-                      <Heart size={11} weight="fill" />
-                    </span>
-                  )}
-                </div>
-              </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground text-sm truncate">{transaction.description}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className={cn("text-xs text-muted-foreground", isUncategorized && "italic opacity-80")}>
+                          {transactionCategoryLabel(categories, transaction)}
+                        </p>
+                        <AutoCategoryBadge transaction={transaction} />
+                        {transaction.installments && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                            {transaction.currentInstallment}/{transaction.installments}x
+                          </span>
+                        )}
+                        {showCasal && transaction.isCasal && (
+                          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary">
+                            <Heart size={11} weight="fill" />
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-              <p className={cn("font-bold text-sm whitespace-nowrap text-text-primary",)}>
-                {isExpense ? "-" : "+"} {formatCurrency(transaction.amount)}
-              </p>
-            </button>
-          )
-        })}
+                    <p className={cn("font-bold text-sm whitespace-nowrap text-text-primary",)}>
+                      {isExpense ? "-" : "+"} {formatCurrency(transaction.amount)}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        ))}
       </div>
 
       <EditTransactionDialog
@@ -127,6 +153,6 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
         onClose={() => setEditingTransaction(null)}
         onSaved={() => setEditingTransaction(null)}
       />
-    </div>
+    </section>
   )
 }

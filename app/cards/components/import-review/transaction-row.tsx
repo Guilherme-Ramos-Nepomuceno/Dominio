@@ -39,8 +39,8 @@ export function TransactionRow({ row, onRename, disabled, leftSlot, rightSlot, c
   return (
     <div
       className={cn(
-        "rounded-[1vw] border p-3 space-y-1.5",
-        row.rowError ? "border-destructive bg-destructive/5" : row.isDuplicate ? "border-border bg-muted/40" : "border-border bg-background",
+        "py-3 space-y-1.5",
+        row.rowError ? "-mx-2 px-2 rounded-lg bg-destructive/5" : row.isDuplicate && "opacity-60",
       )}
     >
       {row.rowError && (
@@ -68,7 +68,7 @@ export function TransactionRow({ row, onRename, disabled, leftSlot, rightSlot, c
                   setIsEditing(false)
                 }
               }}
-              className="w-full px-2 py-1 -mx-2 rounded-md bg-card border border-primary text-sm text-foreground focus:outline-none"
+              className="w-full py-1 border-b border-foreground bg-transparent text-sm text-foreground focus:outline-none"
             />
           ) : (
             <button
@@ -87,7 +87,7 @@ export function TransactionRow({ row, onRename, disabled, leftSlot, rightSlot, c
         </div>
 
         <div className="text-right shrink-0">
-          <p className={cn("font-bold tabular-nums text-sm", row.type === "expense" ? "text-expense" : "text-income")}>
+          <p className={cn("font-semibold tabular-nums text-sm", row.type === "expense" ? "text-foreground" : "text-income")}>
             {row.type === "expense" ? "-" : "+"}{formatCurrency(row.amount)}
           </p>
           <p className="text-[11px] text-muted-foreground">

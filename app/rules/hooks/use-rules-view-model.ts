@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAccount } from "@/components/account/account-context"
 import { getCategories } from "@/lib/storage"
-import { createCategoryRule, deleteCategoryRule, getCategoryRules, updateCategoryRule } from "@/lib/rules-api"
+import { createCategoryRule, deleteCategoryRule, dismissRuleSuggestion, getCategoryRules, getRuleSuggestions, updateCategoryRule, type RuleSuggestion } from "@/lib/rules-api"
 import { validateRuleForm, type CategoryRule, type RuleFormInput } from "@/lib/rules"
 import { trackEvent } from "@/lib/events"
 import type { Category } from "@/lib/types"
@@ -18,12 +18,21 @@ export function useRulesViewModel() {
   // null = fechado; "new" = nova regra.
   const [editing, setEditing] = useState<CategoryRule | "new" | null>(null)
   const [deleting, setDeleting] = useState<CategoryRule | null>(null)
+  // Sugeridas pelo histórico, esperando confirmação.
+  const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([])
+  const [busyKey, setBusyKey] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoadError(false)
     try {
-      const [list, cats] = await Promise.all([getCategoryRules(), getCategories()])
+      const [list, cats, suggested] = await Promise.all([
+        getCategoryRules(),
+        getCategories(),
+        // Sem sugestões a tela ainda funciona.
+        getRuleSuggestions().catch(() => [] as RuleSuggestion[]),
+      ])
       setRules(list)
+      setSuggestions(suggested)
       setCategories(cats.filter((c) => !c.excludedFromTotals))
     } catch (error) {
       console.error("Falha ao carregar regras:", error)
@@ -75,8 +84,43 @@ export function useRulesViewModel() {
     }
   }, [deleting, load])
 
+  // Confirmar: vira regra (aprendida) e sai da lista na hora.
+  const acceptSuggestion = useCallback(
+    async (suggestion: RuleSuggestion) => {
+      setBusyKey(suggestion.merchantKey)
+      try {
+        await createCategoryRule({ merchantKey: suggestion.merchantKey, categoryId: suggestion.categoryId, source: "LEARNED" })
+        trackEvent("rule_created", { origin: "suggestion", hasRange: false })
+        setSuggestions((list) => list.filter((s) => s.merchantKey !== suggestion.merchantKey))
+        await load()
+      } catch (e: any) {
+        toast({ title: "Não foi possível criar a regra", description: e?.message, variant: "destructive" })
+      } finally {
+        setBusyKey(null)
+      }
+    },
+    [load],
+  )
+
+  // "Agora não": não sugere mais esse estabelecimento.
+  const dismissSuggestion = useCallback(async (suggestion: RuleSuggestion) => {
+    setBusyKey(suggestion.merchantKey)
+    try {
+      await dismissRuleSuggestion(suggestion.merchantKey)
+      setSuggestions((list) => list.filter((s) => s.merchantKey !== suggestion.merchantKey))
+    } catch (e: any) {
+      toast({ title: "Não foi possível dispensar", description: e?.message, variant: "destructive" })
+    } finally {
+      setBusyKey(null)
+    }
+  }, [])
+
   return {
     isReadOnly,
+    suggestions,
+    busyKey,
+    acceptSuggestion,
+    dismissSuggestion,
     rules: sortedRules,
     categories,
     isLoading,

@@ -6,16 +6,21 @@ import { getCurrentUser } from "@/lib/auth"
 import { getActiveAccountSelection } from "@/lib/active-account"
 import { onboardingAction, onboardingDoneKey, onboardingPendingKey } from "@/lib/onboarding"
 import { getPlan } from "@/lib/planning-api"
-import { parseMonthKey } from "@/lib/period"
+import { parseMonthKey, toISODate } from "@/lib/period"
 import { useTotalBalance } from "@/hooks/use-transactions"
 import { useFamilyHomeData } from "@/hooks/use-family-home-data"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { PeriodType } from "@/lib/types"
 import { useInboxCount } from "@/hooks/use-inbox-count"
+import { useWins } from "@/hooks/use-wins"
+import { useWeek } from "@/hooks/use-week"
+import { useAccount } from "@/components/account/account-context"
+import type { MonthWhen } from "@/components/home/home-month-section"
 
 export function useHomeViewModel() {
     const { selectedMonth, currentMonth } = useSelectedMonth()
-    const [period, setPeriod] = useState<PeriodType>("week")
+    // Abre em "Mensal": no semanal as receitas quase sempre aparecem zeradas.
+    const [period, setPeriod] = useState<PeriodType>("month")
     const [viewMode, setViewMode] = useState<"casal" | "familia">("casal")
 
     // "Semanal" mostra os últimos 7 dias reais a partir de hoje — só faz
@@ -30,6 +35,13 @@ export function useHomeViewModel() {
     const familyData = useFamilyHomeData(selectedMonth, viewMode === "familia")
     // Atualiza sozinho após registro rápido/categorização (evento storage-update).
     const { count: inboxCount } = useInboxCount()
+    // Vitórias e recuperação da semana de hoje (cartão da semana e linha de vitória).
+    const { wins } = useWins(currentMonth, viewMode !== "familia")
+    // A semana de hoje, carregada uma vez: o herói (daqui pra frente) e o
+    // "esta semana até hoje" (o que já foi) usam os mesmos dados.
+    const { selection, isReadOnly } = useAccount()
+    const { week, isLoading: weekLoading } = useWeek(!isReadOnly && viewMode !== "familia")
+    const monthWhen: MonthWhen = selectedMonth === currentMonth ? "current" : selectedMonth < currentMonth ? "past" : "future"
 
     // Onboarding: cadastro recém-feito volta para ele até concluir/pular;
     // conta que parece nova (sem plano e sem transações) ganha um convite.
@@ -82,6 +94,15 @@ export function useHomeViewModel() {
         isCoupleAccount: familyData.isCoupleAccount,
         inboxCount,
         showOnboardingCard,
+        wins,
+        isCurrentMonth: selectedMonth === currentMonth,
+        monthWhen,
+        week,
+        weekLoading,
+        isCouple: selection.type === "couple",
+        isPersonal: selection.type === "personal",
+        isReadOnly,
+        todayISO: toISODate(new Date()),
         loadingFamilyData: viewMode === "familia" && familyData.loading,
         isLoading: viewMode === "familia" ? familyData.loading : ownBalanceData.isLoading,
         // Só passado adiante na visão "Total da Família" — os cartões de destino de

@@ -1,48 +1,50 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { UsersThree, CheckCircle, WarningCircle } from "@phosphor-icons/react"
 import { useJoinViewModel } from "../hooks/use-join-view-model"
 
+// Aceite do convite da família: só o estado, centralizado, sem cartão.
 export function JoinView({ token }: { token: string }) {
     const { status, message } = useJoinViewModel(token)
 
     return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="min-h-screen bg-background flex items-center justify-center px-4">
             <motion.div
-                initial={{ y: 20, opacity: 0 }}
+                initial={{ y: 12, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className="w-full max-w-md bg-card border border-border rounded-[30px] shadow-2xl p-8 text-center"
+                transition={{ duration: 0.3 }}
+                className="w-full max-w-sm text-center"
+                aria-live="polite"
             >
                 {status === "loading" && (
                     <>
-                        <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                            <UsersThree size={32} weight="fill" className="text-primary animate-pulse" />
-                        </div>
-                        <h2 className="text-xl font-bold text-foreground">Entrando na família...</h2>
-                        <p className="text-muted-foreground mt-2 text-sm">Aguarde enquanto confirmamos seu convite.</p>
+                        <UsersThree size={44} weight="duotone" className="mx-auto text-muted-foreground animate-pulse" />
+                        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Entrando na família...</h1>
+                        <p className="mt-2 text-sm text-muted-foreground">Confirmando o seu convite.</p>
                     </>
                 )}
 
                 {status === "success" && (
                     <>
-                        <div className="w-16 h-16 mx-auto rounded-full bg-income/10 flex items-center justify-center mb-4">
-                            <CheckCircle size={32} weight="fill" className="text-income" />
-                        </div>
-                        <h2 className="text-xl font-bold text-foreground">Convite aceito!</h2>
-                        <p className="text-muted-foreground mt-2 text-sm">
-                            Vocês já estão conectados. Redirecionando para as configurações...
-                        </p>
+                        <CheckCircle size={44} weight="fill" className="mx-auto text-positive-ink" />
+                        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Convite aceito</h1>
+                        <p className="mt-2 text-sm text-muted-foreground">Vocês já estão conectados. Levando você para as Configurações...</p>
                     </>
                 )}
 
                 {status === "error" && (
                     <>
-                        <div className="w-16 h-16 mx-auto rounded-full bg-expense/10 flex items-center justify-center mb-4">
-                            <WarningCircle size={32} weight="fill" className="text-expense" />
-                        </div>
-                        <h2 className="text-xl font-bold text-foreground">Não foi possível aceitar o convite</h2>
-                        <p className="text-muted-foreground mt-2 text-sm">{message}</p>
+                        <WarningCircle size={44} weight="duotone" className="mx-auto text-expense" />
+                        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Não deu para aceitar o convite</h1>
+                        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+                        <Link
+                            href="/"
+                            className="mt-6 inline-flex h-11 items-center justify-center rounded-full border border-border px-5 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                        >
+                            Ir para a Home
+                        </Link>
                     </>
                 )}
             </motion.div>

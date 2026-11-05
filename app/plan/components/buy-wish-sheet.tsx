@@ -11,6 +11,7 @@ import { trackEvent } from "@/lib/events"
 import type { Card, PaymentMethod } from "@/lib/types"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { AppSelect } from "@/components/ui/app-select"
 
 interface BuyWishSheetProps {
   wish: PlanWish | null
@@ -186,14 +187,13 @@ export function BuyWishSheet({ wish, cards, onClose, onBought }: BuyWishSheetPro
                 <label htmlFor="buy-card" className="block text-sm font-medium mb-1">
                   Conta ou cartão <span className="text-muted-foreground font-normal">(opcional)</span>
                 </label>
-                <select id="buy-card" value={cardId} onChange={(e) => setCardId(e.target.value)} className={inputClass}>
-                  <option value="">Não informar</option>
-                  {cards.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <AppSelect
+                  id="buy-card"
+                  value={cardId}
+                  onChange={setCardId}
+                  emptyLabel="Não informar"
+                  options={cards.map((c) => ({ value: c.id, label: c.name }))}
+                />
               </div>
               {isCombo && (
                 <div className="grid grid-cols-2 gap-2">

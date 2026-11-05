@@ -41,6 +41,8 @@ export interface Transaction {
   cardId?: string // Added cardId to Transaction interface
   paymentMethod?: PaymentMethod // Só relevante p/ cartão combinado (crédito+débito)
   isCasal?: boolean // Marca uma despesa pessoal como do casal (aparece agregada na conta do casal)
+  userId?: string // dono do lançamento (útil na conta do casal, que junta os dois)
+  paidByUserId?: string | null // quem deu baixa pela conta do casal (null = o dono)
   invoiceId?: string // Fatura (do cartão de crédito) em que essa despesa efetivamente entra
   // Import de extrato: descrição crua do banco (preservada mesmo se `description`
   // for editada) e id único do banco (FITID) — nulos em transações manuais.
@@ -143,6 +145,8 @@ export interface AppSettings {
   categoryGoals?: CategoryGoal[] // Added category spending goals
   // Dia em que o "mês" do plano começa (1–31). Ver lib/period.ts.
   monthStartDay?: number
+  // Sobra/excesso da semana: ajusta as próximas (MONTH) ou fica nela (WEEK).
+  weekCarryOver?: "MONTH" | "WEEK"
   // Quais notificações push a pessoa quer receber (ver lib/push.ts).
   notificationPrefs?: { weekStart: boolean; weekly80: boolean; monthPlan: boolean }
 }

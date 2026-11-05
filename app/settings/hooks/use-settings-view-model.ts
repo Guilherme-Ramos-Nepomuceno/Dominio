@@ -25,6 +25,8 @@ export function useSettingsViewModel() {
     const [currency, setCurrency] = useState("BRL")
     // Dia em que o mês do plano começa (1–31) — ver lib/period.ts.
     const [monthStartDay, setMonthStartDay] = useState(1)
+    // Para onde vai a sobra/excesso de cada semana.
+    const [weekCarryOver, setWeekCarryOver] = useState<"MONTH" | "WEEK">("MONTH")
     const [categoryGoals, setCategoryGoals] = useState<any[]>([])
     const [showClearDialog, setShowClearDialog] = useState(false)
     const [user, setUser] = useState<User | null>(null)
@@ -52,6 +54,7 @@ export function useSettingsViewModel() {
                 setSpendingGoal(settings.spendingGoal.toString())
                 setCurrency(settings.currency)
                 setMonthStartDay(settings.monthStartDay ?? 1)
+                setWeekCarryOver(settings.weekCarryOver ?? "MONTH")
                 setCategoryGoals(settings.categoryGoals || [])
                 setCategories(allCategories.filter((c) => c.type === "expense"))
                 setTransactions(allTransactions)
@@ -82,6 +85,7 @@ export function useSettingsViewModel() {
                 currency,
                 categoryGoals,
                 monthStartDay,
+                weekCarryOver,
             })
             toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
         } finally {
@@ -233,6 +237,8 @@ export function useSettingsViewModel() {
         setCurrency,
         monthStartDay,
         setMonthStartDay,
+        weekCarryOver,
+        setWeekCarryOver,
         categoryGoals,
         categories,
         groupedCategories,

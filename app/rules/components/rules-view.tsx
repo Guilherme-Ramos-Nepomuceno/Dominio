@@ -1,6 +1,7 @@
 "use client"
 
-import { ArrowClockwise, ListChecks, PencilSimple, Plus, Trash } from "@phosphor-icons/react"
+import { useState } from "react"
+import { ArrowClockwise, Check, ListChecks, PencilSimple, Trash, X } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { SkeletonRowList } from "@/components/ui/loading-skeletons"
@@ -18,93 +19,145 @@ import { formatCurrency } from "@/lib/date-utils"
 import { formatAmountRange, ruleHitsLabel } from "@/lib/rules"
 import { useRulesViewModel } from "../hooks/use-rules-view-model"
 import { RuleFormSheet } from "./rule-form-sheet"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
+import { useCategoryGroups } from "@/hooks/use-category-groups"
+import { transactionIconColor } from "@/lib/plan-layout"
+import { cn } from "@/lib/utils"
 
+const SUGGESTIONS_PREVIEW = 5
+
+// Regras no desenho das telas novas: primeiro o que o histórico sugere
+// (confirmar = vira regra), depois as regras que já existem — listas soltas,
+// sem cartão. Criar uma regra do zero é o "+" central do menu.
 export function RulesView() {
   const vm = useRulesViewModel()
+  const groups = useCategoryGroups()
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false)
+  const visibleSuggestions = showAllSuggestions ? vm.suggestions : vm.suggestions.slice(0, SUGGESTIONS_PREVIEW)
+  const categoryName = (id: string) => vm.categories.find((c) => c.id === id)?.name ?? "Categoria apagada"
+  const dot = (id: string) => transactionIconColor(groups, id, "expense")
 
   return (
-    <AppLayout>
-      <PageHeader
-        title="Regras de categoria"
-        subtitle="O que entra categorizado sozinho"
-        action={
-          !vm.isReadOnly ? (
-            <button
-              type="button"
-              onClick={() => vm.setEditing("new")}
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary text-background text-sm font-semibold hover:bg-primary/90 transition-colors"
-            >
-              <Plus size={14} weight="bold" />
-              Nova regra
-            </button>
-          ) : undefined
-        }
-      />
+    <AppLayout primaryAction={{ label: "Nova regra", onPress: () => vm.setEditing("new") }}>
+      <div className="max-w-2xl mx-auto space-y-10 pb-24 md:pb-10">
+        <PageHeader back="/categories" title="Regras" subtitle="O que entra categorizado sozinho" />
 
-      <div className="max-w-2xl mx-auto">
         {vm.isLoading ? (
           <SkeletonRowList count={4} />
         ) : vm.loadError ? (
-          <div className="rounded-[20px] bg-card p-8 text-center border border-border/50 space-y-3">
+          <div className="py-10 text-center space-y-3">
             <p className="text-sm text-muted-foreground">Não foi possível carregar as regras agora.</p>
             <button type="button" onClick={vm.reload} className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
               <ArrowClockwise size={14} weight="bold" />
               Tentar de novo
             </button>
           </div>
-        ) : vm.rules.length === 0 ? (
-          <div className="rounded-[20px] bg-card p-10 text-center border border-border/50">
-            <ListChecks size={40} weight="duotone" className="mx-auto text-muted-foreground mb-3" />
-            <h3 className="text-lg font-semibold mb-1">Nenhuma regra ainda</h3>
-            <p className="text-sm text-muted-foreground">
-              Ao classificar um lançamento, o app pergunta se deve fazer sempre assim. Você também pode criar uma regra aqui.
-            </p>
-          </div>
         ) : (
-          <ul className="space-y-2">
-            {vm.rules.map((rule) => {
-              const category = vm.categories.find((c) => c.id === rule.categoryId)
-              return (
-                <li key={rule.id} className="flex items-center gap-3 rounded-[20px] bg-card border border-border/50 p-4">
-                  <span
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: category?.color ?? "#9ca3af" }}
-                    aria-hidden
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground truncate">{rule.merchantKey}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      → <span className="font-medium text-foreground">{category?.name ?? "Categoria apagada"}</span> ·{" "}
-                      {formatAmountRange(rule.minAmount, rule.maxAmount, formatCurrency)}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {ruleHitsLabel(rule.hits)} · {rule.source === "MANUAL" ? "criada por você" : "aprendida"}
-                    </p>
-                  </div>
-                  {!vm.isReadOnly && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        aria-label={`Editar regra de ${rule.merchantKey}`}
-                        onClick={() => vm.setEditing(rule)}
-                        className="p-2 rounded-lg text-muted-foreground hover:bg-muted"
-                      >
-                        <PencilSimple size={16} weight="bold" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Apagar regra de ${rule.merchantKey}`}
-                        onClick={() => vm.setDeleting(rule)}
-                        className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-expense"
-                      >
-                        <Trash size={16} weight="bold" />
-                      </button>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <>
+            {/* Sugestões do histórico */}
+            {vm.suggestions.length > 0 && !vm.isReadOnly && (
+              <section aria-labelledby="rules-suggested">
+                <SectionTitle id="rules-suggested">Para confirmar</SectionTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Você já classificou estes estabelecimentos sempre do mesmo jeito. Confirme para os próximos entrarem sozinhos.
+                </p>
+                <ul className="mt-3 divide-y divide-border">
+                  {visibleSuggestions.map((suggestion) => {
+                    const busy = vm.busyKey === suggestion.merchantKey
+                    return (
+                      <li key={suggestion.merchantKey} className={cn("flex items-center gap-3 py-3 transition-opacity", busy && "opacity-50")}>
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot(suggestion.categoryId) }} aria-hidden />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{suggestion.label}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            → {categoryName(suggestion.categoryId)} · {suggestion.count} vezes
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => vm.dismissSuggestion(suggestion)}
+                          aria-label={`Não sugerir mais ${suggestion.label}`}
+                          className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          <X size={14} weight="bold" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => vm.acceptSuggestion(suggestion)}
+                          className="flex items-center gap-1 rounded-full bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90 transition-colors"
+                        >
+                          <Check size={12} weight="bold" />
+                          Virar regra
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {vm.suggestions.length > SUGGESTIONS_PREVIEW && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSuggestions((v) => !v)}
+                    className="mt-2 text-xs font-medium text-primary hover:underline"
+                  >
+                    {showAllSuggestions ? "Mostrar menos" : `Ver todas as ${vm.suggestions.length}`}
+                  </button>
+                )}
+              </section>
+            )}
+
+            {/* Regras existentes */}
+            <section aria-labelledby="rules-active">
+              <SectionTitle id="rules-active">Suas regras</SectionTitle>
+              {vm.rules.length === 0 ? (
+                <div className="mt-3 flex items-start gap-3 text-sm text-muted-foreground">
+                  <ListChecks size={20} weight="duotone" className="mt-0.5 shrink-0" />
+                  <p>
+                    Nenhuma regra ainda. Ao classificar um lançamento o app pergunta se deve fazer sempre assim, e o que você já classificou aparece
+                    acima para confirmar. Para criar do zero, toque no +.
+                  </p>
+                </div>
+              ) : (
+                <ul className="mt-2 divide-y divide-border">
+                  {vm.rules.map((rule) => (
+                    <li key={rule.id} className="group flex items-center gap-3 py-3">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot(rule.categoryId) }} aria-hidden />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{rule.merchantKey}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          → <span className="text-foreground">{categoryName(rule.categoryId)}</span> · {formatAmountRange(rule.minAmount, rule.maxAmount, formatCurrency)}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {ruleHitsLabel(rule.hits)} · {rule.source === "MANUAL" ? "criada por você" : "aprendida"}
+                        </p>
+                      </div>
+                      {!vm.isReadOnly && (
+                        <div className="flex items-center shrink-0">
+                          <button
+                            type="button"
+                            aria-label={`Editar regra de ${rule.merchantKey}`}
+                            onClick={() => vm.setEditing(rule)}
+                            className="p-2 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-muted"
+                          >
+                            <PencilSimple size={16} weight="bold" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Apagar regra de ${rule.merchantKey}`}
+                            onClick={() => vm.setDeleting(rule)}
+                            className="p-2 rounded-full text-muted-foreground/70 hover:bg-muted hover:text-expense"
+                          >
+                            <Trash size={16} weight="bold" />
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
         )}
       </div>
 

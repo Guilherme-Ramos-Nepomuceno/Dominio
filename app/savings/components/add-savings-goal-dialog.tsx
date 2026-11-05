@@ -9,6 +9,7 @@ import { getCards } from "@/lib/storage"
 import type { Card } from "@/lib/types"
 import { SAVINGS_ICON_OPTIONS } from "@/lib/savings-icons"
 import { useAccount } from "@/components/account/account-context"
+import { AppSelect } from "@/components/ui/app-select"
 
 interface AddSavingsGoalDialogProps {
   isOpen: boolean
@@ -148,18 +149,14 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
             </div>
           ) : (
             <>
-              <select
+              <AppSelect
+                aria-label="Conta da reserva"
                 value={selectedCardId}
-                onChange={(e) => setSelectedCardId(e.target.value)}
-                className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={setSelectedCardId}
+                placeholder="Escolha a conta"
+                options={debitCards.map((card) => ({ value: card.id, label: `${card.name} (••• ${card.lastDigits})` }))}
                 required
-              >
-                {debitCards.map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.name} (••• {card.lastDigits})
-                  </option>
-                ))}
-              </select>
+              />
               <p className="text-xs text-muted-foreground">
                 De onde o dinheiro da reserva vai sair/entrar — só cartões com débito podem guardar reservas
               </p>

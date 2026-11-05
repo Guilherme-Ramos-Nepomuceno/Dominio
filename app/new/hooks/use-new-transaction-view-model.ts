@@ -8,7 +8,7 @@ export function useNewTransactionViewModel() {
     // data fetching, or complex validations for this specific page.
 
     return useMemo(() => ({
-        title: "Nova Transação",
+        title: "Novo lançamento",
         subtitle: "Registre um novo gasto ou receita",
     }), [])
 }

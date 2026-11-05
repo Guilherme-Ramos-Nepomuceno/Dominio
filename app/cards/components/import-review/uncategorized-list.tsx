@@ -21,14 +21,14 @@ interface UncategorizedListProps {
 export function UncategorizedList({ rows, activeCategoryId, activeCategory, onAssign, onRename, onToggleInclude, renderExtra, emptyMessage }: UncategorizedListProps) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-[1vw] border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+      <div className="py-4 text-sm text-muted-foreground">
         {emptyMessage ?? "Tudo categorizado! Confira os grupos acima antes de importar."}
       </div>
     )
   }
 
   return (
-    <div className="space-y-2">
+    <div className="divide-y divide-border">
       {rows.map((row) => {
         // Categoria mismatch de tipo (ex: categoria de despesa ativa mas essa
         // linha é uma receita) — não faz sentido marcar, então desabilita.

@@ -89,13 +89,16 @@ export function useInboxViewModel() {
     })
   }
 
-  const categorizeGroup = async (group: InboxGroup) => {
+  // Sem categoryId usa a escolhida/sugerida do grupo; com ele (escolha na
+  // lista), classifica direto — um toque só.
+  const categorizeGroup = async (group: InboxGroup, chosenId?: string) => {
     const key = inboxGroupKey(group)
-    const categoryId = selections[key]
+    const categoryId = chosenId ?? selections[key]
     if (!categoryId || busyGroupKey || isAcceptingAll) return
     const ids = group.transactions.map((t) => t.id)
     if (ids.length === 0) return
 
+    if (chosenId) setSelections((prev) => ({ ...prev, [key]: chosenId }))
     setBusyGroupKey(key)
     try {
       const updated = await categorizeTransactions(ids, categoryId)

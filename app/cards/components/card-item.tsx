@@ -1,187 +1,157 @@
 "use client"
 
-import { useState } from "react"
-import { Eye, EyeSlashIcon, TrashIcon, PiggyBank, Pencil, ArrowsLeftRight, UploadSimple } from "@phosphor-icons/react"
+import Link from "next/link"
+import { ArrowsLeftRight, CaretRight, DotsThreeVertical, PencilSimple, PiggyBank, Trash, UploadSimple } from "@phosphor-icons/react"
 import type { Card, SavingsGoal } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 import { formatCurrency } from "@/lib/date-utils"
+import { cn } from "@/lib/utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-interface CardItemProps {
-  card: Card
-  spent?: number
-  debitSpent?: number
-  balance?: number
-  savingsGoals?: SavingsGoal[]
+export interface CardActions {
   onDelete?: (id: string) => void
   onEdit?: (card: Card) => void
   onMerge?: (card: Card) => void
   onImport?: (card: Card) => void
-  readOnly?: boolean
 }
 
-export function CardItem({ card, spent = 0, debitSpent = 0, balance, savingsGoals = [], onDelete, onEdit, onMerge, onImport, readOnly }: CardItemProps) {
-  const [showNumber, setShowNumber] = useState(false)
-  const BankIcon = getBankIcon(card.bankName)
-  
-  const availableBalance = card.hasCredit && card.limit ? card.limit - spent : balance
-  const pendingDebt = card.hasCredit ? spent : 0
-  const totalSavings = savingsGoals.reduce((sum, goal) => sum + goal.currentAmount, 0)
+// Final do cartão só quando existe (conta de dinheiro vem com 0000).
+function digits(card: Card) {
+  return card.lastDigits && card.lastDigits !== "0000" ? card.lastDigits : null
+}
 
-  const kindLabel =
-    card.kind === "checking" ? "Conta Corrente" : card.kind === "savings" ? "Conta Poupança" : null
-  const capabilityLabel = card.hasCredit && card.hasDebit ? "Crédito + Débito" : card.hasCredit ? "Crédito" : "Débito"
+function CardMenu({ card, onDelete, onEdit, onMerge, onImport }: CardActions & { card: Card }) {
+  if (!onEdit && !onDelete && !onMerge && !onImport) return null
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={`Mais ações de ${card.name}`} className="p-1.5 -mr-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground">
+          <DotsThreeVertical size={18} weight="bold" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {onEdit && (
+          <DropdownMenuItem onSelect={() => onEdit(card)}>
+            <PencilSimple size={14} /> Editar
+          </DropdownMenuItem>
+        )}
+        {onImport && card.bankName !== "cash" && (
+          <DropdownMenuItem onSelect={() => onImport(card)}>
+            <UploadSimple size={14} /> Importar extrato
+          </DropdownMenuItem>
+        )}
+        {onMerge && (
+          <DropdownMenuItem onSelect={() => onMerge(card)}>
+            <ArrowsLeftRight size={14} /> Juntar com outro
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onDelete(card.id)} className="text-expense focus:text-expense">
+              <Trash size={14} /> Excluir
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+// Cartão de crédito: fatura em aberto à direita e o limite usado numa barra fina.
+// Tocar abre as faturas do cartão.
+export function CreditCardRow({ card, invoice, actions }: { card: Card; invoice: number; actions: CardActions }) {
+  const BankIcon = getBankIcon(card.bankName)
+  const limit = card.limit ?? 0
+  const used = limit > 0 ? Math.min(1, invoice / limit) : 0
+  const free = limit - invoice
+  const final = digits(card)
+  const dates = [card.closingDate && `fecha ${card.closingDate}`, card.dueDate && `vence ${card.dueDate}`].filter(Boolean).join(" · ")
 
   return (
-    <div
-      className="relative rounded-2xl p-5 shadow-md overflow-hidden min-h-45 flex flex-col justify-between transition-transform hover:scale-[1.02] duration-300"
-      style={{ backgroundColor: card.color }}
-    >
-      {/* Background pattern */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none">
-        <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white -translate-y-16 translate-x-16" />
-        <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-white translate-y-12 -translate-x-12" />
-      </div>
-
-      {/* Card Content */}
-      <div className="relative z-10 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <BankIcon weight="fill" size={28} className="text-white" />
-            <span className="text-white font-semibold text-sm">{kindLabel ?? capabilityLabel}</span>
+    <li className="flex items-start gap-3 py-4">
+      <BankIcon size={22} weight="fill" color={card.color} className="mt-0.5 shrink-0" aria-hidden />
+      <Link href={`/invoices?card=${card.id}`} className="flex-1 min-w-0 space-y-2 group" title={limit > 0 ? `Limite de ${formatCurrency(limit)}` : undefined}>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium text-foreground truncate">
+            {card.name}
+            {final && <span className="ml-1.5 text-xs font-normal tabular-nums text-muted-foreground">{final}</span>}
+          </p>
+          <p className="flex items-center gap-0.5 text-sm font-semibold tabular-nums text-foreground shrink-0">
+            {formatCurrency(invoice)}
+            <CaretRight size={12} weight="bold" className="text-muted-foreground group-hover:text-foreground" />
+          </p>
+        </div>
+        {limit > 0 && (
+          <div className="h-1 rounded-full bg-(--plan-track) overflow-hidden" aria-hidden>
+            <div
+              className={cn("h-full rounded-full", used >= 0.9 ? "bg-expense" : "bg-foreground/70")}
+              style={{ width: `${used * 100}%` }}
+            />
           </div>
-          
-          {!readOnly && (
-            <div className="flex items-center gap-1.5">
-              {onImport && card.bankName !== "cash" && (
-                <button
-                  onClick={(e) => {
-                      e.stopPropagation();
-                      onImport(card);
-                  }}
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors z-20 cursor-pointer"
-                  title="Importar extrato"
-                >
-                  <UploadSimple size={16} className="text-white" weight="bold" />
-                </button>
-              )}
-              {onMerge && (
-                <button
-                  onClick={(e) => {
-                      e.stopPropagation();
-                      onMerge(card);
-                  }}
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors z-20 cursor-pointer"
-                  title="Mesclar com outro cartão"
-                >
-                  <ArrowsLeftRight size={16} className="text-white" weight="bold" />
-                </button>
-              )}
-              {onEdit && (
-                <button
-                  onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(card);
-                  }}
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors z-20 cursor-pointer"
-                  title="Editar cartão"
-                >
-                  <Pencil size={16} className="text-white" weight="bold" />
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(card.id);
-                  }}
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 hover:text-red-200 transition-colors z-20 cursor-pointer"
-                  title="Excluir cartão"
-                >
-                  <TrashIcon size={16} className="text-white hover:text-red-100" weight="bold" />
-                </button>
-              )}
-            </div>
-          )}
+        )}
+        <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+          <span>
+            {limit > 0 ? (
+              <>
+                <span className={cn(free < 0 && "text-expense")}>{formatCurrency(free)}</span> livres
+              </>
+            ) : (
+              "Sem limite cadastrado"
+            )}
+          </span>
+          {dates && <span className="shrink-0">{dates}</span>}
         </div>
+      </Link>
+      <CardMenu card={card} {...actions} />
+    </li>
+  )
+}
 
-        <div>
-          <p className="text-white/80 text-xs font-medium mb-1">{card.name}</p>
-          <div className="flex items-center justify-between">
-            <p className="text-white text-lg font-mono tracking-wider">
-              {showNumber ? `•••• ${card.lastDigits}` : "•••• ••••"}
-            </p>
-            <button
-              onClick={() => setShowNumber(!showNumber)}
-              className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
-            >
-              {showNumber ? (
-                <EyeSlashIcon size={18} className="text-white" weight="bold" />
-              ) : (
-                <Eye size={18} className="text-white" weight="bold" />
-              )}
-            </button>
-          </div>
+// Conta (débito/corrente/dinheiro): saldo à direita, gasto do mês e reservas abaixo.
+export function AccountRow({
+  card,
+  balance,
+  spent,
+  savingsGoals,
+  actions,
+}: {
+  card: Card
+  balance: number
+  spent: number
+  savingsGoals: SavingsGoal[]
+  actions: CardActions
+}) {
+  const BankIcon = getBankIcon(card.bankName)
+  const final = digits(card)
+  const reserved = savingsGoals.reduce((sum, goal) => sum + goal.currentAmount, 0)
+
+  return (
+    <li className="flex items-start gap-3 py-4">
+      <BankIcon size={22} weight="fill" color={card.color} className="mt-0.5 shrink-0" aria-hidden />
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium text-foreground truncate">
+            {card.name}
+            {final && <span className="ml-1.5 text-xs font-normal tabular-nums text-muted-foreground">{final}</span>}
+          </p>
+          <p className={cn("text-sm font-semibold tabular-nums shrink-0", balance < 0 ? "text-expense" : "text-foreground")}>{formatCurrency(balance)}</p>
         </div>
-
-        <div className="pt-3 border-t border-white/20 space-y-2">
-          {card.hasCredit && card.limit && (
-            <>
-              <div>
-                <p className="text-white/70 text-xs">Limite Disponível</p>
-                <p className="text-white text-lg font-bold">{formatCurrency(availableBalance || 0)}</p>
-                <p className="text-white/60 text-xs mt-0.5">de {formatCurrency(card.limit)}</p>
-              </div>
-
-              {pendingDebt > 0 && (
-                <div className="pt-2 border-t border-white/20">
-                  <p className="text-white/70 text-xs">Fatura a Pagar</p>
-                  <p className="text-white text-base font-bold">{formatCurrency(pendingDebt)}</p>
-                  {card.dueDate && (
-                    <p className="text-white/60 text-xs mt-0.5">
-                      Vencimento dia {card.dueDate}{card.closingDate && ` • Fecha dia ${card.closingDate}`}
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {card.hasDebit && balance !== undefined && (
-            <div>
-              <p className="text-white/70 text-xs">Saldo</p>
-              <p className="text-white text-lg font-bold">{formatCurrency(balance)}</p>
-            </div>
-          )}
-
-          {card.hasDebit && debitSpent > 0 && (
-            <div>
-              <p className="text-white/70 text-xs">Gasto neste período</p>
-              <p className="text-white text-base font-bold">{formatCurrency(debitSpent)}</p>
-            </div>
-          )}
-
-          {savingsGoals.length > 0 && (
-            <div className="pt-2 border-t border-white/20">
-              <div className="flex items-center gap-1.5 mb-2">
-                <PiggyBank size={14} className="text-white/70" weight="fill" />
-                <p className="text-white/70 text-xs">Investimento</p>
-              </div>
-              <div className="space-y-1.5">
-                {savingsGoals.map((goal) => (
-                  <div key={goal.id} className="flex items-center justify-between text-xs">
-                    <span className="text-white/90">{goal.name}</span>
-                    <span className="text-white font-semibold">{formatCurrency(goal.currentAmount)}</span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between text-sm font-bold pt-1 border-t border-white/20">
-                  <span className="text-white">Total investido</span>
-                  <span className="text-white">{formatCurrency(totalSavings)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <p className="text-xs text-muted-foreground">{spent > 0 ? `${formatCurrency(spent)} gastos este mês` : "Nada gasto este mês"}</p>
+        {reserved > 0 && (
+          <Link href="/savings" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <PiggyBank size={12} weight="duotone" />
+            {formatCurrency(reserved)} em {savingsGoals.length === 1 ? savingsGoals[0].name : `${savingsGoals.length} reservas`}
+          </Link>
+        )}
       </div>
-    </div>
+      <CardMenu card={card} {...actions} />
+    </li>
   )
 }

@@ -9,6 +9,10 @@ import {
   streakLabel,
   sortWeekTransactions,
   daysLeftLabel,
+  dayDetail,
+  paceBadge,
+  isWeekExceeded,
+  carryOverSummary,
 } from "../week.ts"
 import {
   mapClosingData,
@@ -17,6 +21,10 @@ import {
   validateLeftover,
   buildCloseBody,
   adherenceTone,
+  closingTiming,
+  closingResult,
+  groupOutcomes,
+  withBoughtWishes,
 } from "../closing.ts"
 import { urlBase64ToUint8Array, isIOS, pushSupport, mapNotificationPrefs } from "../push.ts"
 
@@ -108,4 +116,84 @@ test("push: chave VAPID, iOS e suporte", () => {
   assert.equal(pushSupport({ ...base, ios: true, standalone: true }), "supported")
   assert.equal(pushSupport({ ...base, hasPushManager: false }), "unsupported")
   assert.deepEqual(mapNotificationPrefs({ weekly80: false }), { weekStart: true, weekly80: false, monthPlan: true })
+})
+
+test("closingTiming: mês em andamento até o último dia do período", () => {
+  assert.deepEqual(closingTiming("2026-11-30", "2026-11-03"), { inProgress: true, endLabel: "30 nov" })
+  assert.deepEqual(closingTiming("2026-11-30", "2026-11-30"), { inProgress: true, endLabel: "30 nov" })
+  assert.deepEqual(closingTiming("2026-11-30T00:00:00.000Z", "2026-12-01"), { inProgress: false, endLabel: "30 nov" })
+  assert.equal(closingTiming("", "2026-12-01").inProgress, false)
+})
+
+const brlNoCents = (s: string) => s.replace(/R\$ /g, `R$${String.fromCharCode(160)}`)
+
+test("closingResult: sobra, mês em andamento, acima do orçamento e sem plano", () => {
+  const summary = { budgetAmount: 7200, plannedTotal: 4800, spentTotal: 4205, adherencePct: 87.6, leftover: 2995 }
+  const ended = closingResult(summary, "outubro", { inProgress: false, hasPlan: true })
+  assert.equal(ended.label, "Outubro terminou com")
+  assert.equal(ended.suffix, "de sobra")
+  assert.equal(ended.tone, "good")
+  assert.equal(ended.line, brlNoCents("R$ 4.205 gastos de R$ 4.800 planejado (88%)"))
+  const partial = closingResult({ ...summary, spentTotal: 430, leftover: 6770 }, "novembro", { inProgress: true, hasPlan: true })
+  assert.deepEqual(
+    [partial.label, partial.value, partial.suffix, partial.line],
+    ["Novembro, até agora", 430, brlNoCents("gastos de R$ 4.800 planejado"), "9% do planejado do mês"],
+  )
+  const over = closingResult({ ...summary, spentTotal: 7500, leftover: -300 }, "outubro", { inProgress: false, hasPlan: true })
+  assert.deepEqual([over.value, over.suffix, over.tone], [300, "acima do orçamento", "over"])
+  assert.equal(
+    closingResult({ ...summary, plannedTotal: 0 }, "outubro", { inProgress: false, hasPlan: false }).line,
+    brlNoCents("R$ 4.205 gastos de R$ 7.200 de receitas"),
+  )
+})
+
+test("groupOutcomes: dentro, acima e grupos vazios de fora", () => {
+  const rows = groupOutcomes([
+    { id: "a", name: "Essenciais", color: "#1", planned: 3000, spent: 2810 },
+    { id: "b", name: "Estilo de vida", color: "#2", planned: 800, spent: 920 },
+    { id: "c", name: "Futuro", color: "#3", planned: 0, spent: 0 },
+    { id: "d", name: "Desejos", color: "#4", planned: 300, spent: 300 },
+  ])
+  assert.deepEqual(rows.map((r) => [r.id, r.over, r.text]), [
+    ["a", false, brlNoCents("sobraram R$ 190")],
+    ["b", true, brlNoCents("R$ 120 acima")],
+    ["d", false, "no planejado"],
+  ])
+  assert.equal(groupOutcomes([{ id: "a", name: "Essenciais", color: null, planned: 3000, spent: 168 }], true)[0].text, brlNoCents("R$ 2.832 disponível"))
+})
+
+test("withBoughtWishes: compra de desejo sai do grupo da categoria e entra em Desejos", () => {
+  const groups = [
+    { id: "life", kind: "LIFESTYLE", spent: 1285, categoryIds: ["compras", "lazer"] },
+    { id: "wish", kind: "WISHES", spent: 0, categoryIds: [] },
+  ]
+  const wishes = [
+    { status: "BOUGHT", actualAmount: 329.9, estimatedAmount: 349, categoryId: "compras" },
+    { status: "OPEN", actualAmount: null, estimatedAmount: 890, categoryId: "compras" },
+  ]
+  const out = withBoughtWishes(groups, wishes)
+  assert.deepEqual(out.map((g) => [g.id, g.spent]), [["life", 955.1], ["wish", 329.9]])
+  assert.equal(groups[0].spent, 1285) // não altera a entrada
+  // Sem categoria: só soma em Desejos.
+  assert.equal(withBoughtWishes(groups, [{ status: "BOUGHT", actualAmount: 100, estimatedAmount: 100, categoryId: null }])[1].spent, 100)
+})
+
+test("semana estourada: selo vermelho, ideal do dia é não gastar", () => {
+  assert.equal(isWeekExceeded({ available: -90.87, spentThisWeek: 709.2, limit: 618.33 }), true)
+  assert.equal(isWeekExceeded({ available: 0, spentThisWeek: 618.33, limit: 618.33 }), true)
+  assert.equal(isWeekExceeded({ available: 0, spentThisWeek: 0, limit: 0 }), false)
+  assert.equal(isWeekExceeded({ available: 10, spentThisWeek: 600, limit: 610 }), false)
+  assert.equal(paceBadge("OVER", true).label, "Limite estourado")
+  assert.equal(paceBadge("OVER").label, "Acima do ritmo")
+  const fmt = (v: number) => `R$ ${v}`
+  const today = { date: "2026-11-05", spent: 0, isFuture: false }
+  assert.match(dayDetail(today, 88.33, fmt, 0)!, /o ideal é não gastar/)
+  assert.match(dayDetail(today, 88.33, fmt, null)!, /ideal R\$ 88.33/)
+})
+
+test("carryOver: padrão MONTH e frase de cada modo", () => {
+  assert.equal(mapWeek({ enabled: true }).carryOver, "MONTH")
+  assert.equal(mapWeek({ enabled: true, carryOver: "WEEK" }).carryOver, "WEEK")
+  assert.match(carryOverSummary("WEEK"), /mesmo limite/)
+  assert.match(carryOverSummary("MONTH"), /próximas/)
 })

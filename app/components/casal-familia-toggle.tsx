@@ -1,8 +1,9 @@
 "use client"
 
-import { Heart, UsersThree } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
+// Conta do casal: ver só o casal ou o total da família. Controle segmentado
+// pequeno, no mesmo desenho dos filtros das telas novas.
 export function CasalFamiliaToggle({
     viewMode,
     onChange,
@@ -11,27 +12,25 @@ export function CasalFamiliaToggle({
     onChange: (mode: "casal" | "familia") => void
 }) {
     return (
-        <div className="flex justify-center mb-6">
-            <div className="bg-card p-1 rounded-xl border border-border inline-flex shadow-sm">
+        <div role="radiogroup" aria-label="Ver" className="inline-flex rounded-full bg-muted/50 p-0.5 text-xs font-medium">
+            {([
+                ["casal", "Casal"],
+                ["familia", "Total da família"],
+            ] as const).map(([value, label]) => (
                 <button
-                    onClick={() => onChange("casal")}
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={viewMode === value}
+                    onClick={() => onChange(value)}
                     className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                        viewMode === "casal" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        "rounded-full px-3 py-1 transition-colors",
+                        viewMode === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
                     )}
                 >
-                    <Heart size={16} weight={viewMode === "casal" ? "fill" : "regular"} /> Casal
+                    {label}
                 </button>
-                <button
-                    onClick={() => onChange("familia")}
-                    className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                        viewMode === "familia" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                >
-                    <UsersThree size={16} weight={viewMode === "familia" ? "fill" : "regular"} /> Total da Família
-                </button>
-            </div>
+            ))}
         </div>
     )
 }

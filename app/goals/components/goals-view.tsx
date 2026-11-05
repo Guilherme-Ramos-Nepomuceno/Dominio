@@ -30,22 +30,18 @@ export function GoalsView() {
     } = useGoalsViewModel()
 
     return (
-        <AppLayout>
-            <PageHeader
+        <AppLayout
+            primaryAction={{
+                label: "Novo objetivo",
+                onPress: () => {
+                    setEditingGoal(undefined)
+                    setIsFormOpen(true)
+                },
+            }}
+        >
+            <PageHeader back="/all-menus"
                 title="Objetivos"
                 subtitle="Acompanhe suas metas de economia"
-                action={
-                    <button
-                        onClick={() => {
-                            setEditingGoal(undefined)
-                            setIsFormOpen(true)
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
-                    >
-                        <Plus weight="bold" size={20} />
-                        Novo Objetivo
-                    </button>
-                }
             />
 
             {/* Summary Card */}

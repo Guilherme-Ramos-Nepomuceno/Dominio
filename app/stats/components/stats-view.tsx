@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { StackedBarChart } from "./stacked-bar-chart"
+import { CompassDeviation } from "./compass-deviation"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import { AnalyticsFilterBar } from "./analytics-filter-bar"
 import { formatMonth, formatCurrency } from "@/lib/date-utils"
@@ -16,6 +16,9 @@ import { FamilyTotalsView } from "@/app/components/family-totals-view"
 import { updateTransaction } from "@/lib/storage"
 import { useAccount } from "@/components/account/account-context"
 import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
+import { useCategoryGroups } from "@/hooks/use-category-groups"
+import { transactionIconColor } from "@/lib/plan-layout"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -53,13 +56,14 @@ export function StatsView() {
         sortedDates,
         confirmCancelTransaction,
         categoryAlerts,
-        handleThresholdChange,
         refresh
     } = useStatsViewModel()
 
     const [editingTransaction, setEditingTransaction] = useState<any>(null)
-    const { family } = useAccount()
-    const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
+    const groups = useCategoryGroups()
+    const { family, selection } = useAccount()
+    // Marcar "do casal" só na própria conta: no casal todas já são, na do parceiro é só leitura.
+    const hasCoupleAccount = selection.type === "personal" && !!family?.members?.some((m) => m.accountType === "COUPLE")
 
     const toggleCasal = async (transaction: any) => {
         await updateTransaction(transaction.id, { isCasal: !transaction.isCasal })
@@ -110,40 +114,38 @@ export function StatsView() {
         }
 
         return (
-            <div className="relative overflow-hidden rounded-[1vw] group">
-                <div className="absolute inset-y-0 right-0 w-[80px] bg-red-500 flex items-center justify-center rounded-r-[1vw]">
+            <div className="relative overflow-hidden group">
+                <div className="absolute inset-y-0 right-0 w-[80px] bg-red-500 flex items-center justify-center">
                     <button onClick={() => setTransactionToCancel(transaction.id)} className="text-white w-full h-full flex items-center justify-center">
                         <PhosphorIcons.Trash size={24} weight="bold" />
                     </button>
                 </div>
                 <div
-                    className="relative bg-card border border-border/50 hover:border-border transition-colors p-4 flex items-center justify-between z-10 cursor-pointer"
+                    className="relative bg-background py-3 flex items-center justify-between gap-3 z-10 cursor-pointer"
                     style={{ transform: `translateX(${swipeOffset}px)`, transition: startX === null ? 'transform 0.2s ease-out' : 'none' }}
                     onClick={() => setEditingTransaction(transaction)}
                     onTouchStart={onTouchStart}
                     onTouchMove={onTouchMove}
                     onTouchEnd={onTouchEnd}
                 >
-                    <div className="flex items-center gap-4 flex-1">
-                        <div className="w-10 h-10 flex items-center justify-center shrink-0 relative text-muted-foreground">
-                            <IconComponent size={22} weight="duotone" />
-                        </div>
-                        <div>
-                            <p className="font-semibold text-foreground">{transaction.description}</p>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <IconComponent size={20} weight="duotone" className="shrink-0" style={{ color: transactionIconColor(groups, transaction.categoryId, category?.type ?? transaction.type) }} />
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{transaction.description}</p>
                             <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">{transaction.categoryId ? category?.name || "Geral" : UNCATEGORIZED_LABEL}</span>
+                                <span className="text-xs text-muted-foreground">{transaction.categoryId ? category?.name || "Geral" : UNCATEGORIZED_LABEL}</span>
                                 <AutoCategoryBadge transaction={transaction} />
                                 {isCreditInstallment && purchaseDateObj && (
                                     <span className="text-[10px] text-muted-foreground">Comprou em: {purchaseDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
                                 )}
                                 {transaction.installments && transaction.installments > 1 && (
-                                    <span className="text-[10px] text-foreground font-bold bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
+                                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                                         <CreditCard size={10} weight="fill" />
                                         {transaction.currentInstallment}/{transaction.installments}
                                     </span>
                                 )}
                                 {isRecurring && (
-                                    <span className="text-[10px] text-primary font-bold bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1" title="Transação recorrente">
+                                    <span className="text-[11px] text-muted-foreground flex items-center gap-1" title="Transação recorrente">
                                         <RepeatIcon size={10} weight="bold" />
                                         Recorrente
                                     </span>
@@ -166,7 +168,7 @@ export function StatsView() {
                     </div>
                     <div className="text-right flex items-center gap-4">
                         <div>
-                            <p className="text-lg font-bold text-foreground tabular-nums">{transaction.type === "expense" ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
+                            <p className={cn("text-sm font-semibold tabular-nums", transaction.type === "expense" ? "text-foreground" : "text-income")}>{transaction.type === "expense" ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
                             {filters.paymentMethod === 'credit' && (
                                 <div className="flex justify-end mt-1">
                                     {transaction.status === 'paid' ? (
@@ -188,9 +190,10 @@ export function StatsView() {
 
     return (
         <AppLayout showMonthFilter>
-            <PageHeader
-                title={formatMonth(selectedMonth)}
-                subtitle={periodRangeLabel ? `Período: ${periodRangeLabel}` : "Análise detalhada dos seus gastos"}
+            <div className="max-w-2xl mx-auto space-y-10 pb-24 md:pb-10">
+            <PageHeader back="/all-menus"
+                title="Bússola"
+                subtitle={`Para onde foi o dinheiro em ${formatMonth(selectedMonth).split(" ")[0].toLowerCase()}${periodRangeLabel ? ` · ${periodRangeLabel}` : ""}`}
                 action={
                     <div className="hidden md:block">
                         <MonthHeaderSelector />
@@ -201,34 +204,37 @@ export function StatsView() {
             {isCoupleAccount && <CasalFamiliaToggle viewMode={viewMode} onChange={setViewMode} />}
 
             {viewMode === "familia" ? (
-                <div className="pb-10">
-                    <FamilyTotalsView loading={loadingFamilyTotals} totals={familyTotals} />
-                </div>
+                <FamilyTotalsView loading={loadingFamilyTotals} totals={familyTotals} />
             ) : (
                 <>
             {categoryAlerts.length > 0 && filters.paymentMethod === 'all' && (
-                <div className="mb-6 space-y-2">
+                <ul className="space-y-1">
                     {categoryAlerts.map((alert, idx) => (
-                        <div key={idx} className="rounded-[1vw] bg-expense/10 border border-expense/30 p-4">
-                            <p className="text-sm font-semibold text-expense">⚠️ Meta de {alert?.categoryName} excedida!</p>
-                        </div>
+                        <li key={idx} className="flex items-center gap-2 text-sm text-expense">
+                            <PhosphorIcons.WarningCircle size={16} weight="bold" aria-hidden />
+                            Meta de {alert?.categoryName} excedida
+                        </li>
                     ))}
-                </div>
+                </ul>
             )}
 
-            <div className="mb-6">
-                <StackedBarChart currentMonth={selectedMonth} onThresholdChange={handleThresholdChange} onMonthChange={setSelectedMonth} />
-            </div>
+            <CompassDeviation
+                onSelectCategory={(key) => {
+                    setFilters({ ...filters, categoryId: key })
+                    document.getElementById("stats-statement-title")?.closest("section")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }}
+            />
 
+            <section aria-labelledby="stats-statement-title" className="space-y-6 scroll-mt-24">
+            <SectionTitle id="stats-statement-title">Extrato</SectionTitle>
             <AnalyticsFilterBar
                 filters={filters}
                 onChange={setFilters}
                 categories={categories}
                 cards={cards}
-                className="mb-6"
             />
 
-            <div className="space-y-8 pb-10">
+            <div className="space-y-6">
                 {loading ? (
                     <SkeletonRowList count={5} />
                 ) : sortedDates.length > 0 ? (
@@ -245,27 +251,27 @@ export function StatsView() {
 
                         return (
                             <div key={date}>
-                                <h3 className="text-sm font-semibold text-muted-foreground mb-3 capitalize px-1 flex items-center justify-between">
+                                <h3 className="text-xs font-medium text-muted-foreground flex items-center justify-between">
                                     {groupTitle}
-                                    <span className="text-xs font-normal opacity-70">{formatCurrency(transactionsForDate.reduce((acc: any, t: { amount: any }) => acc + t.amount, 0))}</span>
+                                    <span className="tabular-nums">{formatCurrency(transactionsForDate.filter((t: any) => t.type === "expense").reduce((acc: number, t: { amount: number }) => acc + t.amount, 0))} gastos</span>
                                 </h3>
-                                <div className="space-y-3">
+                                <div className="divide-y divide-border">
                                     {transactionsForDate.map((t: any) => <TransactionItem key={t.id} transaction={t} />)}
                                 </div>
                             </div>
                         )
                     })
                 ) : (
-                    <div className="rounded-2xl bg-card p-12 text-center border border-border/50 flex flex-col items-center justify-center gap-4">
-                        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                            {filters.paymentMethod === 'credit' ? <CreditCard size={32} className="text-muted-foreground" /> : <Wallet size={32} className="text-muted-foreground" />}
-                        </div>
+                    <div className="py-10 text-center flex flex-col items-center justify-center gap-3">
+                        {filters.paymentMethod === 'credit' ? <CreditCard size={28} weight="duotone" className="text-muted-foreground" /> : <Wallet size={28} weight="duotone" className="text-muted-foreground" />}
                         <p className="text-muted-foreground font-medium">{filters.paymentMethod === 'credit' ? "Nenhuma transação encontrada na fatura deste mês." : "Nenhuma transação encontrada para esse filtro."}</p>
                     </div>
                 )}
             </div>
+            </section>
                 </>
             )}
+            </div>
 
             <EditTransactionDialog
                 transaction={editingTransaction}

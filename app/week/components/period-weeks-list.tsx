@@ -58,7 +58,6 @@ export function PeriodWeeksList({ weeks }: { weeks: PeriodWeek[] }) {
           {active.detail}
         </p>
       )}
-      <p className="text-xs text-muted-foreground">Gastar a mais numa semana diminui o limite das próximas.</p>
     </div>
   )
 }

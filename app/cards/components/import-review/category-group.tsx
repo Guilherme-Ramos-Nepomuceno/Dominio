@@ -55,7 +55,7 @@ export function CategoryGroup({ category, rows, categories, onRename, onBulkRena
   }
 
   return (
-    <div className="rounded-[1vw] border border-border bg-card/50 overflow-hidden">
+    <div>
       <div
         role="button"
         tabIndex={0}
@@ -66,15 +66,15 @@ export function CategoryGroup({ category, rows, categories, onRename, onBulkRena
             setExpanded((v) => !v)
           }
         }}
-        className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+        className="w-full flex items-center gap-3 py-3 cursor-pointer"
       >
         <CategoryIcon category={category} />
         <div className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-semibold text-foreground truncate">{category.name}</p>
+          <p className="text-sm font-medium text-foreground truncate">{category.name}</p>
           <p className="text-xs text-muted-foreground">{rows.length} {rows.length === 1 ? "item" : "itens"}</p>
         </div>
-        <p className={cn("font-bold tabular-nums text-sm shrink-0", category.type === "expense" ? "text-expense" : "text-income")}>
-          {category.type === "expense" ? "-" : "+"}{formatCurrency(total)}
+        <p className={cn("font-semibold tabular-nums text-sm shrink-0", category.type === "expense" ? "text-foreground" : "text-income")}>
+          {category.type === "expense" ? "" : "+"}{formatCurrency(total)}
         </p>
         <button
           type="button"
@@ -93,22 +93,22 @@ export function CategoryGroup({ category, rows, categories, onRename, onBulkRena
       </div>
 
       {expanded && (
-        <div className="p-3 pt-0 space-y-2">
+        <div className="pl-9 pb-3 divide-y divide-border">
           {selectMode && (
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/30">
+            <div className="flex items-center gap-2 py-2">
               <input
                 type="text"
                 value={bulkName}
                 onChange={(e) => setBulkName(e.target.value)}
                 placeholder={selected.size > 0 ? `Novo nome pra ${selected.size} ${selected.size === 1 ? "item" : "itens"}` : "Marque os itens abaixo..."}
                 disabled={selected.size === 0}
-                className="flex-1 min-w-0 px-3 py-1.5 rounded-md bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                className="flex-1 min-w-0 py-1.5 border-b border-border bg-transparent text-sm focus:border-foreground text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={applyBulkRename}
                 disabled={selected.size === 0 || !bulkName.trim()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground text-background text-xs font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 shrink-0"
               >
                 <Check size={14} weight="bold" />
                 Aplicar

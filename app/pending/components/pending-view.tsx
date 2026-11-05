@@ -1,13 +1,17 @@
 "use client"
 
-import { Clock, CheckCircle, XCircle, Wallet, CalendarCheck, Warning, Heart, Pencil } from "@phosphor-icons/react"
-import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
+import { useMemo, useState } from "react"
+import { CalendarCheck, Check, Heart, PencilSimple, Prohibit, SkipForward } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
-import { useState } from "react"
-import { formatCurrency, formatDate } from "@/lib/date-utils"
+import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
+import { formatCurrency } from "@/lib/date-utils"
+import { groupPending, pendingDueLabel, pendingSummary } from "@/lib/pending"
+import { transactionIconColor } from "@/lib/plan-layout"
+import { useCategoryGroups } from "@/hooks/use-category-groups"
 import { PageHeader } from "@/components/ui/page-header"
-import { Button } from "@/components/ui/button"
-import { getBankIcon } from "@/lib/bank-icons"
+import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { CardChips, Chip, ChipRow, DateChips, FieldLabel, localISODate } from "@/components/transaction-inputs/transaction-inputs"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
 import { EditTransactionDialog } from "@/app/components/edit-transaction-dialog"
@@ -23,178 +27,256 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { usePendingViewModel } from "../hooks/use-pending-view-model"
+import { useAccount } from "@/components/account/account-context"
 
+type Filter = "all" | "expense" | "income"
+
+const FILTERS: Array<{ id: Filter; label: string }> = [
+    { id: "all", label: "Tudo" },
+    { id: "expense", label: "A pagar" },
+    { id: "income", label: "A receber" },
+]
+
+// Contas a pagar/receber no desenho das telas novas: resumo no topo, lista
+// solta agrupada pelo prazo (atrasadas primeiro) e a baixa abrindo na própria
+// linha — data e conta em pílulas, um botão só.
 export function PendingView() {
-    const {
-        categories,
-        cards,
-        isLoaded,
-        visibleTransactions,
-        selectedTransaction,
-        setSelectedTransaction,
-        selectedCard,
-        setSelectedCard,
-        confirmDate,
-        setConfirmDate,
-        transactionToCancel,
-        setTransactionToCancel,
-        transactionToCancelRecurrence,
-        setTransactionToCancelRecurrence,
-        handleMarkAsPaid,
-        confirmPayment,
-        isConfirmingPayment,
-        confirmCancel,
-        confirmCancelRecurrence,
-        refresh
-    } = usePendingViewModel()
-
+    const vm = usePendingViewModel()
+    const groups = useCategoryGroups()
+    const { isReadOnly } = useAccount()
+    const [filter, setFilter] = useState<Filter>("all")
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
-    if (!isLoaded) {
-        return (
-            <AppLayout>
-                <div className="min-h-screen bg-background flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-            </AppLayout>
-        )
+    const todayISO = localISODate(new Date())
+    // O tipo vale o da categoria (uma receita lançada em categoria de despesa conta como despesa).
+    const typed = useMemo(
+        () => vm.visibleTransactions.map((t) => ({ ...t, type: findCategory(vm.categories, t.categoryId)?.type ?? t.type })),
+        [vm.visibleTransactions, vm.categories],
+    )
+    const summary = useMemo(() => pendingSummary(typed, todayISO), [typed, todayISO])
+    const sections = useMemo(
+        () => groupPending(typed.filter((t) => filter === "all" || t.type === filter), todayISO),
+        [typed, filter, todayISO],
+    )
+
+    const closePanel = () => {
+        vm.setSelectedTransaction(null)
+        vm.setSelectedCard("")
+        vm.setConfirmDate("")
     }
 
     return (
         <AppLayout>
-            <div className="min-h-screen bg-background">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
-                    <PageHeader title="Contas a Pagar/Receber" subtitle="Gerencie suas pendências" />
+            <div className="max-w-2xl mx-auto space-y-8 pb-24 md:pb-10">
+                <PageHeader back="/" title="Contas a pagar" subtitle="O que ainda vai sair e entrar" />
 
-                    <div className="space-y-4 mt-6">
-                        {visibleTransactions.length === 0 ? (
-                            <div className="text-center py-12">
-                                <Clock size={48} className="mx-auto text-muted-foreground mb-4" weight="light" />
-                                <p className="text-muted-foreground">Nenhuma pendência encontrada</p>
+                {!vm.isLoaded ? (
+                    <SkeletonRowList count={5} />
+                ) : vm.visibleTransactions.length === 0 ? (
+                    <div className="py-12 text-center space-y-2">
+                        <CalendarCheck size={36} weight="duotone" className="mx-auto text-income" />
+                        <p className="text-sm font-medium text-foreground">Tudo em dia</p>
+                        <p className="text-xs text-muted-foreground">Nenhuma conta esperando pagamento ou recebimento.</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Resumo */}
+                        <section aria-label="Resumo" className="space-y-1">
+                            <div className="flex items-baseline gap-6">
+                                <div>
+                                    <p className="text-xs text-muted-foreground">A pagar</p>
+                                    <p className="text-2xl font-semibold tabular-nums text-foreground">{formatCurrency(summary.toPay)}</p>
+                                </div>
+                                {summary.toReceive > 0 && (
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">A receber</p>
+                                        <p className="text-2xl font-semibold tabular-nums text-income">{formatCurrency(summary.toReceive)}</p>
+                                    </div>
+                                )}
                             </div>
-                        ) : (
-                            visibleTransactions.map((transaction) => {
-                                const category = findCategory(categories, transaction.categoryId)
-                                const isExpense = (category?.type ?? transaction.type) === "expense"
-                                const CategoryIcon = (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || (transaction.categoryId ? PhosphorIcons.Circle : PhosphorIcons.Tag)
-                                const linkedCard = transaction.cardId ? cards.find(c => c.id === transaction.cardId) : null
-                                const totalInst = transaction.installments || 1
-                                const paidInst = transaction.paidInstallments || 0
-                                const currentInst = transaction.currentInstallment || (paidInst + 1)
-                                const isInstallment = totalInst > 1 && transaction.recurrence === 'none'
-                                const installmentLabel = isInstallment ? `${currentInst}/${totalInst}` : transaction.recurrence === "monthly" ? "Mensal" : null
+                            {summary.overdueCount > 0 && (
+                                <p className="text-xs font-medium text-expense">
+                                    {summary.overdueCount === 1 ? "1 conta atrasada" : `${summary.overdueCount} contas atrasadas`}
+                                    {summary.overdueAmount > 0 && ` · ${formatCurrency(summary.overdueAmount)}`}
+                                </p>
+                            )}
+                        </section>
 
-                                return (
-                                    <div key={transaction.id} className="p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors overflow-hidden">
-                                        <div className="flex items-start justify-between gap-2 mb-3">
-                                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
-                                                    {/* @ts-ignore - Dynamic icon component */}
-                                                    <CategoryIcon size={26} weight="duotone" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-semibold text-foreground truncate">{transaction.description}</p>
-                                                    <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                        <p className={cn("text-sm text-muted-foreground truncate max-w-full", !transaction.categoryId && "italic opacity-80")}>{transactionCategoryLabel(categories, transaction)}</p>
-                                                        {installmentLabel && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">{installmentLabel}</span>}
-                                                        {linkedCard && <span className="text-[10px] flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20"><Wallet size={10} weight="fill" />{linkedCard.name}</span>}
-                                                        {transaction.isCasal && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary"><Heart size={11} weight="fill" /></span>}
-                                                    </div>
-                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">Vencimento: {formatDate(transaction.date)}</p>
-                                                </div>
-                                            </div>
-                                            <p className={cn("font-bold text-lg text-text-primary text-right break-words shrink min-w-0 max-w-[45%]")}>{isExpense ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
-                                        </div>
+                        {/* Filtro */}
+                        <div role="radiogroup" aria-label="Filtrar" className="inline-flex rounded-full bg-muted/50 p-0.5 text-xs font-medium">
+                            {FILTERS.map((f) => (
+                                <button
+                                    key={f.id}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={filter === f.id}
+                                    onClick={() => setFilter(f.id)}
+                                    className={cn(
+                                        "rounded-full px-3 py-1 transition-colors",
+                                        filter === f.id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
 
-                                        {selectedTransaction === transaction.id ? (
-                                            <div className="space-y-4 mt-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-2">
-                                                {isInstallment && (
-                                                    <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-[1vw] text-blue-500 text-xs">
-                                                        <Warning size={16} weight="bold" />
-                                                        <p>Isso registrará o pagamento da parcela <b>{currentInst}</b> de <b>{totalInst}</b> e a próxima ficará para o mês seguinte.</p>
+                        {sections.length === 0 && (
+                            <p className="text-sm text-muted-foreground">Nada {filter === "income" ? "a receber" : "a pagar"} por aqui.</p>
+                        )}
+
+                        {sections.map((section) => (
+                            <section key={section.bucket} aria-labelledby={`pending-${section.bucket}`}>
+                                <div className="flex items-baseline justify-between">
+                                    <SectionTitle id={`pending-${section.bucket}`} className={cn(section.bucket === "overdue" && "text-expense")}>
+                                        {section.label}
+                                    </SectionTitle>
+                                    {section.total > 0 && <span className="text-xs tabular-nums text-muted-foreground">{formatCurrency(section.total)}</span>}
+                                </div>
+                                <ul className="mt-2 divide-y divide-border">
+                                    {section.items.map((transaction) => {
+                                        const category = findCategory(vm.categories, transaction.categoryId)
+                                        const isExpense = transaction.type === "expense"
+                                        const CategoryIcon =
+                                            (category?.icon && (PhosphorIcons as any)[category.icon]) || (transaction.categoryId ? PhosphorIcons.Circle : PhosphorIcons.Tag)
+                                        const linkedCard = transaction.cardId ? vm.cards.find((c) => c.id === transaction.cardId) : null
+                                        const totalInst = transaction.installments || 1
+                                        const currentInst = transaction.currentInstallment || (transaction.paidInstallments || 0) + 1
+                                        const isInstallment = totalInst > 1 && transaction.recurrence === "none"
+                                        const isRecurring = !!transaction.recurrence && transaction.recurrence !== "none"
+                                        const open = vm.selectedTransaction === transaction.id
+                                        const overdue = section.bucket === "overdue"
+                                        const meta = [
+                                            transactionCategoryLabel(vm.categories, transaction),
+                                            isInstallment ? `${currentInst}/${totalInst}` : isRecurring ? "mensal" : null,
+                                            linkedCard?.name,
+                                        ].filter(Boolean)
+
+                                        return (
+                                            <li key={transaction.id}>
+                                                <button
+                                                    type="button"
+                                                    aria-expanded={isReadOnly ? undefined : open}
+                                                    disabled={isReadOnly}
+                                                    onClick={() => (open ? closePanel() : vm.handleMarkAsPaid(transaction.id))}
+                                                    className="flex w-full items-center gap-3 py-3 text-left"
+                                                >
+                                                    <CategoryIcon
+                                                        size={22}
+                                                        weight="duotone"
+                                                        className="shrink-0"
+                                                        style={{ color: transactionIconColor(groups, transaction.categoryId, transaction.type) }}
+                                                        aria-hidden
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                                                            <span className="truncate">{transaction.description}</span>
+                                                            {!vm.isCoupleView && transaction.isCasal && <Heart size={11} weight="fill" className="shrink-0 text-primary" aria-label="do casal" />}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground truncate">{meta.join(" · ")}</p>
                                                     </div>
-                                                )}
-                                                <div>
-                                                    <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-2"><CalendarCheck size={16} />Data da baixa (Efetivação)</label>
-                                                    <input type="date" value={confirmDate} onChange={(e) => setConfirmDate(e.target.value)} className="w-full px-4 py-2 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-                                                </div>
-                                                {cards.length > 0 && (
-                                                    <div>
-                                                        <p className="text-sm font-medium text-foreground mb-2">{isExpense ? "Debitar de qual conta?" : "Receber em qual conta?"}</p>
-                                                        <div className="grid grid-cols-1 gap-2">
-                                                            {cards.map((card) => {
-                                                                const BankIcon = getBankIcon(card.bankName)
-                                                                return (
-                                                                    <button key={card.id} type="button" onClick={() => setSelectedCard(card.id)} className={cn("flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all", selectedCard === card.id ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-background hover:bg-muted")}>
-                                                                        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: card.color + "20" }}><BankIcon size={24} color={card.color} weight="fill" /></div>
-                                                                        <div className="flex-1 text-left"><p className="text-sm font-medium text-foreground">{card.name}</p><div className="flex items-center gap-2"><span className="text-[10px] bg-muted px-1 rounded">{card.hasCredit && card.hasDebit ? 'Crédito + Débito' : card.hasCredit ? 'Crédito' : 'Débito'}</span></div></div>
-                                                                    </button>
-                                                                )
-                                                            })}
+                                                    <div className="shrink-0 text-right">
+                                                        <p className={cn("text-sm font-semibold tabular-nums", isExpense ? "text-foreground" : "text-income")}>
+                                                            {isExpense ? "" : "+"}
+                                                            {formatCurrency(transaction.amount)}
+                                                        </p>
+                                                        <p className={cn("text-[11px]", overdue ? "text-expense" : "text-muted-foreground")}>
+                                                            {pendingDueLabel(transaction.date, todayISO)}
+                                                        </p>
+                                                    </div>
+                                                </button>
+
+                                                {open && !isReadOnly && (
+                                                    <div className="space-y-5 pb-5 pl-[34px] animate-in fade-in slide-in-from-top-1 motion-reduce:animate-none">
+                                                        <div className="space-y-2">
+                                                            <FieldLabel>{isExpense ? "Pago quando?" : "Recebido quando?"}</FieldLabel>
+                                                            <DateChips value={vm.confirmDate || todayISO} onChange={vm.setConfirmDate} />
+                                                        </div>
+                                                        {vm.isCoupleView ? (
+                                                            <div className="space-y-2">
+                                                                <FieldLabel hint="Entra no acerto do mês">Quem pagou?</FieldLabel>
+                                                                <ChipRow wrap>
+                                                                    {vm.payers.map((p) => (
+                                                                        <Chip key={p.id} selected={vm.paidBy === p.id} onClick={() => vm.setPaidBy(p.id)}>
+                                                                            {p.name}
+                                                                        </Chip>
+                                                                    ))}
+                                                                </ChipRow>
+                                                            </div>
+                                                        ) : vm.cards.length > 0 && (
+                                                            <div className="space-y-2">
+                                                                <FieldLabel>{isExpense ? "Saiu de qual conta?" : "Entrou em qual conta?"}</FieldLabel>
+                                                                <CardChips cards={vm.cards} value={vm.selectedCard || null} onChange={(id) => vm.setSelectedCard(id ?? "")} wrap />
+                                                            </div>
+                                                        )}
+                                                        {isInstallment && (
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Baixa da parcela {currentInst} de {totalInst}; a próxima fica para o mês seguinte.
+                                                            </p>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={vm.confirmPayment}
+                                                            disabled={vm.isConfirmingPayment}
+                                                            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-foreground py-3 text-sm font-semibold text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                                                        >
+                                                            <Check size={16} weight="bold" />
+                                                            {vm.isConfirmingPayment
+                                                                ? "Confirmando..."
+                                                                : `${isExpense ? "Paguei" : "Recebi"} ${formatCurrency(transaction.amount)}`}
+                                                        </button>
+                                                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium">
+                                                            <button type="button" onClick={() => setEditingTransaction(transaction)} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                                                                <PencilSimple size={14} weight="bold" />
+                                                                Editar
+                                                            </button>
+                                                            <button type="button" onClick={() => vm.setTransactionToCancel(transaction.id)} className="flex items-center gap-1.5 text-muted-foreground hover:text-expense">
+                                                                <SkipForward size={14} weight="bold" />
+                                                                {isRecurring || isInstallment ? "Pular este mês" : "Cancelar conta"}
+                                                            </button>
+                                                            {isRecurring && (
+                                                                <button type="button" onClick={() => vm.setTransactionToCancelRecurrence(transaction.id)} className="flex items-center gap-1.5 text-muted-foreground hover:text-expense">
+                                                                    <Prohibit size={14} weight="bold" />
+                                                                    Encerrar recorrência
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}
-                                                <div className="flex gap-2 pt-2">
-                                                    <Button onClick={() => { setSelectedTransaction(null); setSelectedCard(""); setConfirmDate(""); }} disabled={isConfirmingPayment} variant="outline" className="flex-1">Cancelar</Button>
-                                                    <Button onClick={confirmPayment} disabled={isConfirmingPayment} className="flex-1 text-background"><CheckCircle size={20} weight="bold" className="mr-2" />{isConfirmingPayment ? "Confirmando..." : "Confirmar"}</Button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col gap-2 mt-3">
-                                                <div className="flex gap-2">
-                                                    <Button onClick={() => handleMarkAsPaid(transaction.id)} className={cn("flex-1", isExpense ? "bg-expense hover:bg-expense/90 text-background" : "bg-income hover:bg-income/90 text-background")}>
-                                                        <CheckCircle size={20} weight="bold" className="mr-2 text-background" />{isExpense ? "Pagar" : "Receber"}
-                                                    </Button>
-                                                    <Button onClick={() => setEditingTransaction(transaction)} variant="outline" className="px-3">
-                                                        <Pencil size={18} weight="bold" />
-                                                    </Button>
-                                                    <Button onClick={() => setTransactionToCancel(transaction.id)} variant="outline" className="flex-1 border-expense text-expense hover:bg-expense/10">
-                                                        <XCircle size={20} weight="bold" className="mr-2" />Cancelar este mês
-                                                    </Button>
-                                                </div>
-                                                {transaction.recurrence && transaction.recurrence !== "none" && (
-                                                    <Button
-                                                        onClick={() => setTransactionToCancelRecurrence(transaction.id)}
-                                                        variant="ghost"
-                                                        className="text-xs text-muted-foreground hover:text-expense"
-                                                    >
-                                                        Cancelar toda a recorrência (meses futuros)
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )
-                            })
-                        )}
-                    </div>
-                </div>
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
+                            </section>
+                        ))}
+                    </>
+                )}
             </div>
 
-            <AlertDialog open={!!transactionToCancel} onOpenChange={() => setTransactionToCancel(null)}>
+            <AlertDialog open={!!vm.transactionToCancel} onOpenChange={() => vm.setTransactionToCancel(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Cancelar Transação?</AlertDialogTitle>
-                        <AlertDialogDescription>Tem certeza que deseja cancelar esta transação? Ela será removida das contas a pagar/receber.</AlertDialogDescription>
+                        <AlertDialogTitle>Tirar esta conta das pendências?</AlertDialogTitle>
+                        <AlertDialogDescription>Ela fica cancelada neste mês e não entra nos seus gastos. Se for recorrente, os próximos meses continuam.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Voltar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmCancel} className="bg-destructive text-white hover:bg-destructive/90">Confirmar Cancelamento</AlertDialogAction>
+                        <AlertDialogAction onClick={vm.confirmCancel} className="bg-destructive text-white hover:bg-destructive/90">Tirar</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
-            <AlertDialog open={!!transactionToCancelRecurrence} onOpenChange={() => setTransactionToCancelRecurrence(null)}>
+            <AlertDialog open={!!vm.transactionToCancelRecurrence} onOpenChange={() => vm.setTransactionToCancelRecurrence(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Cancelar toda a recorrência?</AlertDialogTitle>
+                        <AlertDialogTitle>Encerrar a recorrência?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Isso cancela esta e todas as próximas ocorrências (meses futuros), não apenas o mês atual. Meses já pagos não são afetados.
+                            Cancela esta e todas as próximas ocorrências. Meses já pagos não mudam.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Voltar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmCancelRecurrence} className="bg-destructive text-white hover:bg-destructive/90">Confirmar Cancelamento</AlertDialogAction>
+                        <AlertDialogAction onClick={vm.confirmCancelRecurrence} className="bg-destructive text-white hover:bg-destructive/90">Encerrar</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -202,7 +284,7 @@ export function PendingView() {
             <EditTransactionDialog
                 transaction={editingTransaction}
                 onClose={() => setEditingTransaction(null)}
-                onSaved={() => { setEditingTransaction(null); refresh() }}
+                onSaved={() => { setEditingTransaction(null); vm.refresh() }}
             />
         </AppLayout>
     )

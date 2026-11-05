@@ -1,6 +1,6 @@
 "use client"
 
-import { Equals, TrendDown, TrendUp } from "@phosphor-icons/react"
+import { Equals, TrendDown, TrendUp, WarningCircle } from "@phosphor-icons/react"
 import { paceBadge, type PaceStatus } from "@/lib/week"
 import { cn } from "@/lib/utils"
 
@@ -10,17 +10,18 @@ const TONE = {
   good: "bg-income/15 text-foreground",
   neutral: "bg-muted text-muted-foreground",
   over: "bg-amber-400/20 text-foreground",
+  exceeded: "bg-expense/15 text-foreground",
 } as const
 
 // "Acima do ritmo" é atenção (âmbar), não estouro: vermelho fica para quando o
 // limite já passou. Mesma cor da barra do herói (lib/week.ts → heroBarTone).
-const ICON_TONE = { good: "text-positive-ink", neutral: "", over: "text-attention-ink" } as const
+const ICON_TONE = { good: "text-positive-ink", neutral: "", over: "text-attention-ink", exceeded: "text-expense" } as const
 
-const ICON = { good: TrendDown, neutral: Equals, over: TrendUp } as const
+const ICON = { good: TrendDown, neutral: Equals, over: TrendUp, exceeded: WarningCircle } as const
 
 // Selo do ritmo da semana: ícone + texto (nunca só a cor).
-export function PaceBadge({ status, className }: { status: PaceStatus; className?: string }) {
-  const badge = paceBadge(status)
+export function PaceBadge({ status, exceeded = false, className }: { status: PaceStatus; exceeded?: boolean; className?: string }) {
+  const badge = paceBadge(status, exceeded)
   const Icon = ICON[badge.tone]
   return (
     <span

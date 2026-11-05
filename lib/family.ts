@@ -1,4 +1,7 @@
 import { fetchApi } from "./api"
+import type { CoupleSplitMode } from "./couple-split"
+
+export type { CoupleSplitMode }
 
 export type AccountType = "PERSONAL" | "COUPLE"
 
@@ -10,7 +13,7 @@ export interface FamilyMember {
 }
 
 export interface FamilyOverview {
-    family: { id: string; name: string } | null
+    family: { id: string; name: string; coupleSplitMode: CoupleSplitMode } | null
     members: FamilyMember[]
     pendingInvite: { expiresAt: string } | null
 }
@@ -34,6 +37,28 @@ export function acceptFamilyInvite(token: string): Promise<FamilyOverview> {
 
 export function createCoupleAccount(): Promise<FamilyMember> {
     return fetchApi("/family/couple-account", { method: "POST" })
+}
+
+export function updateFamilySettings(settings: { coupleSplitMode: CoupleSplitMode }): Promise<FamilyOverview> {
+    return fetchApi("/family/settings", { method: "PUT", body: JSON.stringify(settings) })
+}
+
+export interface CoupleSettlement {
+    id: string
+    month: string
+    fromUserId: string
+    toUserId: string
+    amount: number
+    createdById: string
+    createdAt: string
+}
+
+export function getCoupleSettlements(month: string): Promise<CoupleSettlement[]> {
+    return fetchApi(`/family/settlements/${month}`)
+}
+
+export function createCoupleSettlement(data: { month: string; fromUserId: string; toUserId: string; amount: number }): Promise<CoupleSettlement> {
+    return fetchApi("/family/settlements", { method: "POST", body: JSON.stringify(data) })
 }
 
 export function getMemberTransactions(memberId: string, query: Record<string, string> = {}) {

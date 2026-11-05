@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { ArrowLeft, CaretDown, Check, PencilSimple, X, ArrowClockwise } from "@phosphor-icons/react"
+import { BackLink } from "@/components/layout/back-link"
 import { AppLayout } from "@/components/layout/app-layout"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
@@ -14,6 +15,7 @@ import { formatMoneyWhole, spentProgress } from "@/lib/plan-layout"
 import { cn } from "@/lib/utils"
 import { useGroupDetailViewModel } from "../hooks/use-group-detail-view-model"
 import { ColorDot, SectionTitle, SpentBar } from "./plan-ui"
+import { AppSelect } from "@/components/ui/app-select"
 
 const COMMITTED_KIND_LABEL: Record<CommittedKind, string> = {
   RECURRING: "Recorrente",
@@ -265,19 +267,15 @@ function GroupSettings({
                     <label htmlFor={`move-${category.categoryId}`} className="flex-1 min-w-0 truncate text-sm text-muted-foreground">
                       {category.name}
                     </label>
-                    <select
+                    <AppSelect
+                      variant="pill"
                       id={`move-${category.categoryId}`}
                       value={group.id}
                       disabled={movingCategoryId === category.categoryId}
-                      onChange={(e) => onMove(category.categoryId, e.target.value)}
-                      className="w-40 px-3 py-1.5 rounded-xl bg-background border border-border text-sm disabled:opacity-60"
-                    >
-                      {groups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => onMove(category.categoryId, v)}
+                      options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                      className="w-40 justify-between"
+                    />
                   </div>
                 ))}
               </li>
@@ -296,10 +294,7 @@ export function GroupDetailView() {
   return (
     <AppLayout showMonthFilter>
       <div className="max-w-2xl mx-auto pb-4">
-        <Link href="/plan" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft size={14} weight="bold" />
-          Planejar mês
-        </Link>
+        <BackLink fallback="/plan" />
 
         {vm.isLoading ? (
           <div className="mt-6 space-y-4" aria-busy>
@@ -384,7 +379,7 @@ export function GroupDetailView() {
 
             {vm.headline && (
               // Fica à vista enquanto se edita: o efeito de cada valor na sobra do mês.
-              <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 pr-[4.75rem] md:bottom-8 md:pr-[5.5rem] xl:pr-0">
+              <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-8 md:pr-[5.5rem] xl:pr-0">
                 <div
                   className={cn(
                     "flex h-14 items-center justify-between gap-3 rounded-full border px-5 text-sm shadow-lg backdrop-blur",

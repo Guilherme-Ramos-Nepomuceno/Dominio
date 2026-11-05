@@ -1,7 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { getCategories, getTransactions, deleteCategory, updateCategory, getSettings } from "@/lib/storage"
+import { getCategories, getTransactions, deleteCategory, updateCategory } from "@/lib/storage"
+import { getPlan } from "@/lib/planning-api"
+import { parseMonthKey } from "@/lib/period"
+import { plannedByCategory } from "@/lib/plan-layout"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { Category } from "@/lib/types"
 
@@ -12,51 +15,30 @@ export function useCategoriesViewModel() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingCategory, setEditingCategory] = useState<Category | null>(null)
     const [filter, setFilter] = useState<"all" | "income" | "expense">("all")
-    const [categoryStats, setCategoryStats] = useState<
-        Record<string, { total: number; count: number; percentage: number }>
-    >({})
-    const [categoryGoals, setCategoryGoals] = useState<any[]>([])
+    const [categoryStats, setCategoryStats] = useState<Record<string, { total: number; count: number }>>({})
+    const [planned, setPlanned] = useState<Record<string, number>>({})
     // Transações do mês sem categoria (as que estão em "A classificar").
     const [uncategorizedStats, setUncategorizedStats] = useState<{ total: number; count: number }>({ total: 0, count: 0 })
 
     const loadCategories = useCallback(async () => {
-        const [allCategories, transactions, settings] = await Promise.all([
-            getCategories(),
-            getTransactions(),
-            getSettings(),
-        ])
+        const [allCategories, transactions] = await Promise.all([getCategories(), getTransactions()])
         setLocalCategories(allCategories)
 
-        const currentCategoryGoals = settings.categoryGoals || []
-        setCategoryGoals(currentCategoryGoals)
         const monthlyTransactions = transactions.filter((t) => isInMonth(t.date))
-        const globalSpendingGoal = settings.spendingGoal || 0
 
-        const stats: Record<string, { total: number; count: number; percentage: number }> = {}
-
+        const stats: Record<string, { total: number; count: number }> = {}
         allCategories.forEach((category) => {
             const categoryTransactions = monthlyTransactions.filter((t) => t.categoryId === category.id)
-            const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0)
-            const goalData = currentCategoryGoals.find((g: any) => g.categoryId === category.id)
-            const goalPercentValue = goalData?.percentage || 0
-
-            let percentage = 0
-
-            if (goalPercentValue > 0 && category.type === "expense") {
-                const allowedAmount = (globalSpendingGoal * goalPercentValue) / 100
-                if (allowedAmount > 0) {
-                    percentage = (total / allowedAmount) * 100
-                } else if (total > 0) {
-                    percentage = 100
-                }
-            }
-
             stats[category.id] = {
-                total,
+                total: categoryTransactions.reduce((sum, t) => sum + t.amount, 0),
                 count: categoryTransactions.length,
-                percentage,
             }
         })
+
+        // Planejado de cada categoria vem do plano do mês (não mais da meta das configurações).
+        const { year, month } = parseMonthKey(selectedMonth)
+        const plan = await getPlan(year, month).catch(() => null)
+        setPlanned(plan ? plannedByCategory(plan) : {})
 
         setCategoryStats(stats)
 
@@ -118,7 +100,7 @@ export function useCategoriesViewModel() {
         setFilter,
         categoryStats,
         uncategorizedStats,
-        categoryGoals,
+        planned,
         loadCategories,
         handleDelete,
         handleSaveEdit,

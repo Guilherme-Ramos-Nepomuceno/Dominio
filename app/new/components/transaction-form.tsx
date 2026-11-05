@@ -19,7 +19,8 @@ import {
   ArrowsLeftRight,
 } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
-import { addTransaction, getCategories, getCards, getMemberCardsMapped, getTransactions, getSavingsGoals, applySavingsGoalDelta, ensureSystemCategory } from "@/lib/storage"
+import { addTransaction, getCategories, getCards, getMemberCardsMapped, getTransactions, getSavingsGoals, applySavingsGoalDelta, ensureSystemCategory, suggestCategory } from "@/lib/storage"
+import { CardChips, CategoryChip, Chip, ChipRow, DateChips, FieldLabel, PaymentMethodToggle } from "@/components/transaction-inputs/transaction-inputs"
 import { transferToFamilyMember } from "@/lib/family"
 import type { Category, Card, SavingsGoal, TransactionType, RecurrenceType } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,7 @@ import { useToast } from "@/hooks/use-toast"
 import { trackEvent } from "@/lib/events"
 import { setLastUsedCardId } from "@/lib/preferences"
 import { amountToCents, parseNewTransactionPrefill } from "@/lib/quick-add"
+import { AppSelect } from "@/components/ui/app-select"
 
 // Categorias "de sistema" usadas quando a transação vem do fluxo de uma Reserva:
 // despesa sempre aporta (Investimento), receita sempre saca (Saque) — nesse fluxo
@@ -109,6 +111,24 @@ export function TransactionForm() {
   const [memberCards, setMemberCards] = useState<Card[]>([])
 
   const filteredCategories = categories.filter((cat) => cat.type === type)
+  // As mais registradas primeiro (mesma ordem das pílulas do registro rápido).
+  const [frequent, setFrequent] = useState<string[]>([])
+  useEffect(() => {
+    let cancelled = false
+    suggestCategory("", type)
+      .then((r) => !cancelled && setFrequent(r.frequent))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [type])
+  const rankOf = (id: string) => {
+    const i = frequent.indexOf(id)
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i
+  }
+  const orderedCategories = filteredCategories
+    .slice()
+    .sort((a, b) => rankOf(a.id) - rankOf(b.id) || a.name.localeCompare(b.name, "pt-BR"))
 
   // Comparação de datas (apenas strings YYYY-MM-DD para evitar erro de fuso na UI)
   const todayStr = new Date().toLocaleDateString("sv-SE") // Hack confiável para YYYY-MM-DD local
@@ -388,81 +408,39 @@ export function TransactionForm() {
     (!isComboCard || !!paymentMethod) &&
     (!isFamilyTransfer || (!!toMemberId && !!toCardId))
 
-  const renderCardOptions = (cardList: Card[]) =>
-    cardList.map((card) => {
-      const BankIcon = getBankIcon(card.bankName)
-      return (
-        <button
-          key={card.id}
-          type="button"
-          onClick={() => setCardId(cardId === card.id ? "" : card.id)}
-          className={cn(
-            "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
-            cardId === card.id
-              ? "border-primary bg-primary/5 shadow-sm"
-              : "border-border bg-card hover:bg-muted",
-          )}
-        >
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: card.color + "20" }}
-          >
-            <BankIcon size={24} color={card.color} weight="fill" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-medium text-foreground">{card.name}</p>
-            <p className="text-xs text-muted-foreground">
-              •••• {card.lastDigits} {card.hasCredit && card.hasDebit ? " • Crédito + Débito" : card.hasCredit ? " • Crédito" : ""}
-            </p>
-          </div>
-        </button>
-      )
-    })
+  const renderCardOptions = (cardList: Card[]) => (
+    <CardChips cards={cardList} value={cardId || null} onChange={(id) => setCardId(id ?? "")} wrap />
+  )
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Type Toggle */}
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            // Categoria escolhida é de um tipo só — trocar o tipo desmarca.
-            if (type !== "expense" && !isReserveShortcut) setCategoryId("")
-            setType("expense")
-          }}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-semibold transition-all",
-            type === "expense"
-              ? "bg-expense text-white shadow-lg"
-              : "bg-card text-muted-foreground border border-border hover:bg-muted",
-          )}
-        >
-          <ArrowDownIcon weight="bold" size={20} />
-          Despesa
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            // Categoria escolhida é de um tipo só — trocar o tipo desmarca.
-            if (type !== "income" && !isReserveShortcut) setCategoryId("")
-            setType("income")
-          }}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-semibold transition-all",
-            type === "income"
-              ? "bg-income text-white shadow-lg"
-              : "bg-card text-muted-foreground border border-border hover:bg-muted",
-          )}
-        >
-          <ArrowUpIcon weight="bold" size={20} />
-          Receita
-        </button>
+      {/* Despesa / receita */}
+      <div role="radiogroup" aria-label="Tipo" className="inline-flex rounded-full bg-muted/50 p-0.5 text-sm font-semibold">
+        {(["expense", "income"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="radio"
+            aria-checked={type === t}
+            onClick={() => {
+              // Categoria escolhida é de um tipo só — trocar o tipo desmarca.
+              if (type !== t && !isReserveShortcut) setCategoryId("")
+              setType(t)
+            }}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-4 py-1.5 transition-colors",
+              type === t ? (t === "income" ? "bg-income text-white" : "bg-expense text-white") : "text-muted-foreground",
+            )}
+          >
+            {t === "income" ? <ArrowUpIcon weight="bold" size={14} /> : <ArrowDownIcon weight="bold" size={14} />}
+            {t === "income" ? "Receita" : "Despesa"}
+          </button>
+        ))}
       </div>
 
       {/* BLOCO DE AVISO - Se não tiver conta para receber */}
       {showIncomeWarning ? (
-        <div className="flex flex-col items-center justify-center py-8 px-4 text-center space-y-6 bg-card border border-border rounded-[20px]">
+        <div className="flex flex-col items-center justify-center py-8 px-4 text-center space-y-6">
           <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center">
             <WarningCircle size={32} className="text-warning" weight="duotone" />
 
@@ -496,80 +474,56 @@ export function TransactionForm() {
       ) : (
         /* Renderiza o formulário normal se tiver cartão ou for despesa */
         <>
-          {/* Description */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              <TagIcon size={16} weight="bold" />
-              Descrição
+          {/* Valor em destaque, descrição embaixo */}
+          <div className="space-y-3">
+            <label className="block">
+              <span className="sr-only">Valor</span>
+              <span className="flex items-baseline gap-2 border-b border-border pb-2 focus-within:border-foreground">
+                <span className="text-2xl font-semibold text-muted-foreground">R$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => handleAmountChange(e.target.value)}
+                  placeholder="0,00"
+                  className="w-full min-w-0 bg-transparent text-4xl font-semibold tabular-nums tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+                  required
+                />
+              </span>
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex: Almoço, Salário, Conta de luz..."
-              className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Descrição (ex: almoço, conta de luz)"
+              aria-label="Descrição"
+              className="w-full px-4 py-3 rounded-xl bg-muted/40 border border-transparent text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
-          </div>
-
-          {/* Amount */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Valor</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => handleAmountChange(e.target.value)}
-                placeholder="0,00"
-                className="w-full pl-12 pr-4 py-3 rounded-[1vw] bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-lg font-semibold"
-                required
-              />
-            </div>
           </div>
 
           {/* Category — escondida no fluxo de Reserva, onde é implícita pelo tipo */}
           {!isReserveShortcut && (
             <div className="space-y-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <label className="text-sm font-medium text-foreground">Categoria</label>
-                <span className="text-xs text-muted-foreground">
-                  {categoryId ? "Toque de novo para desmarcar" : "Opcional — sem categoria vai para A classificar"}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {filteredCategories.map((category) => {
-                  const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => {
-                        if (categoryId === category.id) {
-                          setCategoryId("")
-                          setSelectedGoalId("")
-                          return
-                        }
-                        setCategoryId(category.id)
-                        if (category.name !== "Investimento" && category.name !== "Saque") setSelectedGoalId("")
-                      }}
-                      className={cn(
-                        "flex items-center gap-3 p-4 rounded-[1vw] border transition-all",
-                        categoryId === category.id
-                          ? "border-primary bg-primary/10 shadow-sm"
-                          : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
-                      )}
-                    >
-                      <div className="w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground">
-                        {/* @ts-ignore - Dynamic icon component */}
-                        <CategoryIcon size={22} weight="duotone" />
-                      </div>
-                      <span className="text-sm font-medium text-foreground">{category.name}</span>
-                    </button>
-                  )
-                })}
-              </div>
+              <FieldLabel hint={categoryId ? "Toque de novo para desmarcar" : "Opcional, sem categoria vai para A classificar"}>Categoria</FieldLabel>
+              <ChipRow wrap>
+                {orderedCategories.map((category) => (
+                  <CategoryChip
+                    key={category.id}
+                    category={category}
+                    selected={categoryId === category.id}
+                    onClick={() => {
+                      if (categoryId === category.id) {
+                        setCategoryId("")
+                        setSelectedGoalId("")
+                        return
+                      }
+                      setCategoryId(category.id)
+                      if (category.name !== "Investimento" && category.name !== "Saque") setSelectedGoalId("")
+                    }}
+                  />
+                ))}
+              </ChipRow>
             </div>
           )}
 
@@ -581,13 +535,10 @@ export function TransactionForm() {
               type="button"
               onClick={() => setIsCasal(!isCasal)}
               className={cn(
-                "w-full flex items-center gap-3 p-4 rounded-[1vw] border transition-all text-left",
-                isCasal
-                  ? "border-primary bg-primary/10"
-                  : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
+                "w-full flex items-center gap-3 py-3 border-y border-border text-left",
               )}
             >
-              <div className={cn("w-10 h-10 flex items-center justify-center shrink-0 rounded-lg", isCasal ? "text-primary" : "text-muted-foreground")}>
+              <div className={cn("flex items-center justify-center shrink-0", isCasal ? "text-primary" : "text-muted-foreground")}>
                 <Heart size={22} weight={isCasal ? "fill" : "duotone"} />
               </div>
               <div className="flex-1">
@@ -603,28 +554,20 @@ export function TransactionForm() {
           {/* Reserva (categoria Investimento/Saque) */}
           {isReserveCategory && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <PiggyBank size={16} weight="bold" />
-                Reserva
-              </label>
+              <FieldLabel>Reserva</FieldLabel>
               {isReserveShortcut && (
                 <p className="text-xs text-muted-foreground">
                   Categoria aplicada automaticamente: {type === "expense" ? "Investimento" : "Saque"}
                 </p>
               )}
-              <select
+              <AppSelect
+                aria-label="Reserva"
                 value={selectedGoalId}
-                onChange={(e) => setSelectedGoalId(e.target.value)}
-                className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={setSelectedGoalId}
+                placeholder="Selecione a reserva..."
+                options={goals.map((goal) => ({ value: goal.id, label: goal.name }))}
                 required
-              >
-                <option value="">Selecione a reserva...</option>
-                {goals.map((goal) => (
-                  <option key={goal.id} value={goal.id}>
-                    {goal.name}
-                  </option>
-                ))}
-              </select>
+              />
               {goals.length === 0 && (
                 <p className="text-xs text-muted-foreground">Nenhuma reserva cadastrada ainda.</p>
               )}
@@ -635,46 +578,31 @@ export function TransactionForm() {
           {isReserveCategory ? (
             selectedGoal && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <WalletIcon size={16} weight="bold" />
-                  Conta/Cartão
-                </label>
+                <FieldLabel>Conta</FieldLabel>
                 {linkedGoalCard ? (
-                  <div className="flex items-center gap-3 p-3 rounded-[1vw] border-2 border-primary bg-primary/5">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: linkedGoalCard.color + "20" }}
-                    >
-                      {(() => {
-                        const BankIcon = getBankIcon(linkedGoalCard.bankName)
-                        return <BankIcon size={24} color={linkedGoalCard.color} weight="fill" />
-                      })()}
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-foreground">{linkedGoalCard.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        •••• {linkedGoalCard.lastDigits} • Vinculado à reserva
-                      </p>
-                    </div>
-                  </div>
+                  <p className="flex items-center gap-2 text-sm text-foreground">
+                    {(() => {
+                      const BankIcon = getBankIcon(linkedGoalCard.bankName)
+                      return <BankIcon size={16} color={linkedGoalCard.color} weight="fill" />
+                    })()}
+                    {linkedGoalCard.name}
+                    <span className="text-muted-foreground">· vinculada à reserva</span>
+                  </p>
                 ) : (
-                  <div className="grid grid-cols-1 gap-2">
-                    {renderCardOptions(cards.filter((c) => type === "expense" || c.hasDebit))}
-                  </div>
+                  renderCardOptions(cards.filter((c) => type === "expense" || c.hasDebit))
                 )}
               </div>
             )
           ) : (
             cards.length > 0 && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <WalletIcon size={16} weight="bold" />
-                  {isFamilyTransfer ? "De qual conta (minha)?" : "Conta/Cartão"}
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {/* Se for Receita ou transferência p/ parceiro, só cartões de débito. Se for Despesa comum, mostra todos */}
-                  {renderCardOptions(cards.filter((c) => (type === "expense" && !isFamilyTransfer) || c.hasDebit))}
-                </div>
+                <FieldLabel
+                  hint={isComboCard ? <PaymentMethodToggle value={paymentMethod as "credit" | "debit" | undefined} onChange={setPaymentMethod} /> : undefined}
+                >
+                  {isFamilyTransfer ? "De qual conta (minha)?" : "Conta"}
+                </FieldLabel>
+                {/* Receita ou transferência p/ parceiro: só contas com débito. Despesa comum: todas */}
+                {renderCardOptions(cards.filter((c) => (type === "expense" && !isFamilyTransfer) || c.hasDebit))}
               </div>
             )
           )}
@@ -687,13 +615,10 @@ export function TransactionForm() {
               type="button"
               onClick={() => setIsFamilyTransfer(!isFamilyTransfer)}
               className={cn(
-                "w-full flex items-center gap-3 p-4 rounded-[1vw] border transition-all text-left",
-                isFamilyTransfer
-                  ? "border-primary bg-primary/10"
-                  : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
+                "w-full flex items-center gap-3 py-3 border-y border-border text-left",
               )}
             >
-              <div className={cn("w-10 h-10 flex items-center justify-center shrink-0 rounded-lg", isFamilyTransfer ? "text-primary" : "text-muted-foreground")}>
+              <div className={cn("flex items-center justify-center shrink-0", isFamilyTransfer ? "text-primary" : "text-muted-foreground")}>
                 <ArrowsLeftRight size={22} weight={isFamilyTransfer ? "fill" : "duotone"} />
               </div>
               <div className="flex-1">
@@ -714,101 +639,26 @@ export function TransactionForm() {
             <div className="space-y-4">
               {familyMembers.length > 1 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Para qual parceiro?</label>
-                  <div className="grid grid-cols-1 gap-2">
+                  <FieldLabel>Para qual parceiro?</FieldLabel>
+                  <ChipRow wrap>
                     {familyMembers.map((member) => (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={() => setToMemberId(member.id)}
-                        className={cn(
-                          "p-3 rounded-[1vw] border-2 text-left text-sm font-medium transition-all",
-                          toMemberId === member.id ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted",
-                        )}
-                      >
+                      <Chip key={member.id} selected={toMemberId === member.id} onClick={() => setToMemberId(member.id)}>
                         {member.name || member.email}
-                      </button>
+                      </Chip>
                     ))}
-                  </div>
+                  </ChipRow>
                 </div>
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <WalletIcon size={16} weight="bold" />
-                  Conta de destino
-                </label>
+                <FieldLabel>Conta de destino</FieldLabel>
                 {memberCards.length === 0 ? (
-                  <p className="text-xs text-muted-foreground p-3 rounded-[1vw] border border-dashed border-border">
+                  <p className="text-xs text-muted-foreground">
                     Essa pessoa ainda não tem uma conta de débito cadastrada.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 gap-2">
-                    {memberCards.map((card) => {
-                      const BankIcon = getBankIcon(card.bankName)
-                      return (
-                        <button
-                          key={card.id}
-                          type="button"
-                          onClick={() => setToCardId(toCardId === card.id ? "" : card.id)}
-                          className={cn(
-                            "flex items-center gap-3 p-3 rounded-[1vw] border-2 transition-all",
-                            toCardId === card.id
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border bg-card hover:bg-muted",
-                          )}
-                        >
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center"
-                            style={{ backgroundColor: card.color + "20" }}
-                          >
-                            <BankIcon size={24} color={card.color} weight="fill" />
-                          </div>
-                          <div className="flex-1 text-left">
-                            <p className="text-sm font-medium text-foreground">{card.name}</p>
-                            <p className="text-xs text-muted-foreground">•••• {card.lastDigits}</p>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <CardChips cards={memberCards} value={toCardId || null} onChange={(id) => setToCardId(id ?? "")} wrap />
                 )}
-              </div>
-            </div>
-          )}
-
-          {/* Cartão combinado (crédito + débito): pergunta de que lado é essa transação */}
-          {isComboCard && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <CreditCardIcon size={16} weight="bold" />
-                Essa transação é no crédito ou no débito?
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("debit")}
-                  className={cn(
-                    "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                    paymentMethod === "debit"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card text-muted-foreground",
-                  )}
-                >
-                  Débito
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("credit")}
-                  className={cn(
-                    "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                    paymentMethod === "credit"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card text-muted-foreground",
-                  )}
-                >
-                  Crédito
-                </button>
               </div>
             </div>
           )}
@@ -817,94 +667,83 @@ export function TransactionForm() {
               parceiro (sempre um lançamento único e imediato, igual à página /transfer). */}
           {!isFamilyTransfer && (
             <>
-          {/* Date */}
+          {/* Data */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              <CalendarIcon size={16} weight="bold" />
-              Data
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="block w-full min-w-0 max-w-full box-border appearance-none px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
+            <FieldLabel>Quando</FieldLabel>
+            <DateChips value={date} onChange={setDate} />
           </div>
 
-          {/* Recurrence + Installments */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className={cn("space-y-2", recurrence !== "none" && "col-span-2")}>
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <RepeatIcon size={16} weight="bold" />
-                Recorrência
-              </label>
-              <select
-                value={recurrence}
-                onChange={(e) => {
-                  const val = e.target.value as RecurrenceType;
-                  setRecurrence(val)
-                  if (val !== 'none') {
-                    setInstallments("1") // Reseta parcelas se for recorrente
-                  }
-                }}
-                className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {recurrenceOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Repetição e parcelas */}
+          <div className="space-y-2">
+            <FieldLabel>Repete?</FieldLabel>
+            <ChipRow wrap>
+              {recurrenceOptions.map((option) => (
+                <Chip
+                  key={option.value}
+                  selected={recurrence === option.value}
+                  onClick={() => {
+                    setRecurrence(option.value)
+                    if (option.value !== "none") setInstallments("1") // recorrente não parcela
+                  }}
+                >
+                  {option.value === "none" ? "Não repete" : option.label}
+                </Chip>
+              ))}
+            </ChipRow>
+          </div>
 
-            {/* Installments (only for non-recurring) */}
-            {recurrence === "none" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <CreditCardIcon size={16} weight="bold" />
-                  Parcelas
-                </label>
+          {recurrence === "none" && (
+            <div className="space-y-2">
+              <FieldLabel hint={Number.parseInt(installments) > 1 ? `${installments}x de ${formatCurrency(parseCurrencyInput(amount) / Number.parseInt(installments) || 0)}` : undefined}>
+                Parcelas
+              </FieldLabel>
+              <div className="inline-flex items-center rounded-full bg-muted/50">
+                <button
+                  type="button"
+                  onClick={() => setInstallments(String(Math.max(1, (Number.parseInt(installments) || 1) - 1)))}
+                  className="h-9 w-10 text-lg text-muted-foreground hover:text-foreground"
+                  aria-label="Menos uma parcela"
+                >
+                  −
+                </button>
                 <input
                   type="number"
                   min="1"
                   max="60"
                   value={installments}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setInstallments(val)
-                    if (Number(val) > 1) {
-                      setRecurrence("none") // Redundante pois o campo some, mas for safety
-                    }
-                  }}
-                  className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  onChange={(e) => setInstallments(e.target.value)}
+                  aria-label="Parcelas"
+                  className="w-12 bg-transparent text-center text-sm font-semibold tabular-nums text-foreground focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 />
+                <button
+                  type="button"
+                  onClick={() => setInstallments(String(Math.min(60, (Number.parseInt(installments) || 1) + 1)))}
+                  className="h-9 w-10 text-lg text-muted-foreground hover:text-foreground"
+                  aria-label="Mais uma parcela"
+                >
+                  +
+                </button>
               </div>
-            )}
-          </div>
-          {recurrence === "none" && Number.parseInt(installments) > 1 && (
-            <p className="text-xs text-muted-foreground -mt-4">
-              {installments}x de {formatCurrency(parseCurrencyInput(amount) / Number.parseInt(installments) || 0)}
-            </p>
+            </div>
           )}
             </>
           )}
 
           {(isFutureTransaction || isCreditCard) && (
-            <div className="p-4 rounded-[1vw] bg-primary/10 border border-primary/20">
-              <p className="text-sm text-primary font-medium">
-                {isCreditCard
-                  ? "Compra no crédito: Será registrada como fatura pendente e não afetará seu saldo até o pagamento da fatura."
-                  : "Transação futura: Será registrada como pendente e não afetará seu saldo até ser marcada como paga."}
-              </p>
-            </div>
+            <p className="flex items-start gap-2 text-xs text-muted-foreground">
+              <PhosphorIcons.Info size={14} weight="bold" className="mt-0.5 shrink-0" aria-hidden />
+              {isCreditCard
+                ? "No crédito: entra na fatura e só sai do saldo quando a fatura for paga."
+                : "Data futura: fica pendente e só sai do saldo quando for marcada como paga."}
+            </p>
           )}
 
           {/* Submit Button */}
           <div className="flex gap-2 sm:gap-3 pt-4 pb-4 md:pb-0">
             <Button
               type="button"
-              className="flex-1 min-w-0 h-12 px-2 sm:px-4 rounded-[1vw] bg-background text-foreground hover:bg-background/70 truncate"
+              variant="ghost"
+              className="flex-1 min-w-0 h-12 px-2 sm:px-4 rounded-2xl text-muted-foreground truncate"
               onClick={() => {
                 toast({ title: "Operação cancelada", description: "O lançamento não foi salvo.", variant: "default" })
                 router.push("/")
@@ -916,13 +755,13 @@ export function TransactionForm() {
               type="submit"
               disabled={isSubmitting || !isFormValid}
               className={cn(
-                "flex-1 min-w-0 h-12 px-2 sm:px-4 rounded-[1vw] font-semibold truncate",
+                "flex-1 min-w-0 h-12 px-2 sm:px-4 rounded-2xl font-semibold truncate",
                 isFormValid
                   ? "text-background disabled:opacity-60"
                   : "bg-muted text-muted-foreground hover:bg-muted disabled:opacity-100 cursor-not-allowed",
               )}
             >
-              {isSubmitting ? "Salvando..." : "Salvar Transação"}
+              {isSubmitting ? "Salvando..." : type === "income" ? "Salvar receita" : "Salvar despesa"}
             </Button>
           </div>
         </>

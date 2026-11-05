@@ -1,9 +1,11 @@
 "use client"
 
-import { CaretDown, CheckCircle, Sparkle, Confetti, ArrowClockwise } from "@phosphor-icons/react"
+import { CaretDown, Check, Sparkle, Confetti, ArrowClockwise } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
+import { CategoryIcon } from "@/app/cards/components/import-review/category-icon"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { inboxGroupKey, inboxGroupType, isSuggestionValid, selectableCategories } from "@/lib/inbox"
 import { cn } from "@/lib/utils"
@@ -22,33 +24,17 @@ export function InboxView() {
   const subtitle = vm.isLoading
     ? "Carregando..."
     : vm.total > 0
-      ? `${vm.total} ${vm.total === 1 ? "transação sem categoria" : "transações sem categoria"}, agrupadas por estabelecimento`
+      ? `${vm.total} ${vm.total === 1 ? "transação sem categoria" : "transações sem categoria"}`
       : "Transações sem categoria aparecem aqui"
 
   return (
     <AppLayout>
-      <PageHeader
-        title="A classificar"
-        subtitle={subtitle}
-        action={
-          vm.suggestedCount > 0 && !vm.isReadOnly ? (
-            <button
-              type="button"
-              onClick={vm.acceptAllSuggestions}
-              disabled={vm.isAcceptingAll || !!vm.busyGroupKey}
-              className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-background text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              <Sparkle size={16} weight="fill" />
-              {vm.isAcceptingAll ? "Aplicando..." : `Aceitar todas as sugestões (${vm.suggestedCount})`}
-            </button>
-          ) : undefined
-        }
-      />
+      <PageHeader back="/" title="A classificar" subtitle={subtitle} />
 
       {vm.isLoading ? (
         <SkeletonRowList count={4} />
       ) : vm.loadError ? (
-        <div className="rounded-[20px] bg-card p-8 text-center border border-border/50 space-y-3">
+        <div className="py-12 text-center space-y-3">
           <p className="text-sm text-muted-foreground">Não foi possível carregar a caixa de entrada agora.</p>
           <button
             type="button"
@@ -60,119 +46,135 @@ export function InboxView() {
           </button>
         </div>
       ) : vm.groups.length === 0 ? (
-        <div className="rounded-[20px] bg-card p-10 text-center border border-border/50">
-          <div className="inline-flex p-4 rounded-full bg-income/10 mb-4">
-            <Confetti size={36} weight="duotone" className="text-income" />
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-1">Tudo classificado</h3>
+        <div className="py-12 text-center space-y-2">
+          <Confetti size={40} weight="duotone" className="mx-auto text-positive-ink" />
+          <h2 className="text-lg font-semibold text-foreground">Tudo classificado</h2>
           <p className="text-sm text-muted-foreground">Nenhuma transação esperando categoria. Bom trabalho!</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {/* No celular o "aceitar todas" fica no topo da lista, largura cheia */}
-          {vm.suggestedCount > 0 && !vm.isReadOnly && (
-            <button
-              type="button"
-              onClick={vm.acceptAllSuggestions}
-              disabled={vm.isAcceptingAll || !!vm.busyGroupKey}
-              className="md:hidden w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary text-background text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              <Sparkle size={16} weight="fill" />
-              {vm.isAcceptingAll ? "Aplicando..." : `Aceitar todas as sugestões (${vm.suggestedCount})`}
-            </button>
+        // Página corrida, no desenho do Planejar: uma lista com divisórias, sem
+        // um cartão em volta de cada grupo. Classificar é um toque: aceitar a
+        // sugestão, ou escolher na lista (que já classifica).
+        <div className="max-w-2xl mx-auto space-y-6">
+          {vm.suggestedCount > 1 && !vm.isReadOnly && (
+            <div className="flex items-center gap-3 rounded-2xl bg-muted/60 px-4 py-3">
+              <Sparkle size={18} weight="fill" className="shrink-0 text-primary/80" aria-hidden />
+              <p className="flex-1 min-w-0 text-sm text-foreground">
+                <span className="font-semibold">{vm.suggestedCount} grupos</span>
+                <span className="text-muted-foreground"> já têm sugestão</span>
+              </p>
+              <button
+                type="button"
+                onClick={vm.acceptAllSuggestions}
+                disabled={vm.isAcceptingAll || !!vm.busyGroupKey}
+                className="shrink-0 rounded-full bg-primary px-3.5 py-1.5 text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {vm.isAcceptingAll ? "Aplicando..." : "Aceitar todas"}
+              </button>
+            </div>
           )}
 
-          {vm.groups.map((group) => {
-            const key = inboxGroupKey(group)
-            const selectedId = vm.selections[key] ?? null
-            const isExpanded = vm.expanded.has(key)
-            const isBusy = vm.busyGroupKey === key
-            const groupType = inboxGroupType(group)
-            // Sugestão de tipo diferente do grupo não aparece (o backend recusaria).
-            const suggestedCategory = isSuggestionValid(group, vm.categories)
-              ? vm.categories.find((c) => c.id === group.suggestion!.categoryId)
-              : undefined
-            const usingSuggestion = !!suggestedCategory && selectedId === suggestedCategory.id
+          <section aria-labelledby="inbox-list-title">
+            <SectionTitle id="inbox-list-title">
+              {vm.groups.length === 1 ? "1 estabelecimento" : `${vm.groups.length} estabelecimentos`}
+            </SectionTitle>
+            <ul className="mt-1 divide-y divide-border">
+              {vm.groups.map((group) => {
+                const key = inboxGroupKey(group)
+                const isExpanded = vm.expanded.has(key)
+                const isBusy = vm.busyGroupKey === key
+                const locked = vm.isAcceptingAll || !!vm.busyGroupKey
+                const groupType = inboxGroupType(group)
+                const options = selectableCategories(vm.categories, groupType)
+                // Sugestão de tipo diferente do grupo não aparece (o backend recusaria).
+                const suggestedCategory = isSuggestionValid(group, vm.categories)
+                  ? vm.categories.find((c) => c.id === group.suggestion!.categoryId)
+                  : undefined
+                const confidence = group.suggestion?.confidence ? CONFIDENCE_LABEL[group.suggestion.confidence] : undefined
+                // Uma transação só: a data já fica na linha, sem precisar abrir.
+                const single = group.count === 1 ? group.transactions[0] : undefined
 
-            return (
-              <div key={key} className="rounded-[20px] bg-card border border-border/50 p-4 space-y-3">
-                <button
-                  type="button"
-                  onClick={() => vm.toggleExpanded(group)}
-                  className="w-full flex items-start gap-3 text-left"
-                  aria-expanded={isExpanded}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground truncate">{group.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {group.count} {group.count === 1 ? "transação" : "transações"}
-                    </p>
-                  </div>
-                  <p
-                    className={cn(
-                      "font-bold text-sm tabular-nums shrink-0",
-                      groupType === "income" ? "text-income" : "text-foreground",
-                    )}
-                  >
-                    {formatCurrency(group.totalAmount)}
-                  </p>
-                  <CaretDown
-                    size={16}
-                    weight="bold"
-                    className={cn("text-muted-foreground shrink-0 mt-0.5 transition-transform", isExpanded && "rotate-180")}
-                  />
-                </button>
-
-                {suggestedCategory && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Sparkle size={12} weight="fill" className="text-primary/70" />
-                    Sugestão: <span className="font-medium text-foreground">{suggestedCategory.name}</span>
-                    {group.suggestion?.confidence && CONFIDENCE_LABEL[group.suggestion.confidence] && (
-                      <span>· {CONFIDENCE_LABEL[group.suggestion.confidence]}</span>
-                    )}
-                  </p>
-                )}
-
-                {!vm.isReadOnly && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="flex-1 min-w-0">
-                      <InboxCategorySelect
-                        categories={selectableCategories(vm.categories, groupType)}
-                        value={selectedId}
-                        onChange={(id) => vm.selectCategory(group, id)}
-                        disabled={isBusy || vm.isAcceptingAll}
-                      />
+                return (
+                  <li key={key} className={cn("py-4 transition-opacity", isBusy && "opacity-60")}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground truncate">{group.label}</p>
+                        {single ? (
+                          <p className="text-xs text-muted-foreground">{formatDate(single.date)}</p>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => vm.toggleExpanded(group)}
+                            aria-expanded={isExpanded}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {group.count} transações
+                            <CaretDown size={10} weight="bold" className={cn("transition-transform", isExpanded && "rotate-180")} aria-hidden />
+                          </button>
+                        )}
+                      </div>
+                      <p className={cn("font-semibold tabular-nums shrink-0", groupType === "income" ? "text-income" : "text-foreground")}>
+                        {groupType === "income" ? "+ " : ""}
+                        {formatCurrency(group.totalAmount)}
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => vm.categorizeGroup(group)}
-                      disabled={!selectedId || isBusy || vm.isAcceptingAll || !!vm.busyGroupKey}
-                      className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-background text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40 shrink-0"
-                    >
-                      <CheckCircle size={16} weight="bold" />
-                      {isBusy ? "Classificando..." : usingSuggestion ? "Aceitar sugestão" : "Classificar grupo"}
-                    </button>
-                  </div>
-                )}
 
-                {isExpanded && (
-                  <ul className="divide-y divide-border/50 border-t border-border/50 pt-1">
-                    {group.transactions.map((t) => (
-                      <li key={t.id} className="flex items-center gap-3 py-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-foreground truncate">{t.description}</p>
-                          <p className="text-xs text-muted-foreground">{formatDate(t.date)}</p>
-                        </div>
-                        <p className={cn("text-sm font-semibold tabular-nums shrink-0", t.type === "income" ? "text-income" : "text-foreground")}>
-                          {t.type === "income" ? "+" : "-"} {formatCurrency(t.amount)}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )
-          })}
+                    {isExpanded && !single && (
+                      <ul className="mt-2 space-y-1.5 border-l-2 border-border pl-3">
+                        {group.transactions.map((t) => (
+                          <li key={t.id} className="flex items-center gap-3 text-xs">
+                            <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                              {formatDate(t.date)} · {t.description}
+                            </span>
+                            <span className="tabular-nums text-foreground shrink-0">{formatCurrency(t.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {!vm.isReadOnly && (
+                      <div className="mt-3">
+                        {suggestedCategory ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => vm.categorizeGroup(group, suggestedCategory.id)}
+                              disabled={locked}
+                              title={confidence ? `Sugestão com ${confidence}` : "Sugestão"}
+                              className="inline-flex min-w-0 items-center gap-2 rounded-full border border-border py-1.5 pl-2 pr-3 text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                            >
+                              <CategoryIcon category={suggestedCategory} size="sm" />
+                              <span className="truncate font-medium">{suggestedCategory.name}</span>
+                              <span className="inline-flex shrink-0 items-center gap-1 border-l border-border pl-2 font-semibold">
+                                <Check size={14} weight="bold" aria-hidden />
+                                {isBusy ? "Classificando..." : "Aceitar"}
+                              </span>
+                            </button>
+                            <InboxCategorySelect
+                              variant="link"
+                              label="Outra"
+                              categories={options}
+                              value={null}
+                              onChange={(id) => id && vm.categorizeGroup(group, id)}
+                              disabled={locked}
+                            />
+                          </div>
+                        ) : (
+                          <InboxCategorySelect
+                            categories={options}
+                            value={null}
+                            label={isBusy ? "Classificando..." : "Escolher categoria"}
+                            onChange={(id) => id && vm.categorizeGroup(group, id)}
+                            disabled={locked}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
         </div>
       )}
     </AppLayout>

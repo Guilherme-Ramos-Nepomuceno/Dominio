@@ -22,11 +22,15 @@ export function NotificationCenter() {
     const [isOpen, setIsOpen] = useState(false)
     const [hasUnread, setHasUnread] = useState(false)
 
-    // usePendingSummary só traz o que já venceu ou vence hoje (não pendências futuras).
+    // usePendingSummary só traz o que já venceu, vence hoje ou vence amanhã.
     const notifications: Notification[] = items.map((t) => {
         const isExpense = t.type === "expense"
-        const isOverdue = new Date(t.date) < new Date(new Date().setHours(0, 0, 0, 0))
-        const label = isOverdue ? "Atrasado" : "Vence hoje"
+        const startOfToday = new Date(new Date().setHours(0, 0, 0, 0))
+        const startOfTomorrow = new Date(startOfToday)
+        startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
+        const date = new Date(t.date)
+        const isOverdue = date < startOfToday
+        const label = isOverdue ? "Atrasado" : date < startOfTomorrow ? "Vence hoje" : "Vence amanhã"
 
         return {
             id: t.id,

@@ -2,6 +2,7 @@
 
 import { Bell, BellSlash, Export, PlusSquare, DeviceMobile } from "@phosphor-icons/react"
 import { Switch } from "@/components/ui/switch"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { Skeleton } from "@/components/ui/skeleton"
 import { usePushNotifications } from "@/hooks/use-push-notifications"
 import type { NotificationPrefs } from "@/lib/push"
@@ -17,11 +18,8 @@ export function NotificationsSection() {
   const push = usePushNotifications()
 
   return (
-    <div className="rounded-[20px] bg-card p-6 border border-border/50">
-      <div className="flex items-center gap-2 mb-2">
-        <Bell size={24} weight="fill" className="text-primary" />
-        <h3 className="text-lg font-semibold">Notificações</h3>
-      </div>
+    <section aria-labelledby="settings-notifications" className="space-y-3">
+      <SectionTitle id="settings-notifications">Notificações</SectionTitle>
 
       {push.isLoading ? (
         <Skeleton className="h-20 rounded-xl" />
@@ -36,15 +34,15 @@ export function NotificationsSection() {
           </p>
           <ol className="space-y-2 text-sm">
             <li className="flex items-center gap-2">
-              <Export size={18} className="text-primary shrink-0" />
+              <Export size={18} className="text-muted-foreground shrink-0" />
               Toque em <strong>Compartilhar</strong> no Safari.
             </li>
             <li className="flex items-center gap-2">
-              <PlusSquare size={18} className="text-primary shrink-0" />
+              <PlusSquare size={18} className="text-muted-foreground shrink-0" />
               Escolha <strong>Adicionar à Tela de Início</strong>.
             </li>
             <li className="flex items-center gap-2">
-              <DeviceMobile size={18} className="text-primary shrink-0" />
+              <DeviceMobile size={18} className="text-muted-foreground shrink-0" />
               Abra o Domínio pelo ícone e volte aqui para ativar.
             </li>
           </ol>
@@ -65,9 +63,9 @@ export function NotificationsSection() {
               type="button"
               onClick={push.disable}
               disabled={push.isBusy}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-[1vw] font-semibold border border-border hover:bg-muted transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 rounded-full border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-50"
             >
-              <BellSlash size={20} weight="bold" />
+              <BellSlash size={16} weight="bold" />
               {push.isBusy ? "Desativando..." : "Desativar neste aparelho"}
             </button>
           ) : (
@@ -75,9 +73,9 @@ export function NotificationsSection() {
               type="button"
               onClick={push.enable}
               disabled={push.isBusy || push.permission === "denied"}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-[1vw] font-semibold bg-primary text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              <Bell size={20} weight="bold" />
+              <Bell size={16} weight="bold" />
               {push.isBusy ? "Ativando..." : "Ativar notificações"}
             </button>
           )}
@@ -85,9 +83,9 @@ export function NotificationsSection() {
       )}
 
       {push.publicKey && (
-        <div className="mt-5 space-y-3 border-t border-border/50 pt-4">
+        <div className="divide-y divide-border border-t border-border">
           {PREFS.map((pref) => (
-            <div key={pref.key} className="flex items-center gap-3">
+            <div key={pref.key} className="flex items-center gap-3 py-3.5">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground">{pref.label}</p>
                 <p className="text-xs text-muted-foreground">{pref.description}</p>
@@ -101,6 +99,6 @@ export function NotificationsSection() {
           ))}
         </div>
       )}
-    </div>
+    </section>
   )
 }

@@ -23,6 +23,8 @@ export type EventName =
   | "wins_viewed"
   | "week_closed_celebrated"
   | "plan_confirmed_summary_viewed"
+  | "home_week_opened"
+  | "home_plan_opened"
 
 export type EventProperties = Record<string, string | number | boolean | null>
 

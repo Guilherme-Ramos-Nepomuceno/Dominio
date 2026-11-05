@@ -242,6 +242,14 @@ export function recoveryMessage(recovery: { perDayToRecover: number; untilDate: 
   return `Gastando até ${perDay} por dia até ${until}, você fecha a semana dentro do limite.`
 }
 
+// Versão curta para o cartão da Home, com o mesmo valor (arredondado para baixo).
+export function recoveryShort(recovery: { perDayToRecover: number; untilDate: string } | null): string | null {
+  if (!recovery || recovery.perDayToRecover <= 0) return null
+  const date = parseLocalDate(recovery.untilDate)
+  const until = date ? WEEKDAY_NAME[date.getDay()] : "o fim da semana"
+  return `até ${formatMoneyWhole(Math.floor(recovery.perDayToRecover))} por dia até ${until} para fechar no limite`
+}
+
 export function weekClosedCelebration(closed: { closedUnder: boolean; leftover: number } | null): { title: string; detail: string } | null {
   if (!closed || !closed.closedUnder) return null
   if (closed.leftover < 1) return { title: "Semana no azul!", detail: "Você fechou a semana dentro do limite." }

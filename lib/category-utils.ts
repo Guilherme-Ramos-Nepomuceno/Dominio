@@ -50,3 +50,51 @@ export function transactionCategoryLabel(categories: Category[], t: Pick<Transac
   if (!t.categoryId) return UNCATEGORIZED_LABEL
   return findCategory(categories, t.categoryId)?.name ?? ""
 }
+
+export function transactionCountLabel(count: number): string {
+  return count === 1 ? "1 transação" : `${count} transações`
+}
+
+// Ícone sugerido pelo nome da categoria (enquanto a pessoa não escolhe um):
+// "Mercado" → carrinho, "Academia" → haltere. Sem palavra conhecida, null.
+const ICON_KEYWORDS: Array<[RegExp, string]> = [
+  [/mercad|supermerc|feira|hortifr/, "ShoppingCart"],
+  [/restaur|delivery|ifood|comida|lanche|almo[cç]o|jantar/, "ForkKnife"],
+  [/caf[eé]|padaria/, "Coffee"],
+  [/[oô]nibus|metr[oô]|trem/, "Bus"],
+  [/gasolina|combust|posto/, "GasPump"],
+  [/uber|99|transporte|carro|t[aá]xi|estaciona/, "Car"],
+  [/bike|bicicleta/, "Bicycle"],
+  [/viage|passage|hotel|f[eé]rias/, "Airplane"],
+  [/aluguel|moradia|casa|condom/, "House"],
+  [/limpeza|diarista/, "Broom"],
+  [/manuten|reforma|conserto/, "Wrench"],
+  [/luz|energia|[aá]gua|g[aá]s/, "Lightbulb"],
+  [/internet|wi-?fi/, "WifiHigh"],
+  [/celular|telefone|plano m[oó]vel/, "DeviceMobile"],
+  [/farm[aá]cia|rem[eé]dio/, "Pill"],
+  [/sa[uú]de|m[eé]dic|consulta|plano de sa/, "Stethoscope"],
+  [/academia|gym|esporte|treino/, "Barbell"],
+  [/beleza|sal[aã]o|cabel|est[eé]tica/, "Sparkle"],
+  [/escola|curso|faculdade|educa/, "GraduationCap"],
+  [/livro|leitura/, "BookOpen"],
+  [/jogo|game/, "GameController"],
+  [/cinema|filme|streaming|netflix|lazer/, "FilmSlate"],
+  [/m[uú]sica|spotify|show/, "MusicNotes"],
+  [/presente|anivers/, "Gift"],
+  [/pet|cachorro|gato|veterin/, "PawPrint"],
+  [/roupa|vestu[aá]rio|moda/, "TShirt"],
+  [/assinatura|conta|boleto/, "Receipt"],
+  [/compra|shopping/, "ShoppingBag"],
+  [/sal[aá]rio|pagamento|renda/, "Money"],
+  [/freela|trabalho|neg[oó]cio/, "Briefcase"],
+  [/invest|reserva|poupan/, "PiggyBank"],
+  [/reembolso|cashback/, "HandCoins"],
+  [/banco|tarifa|juros/, "Bank"],
+]
+
+export function suggestCategoryIcon(name: string): string | null {
+  const text = name.trim().toLowerCase()
+  if (!text) return null
+  return ICON_KEYWORDS.find(([pattern]) => pattern.test(text))?.[1] ?? null
+}

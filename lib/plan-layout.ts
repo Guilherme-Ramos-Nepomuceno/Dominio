@@ -3,7 +3,7 @@
 // cabem na sobra e os rótulos do herói/cabeçalho. Lógica pura — sem aliases
 // "@/" e só com import de "./plan.ts" — para rodar no test runner do Node.
 
-import { effectiveBudget, type GroupKind, type Plan, type PlanStatus, type PlanWish } from "./plan.ts"
+import { effectiveBudget, type CategoryGroup, type GroupKind, type Plan, type PlanStatus, type PlanWish } from "./plan.ts"
 
 // ---------------------------------------------------------------------------
 // Dinheiro sem centavos (visão geral). Centavos só onde se edita.
@@ -183,11 +183,17 @@ export function monthBarSummary(bar: MonthBar): string {
   return bar.over > 0 ? `${head} O plano passa ${formatShortfall(bar.over)} do orçamento.` : head
 }
 
-// Legenda do gasto embaixo da barra: o tom forte de cada segmento somado.
-// O sem categoria é todo gasto (ele só existe porque já saiu).
+// Planejado = soma dos grupos (com desejos), o mesmo "Planejado" do Fechamento.
+// O sem categoria ocupa a barra, mas não foi planejado.
+export function monthBarPlanned(bar: MonthBar): number {
+  return round2(bar.segments.filter((s) => s.type === "group").reduce((sum, s) => sum + s.amount, 0))
+}
+
+// Legenda do gasto embaixo da barra: o tom forte de cada segmento somado
+// (o sem categoria é todo gasto: ele só existe porque já saiu).
 export function monthBarSpentCaption(bar: MonthBar): string {
   const spent = bar.segments.filter((s) => s.type !== "free").reduce((sum, s) => sum + s.spent, 0)
-  return `${formatMoneyWhole(spent)} já gasto de ${formatMoneyWhole(bar.allocated)} planejado`
+  return `${formatMoneyWhole(spent)} já gasto de ${formatMoneyWhole(monthBarPlanned(bar))} planejado`
 }
 
 // O gasto real só faz sentido na barra com o plano confirmado (ou fechado) e
@@ -345,4 +351,51 @@ export function planGuide(status: PlanStatus): string | null {
 
 export function canConfirmPlan(status: PlanStatus, editable: boolean): boolean {
   return editable && (status === "NONE" || status === "DRAFT")
+}
+
+// Planejado de cada categoria no plano (comprometido + variável), para a tela
+// Categorias. Sem plano salvo, nada.
+export function plannedByCategory(plan: Pick<Plan, "status" | "groups">): Record<string, number> {
+  if (plan.status === "NONE") return {}
+  const out: Record<string, number> = {}
+  for (const g of plan.groups) {
+    for (const c of g.categories) out[c.categoryId] = round2(positive(c.committed) + positive(c.plannedVariable))
+  }
+  return out
+}
+
+// Identificação de um pedaço da barra do mês (balão e linha ao tocar na Home):
+// o nome, a frase do que ele é e para onde levar.
+export function segmentDetail(segment: MonthBarSegment, showSpending: boolean): { text: string; href: string | null } {
+  if (segment.type === "free") return { text: `${formatMoneyWhole(segment.amount)} ainda sem destino`, href: null }
+  if (segment.type === "uncategorized") return { text: `${formatMoneyWhole(segment.amount)} gastos sem categoria`, href: "/inbox" }
+  if (segment.kind === "WISHES") return { text: `${formatMoneyWhole(segment.amount)} para os desejos que cabem`, href: "/plan#desejos" }
+  const href = segment.groupId ? `/plan/${segment.groupId}` : "/plan"
+  if (!showSpending) return { text: `${formatMoneyWhole(segment.amount)} planejado`, href }
+  if (segment.overspent) {
+    return { text: `${formatMoneyWhole(segment.spent)} gastos de ${formatMoneyWhole(segment.amount)} · ${formatShortfall(segment.spent - segment.amount)} acima`, href }
+  }
+  return { text: `${formatMoneyWhole(segment.spent)} gastos de ${formatMoneyWhole(segment.amount)} planejado`, href }
+}
+
+// Grupo do plano de uma categoria (Essenciais, Estilo de vida...), ou nada
+// (sem categoria, receita, categoria fora dos grupos).
+export function groupOfCategory(
+  groups: Pick<CategoryGroup, "id" | "name" | "kind" | "order" | "categoryIds">[],
+  categoryId: string | null | undefined,
+): Pick<CategoryGroup, "id" | "name" | "kind" | "order" | "categoryIds"> | undefined {
+  if (!categoryId) return undefined
+  return groups.find((g) => g.categoryIds.includes(categoryId))
+}
+
+// Cor do ícone de uma transação nas listas: a do grupo do plano (a mesma da
+// barra do mês). Receita fica na cor de entrada; sem grupo, cinza.
+export function transactionIconColor(
+  groups: Pick<CategoryGroup, "id" | "name" | "kind" | "order" | "categoryIds">[],
+  categoryId: string | null | undefined,
+  type: "income" | "expense" | string | undefined,
+): string {
+  if (type === "income") return "var(--income)"
+  const group = groupOfCategory(groups, categoryId)
+  return group ? groupColor(group.kind) : UNCATEGORIZED_COLOR
 }

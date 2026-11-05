@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, TagIcon, Heart, ArrowLeft, ArrowRight, CreditCard as CreditCardIcon } from "@phosphor-icons/react"
-import * as PhosphorIcons from "@phosphor-icons/react"
+import { TagIcon, Heart, ArrowLeft, ArrowRight } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
 import { getCategories, getCards, updateTransaction, moveTransactionInvoice } from "@/lib/storage"
@@ -11,6 +10,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 import { AutoCategoryBadge } from "@/components/rules/auto-category-badge"
 import { autoCategorizedLabel, isAutoCategorized } from "@/lib/rules"
+import { FormSheet, SheetPrimaryButton, UnderlineInput } from "@/components/ui/form-sheet"
+import { CategoryChip, Chip, ChipRow, DateChips, FieldLabel, PaymentMethodToggle } from "@/components/transaction-inputs/transaction-inputs"
 
 interface EditTransactionDialogProps {
   transaction: Transaction | null
@@ -62,12 +63,12 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
     const numAmount = parseCurrencyInput(amount)
     // Categoria é opcional: sem ela, a transação continua em "A classificar".
     if (!description.trim() || isNaN(numAmount) || numAmount <= 0 || !date) {
-      toast({ title: "Erro", description: "Preencha todos os campos corretamente.", variant: "destructive" })
+      toast({ title: "Falta algo", description: "Preencha descrição, valor e data.", variant: "destructive" })
       return
     }
 
     if (isComboCard && !paymentMethod) {
-      toast({ title: "Erro", description: "Selecione se esta transação é no crédito ou no débito.", variant: "destructive" })
+      toast({ title: "Falta algo", description: "Escolha se foi no crédito ou no débito.", variant: "destructive" })
       return
     }
 
@@ -85,7 +86,7 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
         isCasal: transaction.type === "expense" ? isCasal : undefined,
         paymentMethod: isComboCard ? (paymentMethod as PaymentMethod) : undefined,
       })
-      toast({ title: "Transação atualizada!", variant: "success" })
+      toast({ title: "Lançamento atualizado", variant: "success" })
       onSaved()
       onClose()
     } catch (error: any) {
@@ -127,224 +128,114 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-card w-full max-w-md rounded-t-3xl md:rounded-3xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-foreground">Editar Transação</h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <X size={20} weight="bold" />
-          </button>
-        </div>
+  const isExpense = transaction.type === "expense"
+  const keepAutoBadge = isAutoCategorized(transaction) && categoryId === transaction.categoryId
 
-        {/* Description */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground flex items-center gap-2">
-            <TagIcon size={16} weight="bold" />
-            Descrição
-          </label>
+  return (
+    <FormSheet
+      title={isExpense ? "Editar despesa" : "Editar receita"}
+      onClose={onClose}
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleSubmit()
+      }}
+      footer={<SheetPrimaryButton disabled={isSaving}>{isSaving ? "Salvando..." : "Salvar"}</SheetPrimaryButton>}
+    >
+      {/* Valor + descrição */}
+      <div className="space-y-3">
+        <label className="flex items-baseline gap-2">
+          <span className="text-lg font-semibold text-muted-foreground">R$</span>
+          <span className="sr-only">Valor</span>
           <input
             type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-
-        {/* Amount */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Valor</label>
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => handleAmountChange(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-[1vw] bg-background border border-border text-foreground text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-        </div>
-
-        {/* Category */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Categoria</label>
-          {isAutoCategorized(transaction) && categoryId === transaction.categoryId && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-primary/5 border border-primary/15">
-              <AutoCategoryBadge transaction={transaction} />
-              <span className="flex-1 min-w-0 text-xs text-muted-foreground">{autoCategorizedLabel(transaction.categorizedBy)}.</span>
-              <button
-                type="button"
-                onClick={handleUndoAutoCategory}
-                disabled={isSaving}
-                className="text-xs font-semibold text-primary hover:underline shrink-0 disabled:opacity-50"
-              >
-                Desfazer
-              </button>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setCategoryId("")}
-              className={cn(
-                "flex items-center gap-3 p-4 rounded-[1vw] border transition-all",
-                !categoryId
-                  ? "border-primary bg-primary/10 shadow-sm"
-                  : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
-              )}
-            >
-              <div className="w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground opacity-70">
-                <TagIcon size={22} weight="duotone" />
-              </div>
-              <span className="text-sm font-medium text-muted-foreground text-left">
-                Sem categoria
-                <span className="block text-[11px] font-normal">vai para A classificar</span>
-              </span>
-            </button>
-            {filteredCategories.map((category) => {
-              const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
-              return (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => setCategoryId(category.id)}
-                  className={cn(
-                    "flex items-center gap-3 p-4 rounded-[1vw] border transition-all",
-                    categoryId === category.id
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
-                  )}
-                >
-                  <div className="w-10 h-10 flex items-center justify-center shrink-0 text-muted-foreground">
-                    {/* @ts-ignore - Dynamic icon component */}
-                    <CategoryIcon size={22} weight="duotone" />
-                  </div>
-                  <span className="text-sm font-medium text-foreground">{category.name}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Date */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Data</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full px-4 py-3 rounded-[1vw] bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-
-        {/* Tag "do casal" — só para despesas */}
-        {transaction.type === "expense" && hasCoupleAccount && (
-          <button
-            type="button"
-            onClick={() => setIsCasal(!isCasal)}
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => handleAmountChange(e.target.value)}
             className={cn(
-              "w-full flex items-center gap-3 p-4 rounded-[1vw] border transition-all text-left",
-              isCasal
-                ? "border-primary bg-primary/10"
-                : "border-black/10 dark:border-white/10 bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6",
+              "w-full bg-transparent text-4xl font-semibold tabular-nums focus:outline-none",
+              isExpense ? "text-foreground" : "text-income",
             )}
-          >
-            <div className={cn("w-10 h-10 flex items-center justify-center shrink-0 rounded-lg", isCasal ? "text-primary" : "text-muted-foreground")}>
-              <Heart size={22} weight={isCasal ? "fill" : "duotone"} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Despesa do casal</p>
-              <p className="text-xs text-muted-foreground">Aparece também na conta do casal, mesmo paga por um cartão pessoal</p>
-            </div>
-            <div className={cn("w-11 h-6 rounded-full transition-colors shrink-0 relative", isCasal ? "bg-primary" : "bg-muted")}>
-              <div className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all", isCasal ? "left-5" : "left-0.5")} />
-            </div>
-          </button>
-        )}
-
-        {/* Cartão combinado (crédito + débito): permite corrigir de que lado é essa transação */}
-        {isComboCard && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              <CreditCardIcon size={16} weight="bold" />
-              Essa transação é no crédito ou no débito?
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("debit")}
-                className={cn(
-                  "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                  paymentMethod === "debit"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card text-muted-foreground",
-                )}
-              >
-                Débito
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("credit")}
-                className={cn(
-                  "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                  paymentMethod === "credit"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card text-muted-foreground",
-                )}
-              >
-                Crédito
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Mover para fatura seguinte/anterior — só faz sentido se a transação
-            realmente pertence a uma fatura de crédito */}
-        {belongsToInvoice && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Fatura</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => handleMoveInvoice("previous")}
-                disabled={isSaving}
-                className="flex items-center justify-center gap-2 p-3 rounded-[1vw] border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-60"
-              >
-                <ArrowLeft size={16} weight="bold" />
-                Fatura anterior
-              </button>
-              <button
-                type="button"
-                onClick={() => handleMoveInvoice("next")}
-                disabled={isSaving}
-                className="flex items-center justify-center gap-2 p-3 rounded-[1vw] border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-60"
-              >
-                Fatura seguinte
-                <ArrowRight size={16} weight="bold" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSaving}
-            className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
-          >
-            {isSaving ? "Salvando..." : "Salvar Alterações"}
-          </button>
-        </div>
+          />
+        </label>
+        <label className="block">
+          <span className="sr-only">Descrição</span>
+          <UnderlineInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição" />
+        </label>
       </div>
-    </div>
+
+      {/* Categoria */}
+      <div className="space-y-3">
+        <FieldLabel>Categoria</FieldLabel>
+        {keepAutoBadge && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <AutoCategoryBadge transaction={transaction} />
+            <span className="flex-1 min-w-0">{autoCategorizedLabel(transaction.categorizedBy)}.</span>
+            <button type="button" onClick={handleUndoAutoCategory} disabled={isSaving} className="shrink-0 font-semibold text-primary hover:underline disabled:opacity-50">
+              Desfazer
+            </button>
+          </div>
+        )}
+        <ChipRow wrap>
+          {filteredCategories.map((category) => (
+            <CategoryChip key={category.id} category={category} selected={categoryId === category.id} onClick={() => setCategoryId(category.id)} />
+          ))}
+          <Chip selected={!categoryId} onClick={() => setCategoryId("")}>
+            <TagIcon size={14} weight="duotone" />
+            Sem categoria
+          </Chip>
+        </ChipRow>
+        {!categoryId && <p className="text-xs text-muted-foreground">Sem categoria, o lançamento volta para A classificar.</p>}
+      </div>
+
+      {/* Data */}
+      {date && (
+        <div className="space-y-3">
+          <FieldLabel>Data</FieldLabel>
+          <DateChips value={date} onChange={setDate} />
+        </div>
+      )}
+
+      {/* Cartão combinado: de que lado é a transação */}
+      {isComboCard && (
+        <div className="flex items-center justify-between gap-3">
+          <FieldLabel>No {selectedCard?.name}, foi no</FieldLabel>
+          <PaymentMethodToggle
+            value={paymentMethod === "credit" || paymentMethod === "debit" ? paymentMethod : null}
+            onChange={setPaymentMethod}
+          />
+        </div>
+      )}
+
+      {/* Tag "do casal" — só para despesas */}
+      {isExpense && hasCoupleAccount && (
+        <button type="button" role="switch" aria-checked={isCasal} onClick={() => setIsCasal(!isCasal)} className="flex w-full items-center gap-3 text-left">
+          <Heart size={20} weight={isCasal ? "fill" : "duotone"} className={cn("shrink-0", isCasal ? "text-primary" : "text-muted-foreground")} />
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-medium text-foreground">Despesa do casal</span>
+            <span className="block text-xs text-muted-foreground">Aparece também na conta do casal</span>
+          </span>
+          <span className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", isCasal ? "bg-primary" : "bg-muted")}>
+            <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all", isCasal ? "left-5" : "left-0.5")} />
+          </span>
+        </button>
+      )}
+
+      {/* Mover de fatura — só se a transação pertence a uma fatura de crédito */}
+      {belongsToInvoice && (
+        <div className="space-y-3">
+          <FieldLabel hint="Muda na hora, sem precisar salvar">Fatura</FieldLabel>
+          <ChipRow wrap>
+            <Chip selected={false} onClick={() => !isSaving && handleMoveInvoice("previous")}>
+              <ArrowLeft size={14} weight="bold" />
+              Para a anterior
+            </Chip>
+            <Chip selected={false} onClick={() => !isSaving && handleMoveInvoice("next")}>
+              Para a seguinte
+              <ArrowRight size={14} weight="bold" />
+            </Chip>
+          </ChipRow>
+        </div>
+      )}
+    </FormSheet>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { X, UploadSimple, CreditCard as CreditCardIcon, FileText, Question, CheckCircle, ArrowsLeftRight } from "@phosphor-icons/react"
+import { X, UploadSimple, FileText, Question, CheckCircle, ArrowsLeftRight } from "@phosphor-icons/react"
 import type { Card, Category, ImportPreviewRow, PaymentMethod, TransactionType } from "@/lib/types"
 import { getCategories, getCards, getMemberCardsMapped, ensureSystemCategory, addCategory, addTransaction, previewStatementImport, confirmStatementImport, type ConfirmImportRow } from "@/lib/storage"
 import { DEFAULT_CATEGORY_COLOR } from "@/app/categories/components/add-category-dialog"
@@ -14,6 +14,8 @@ import { getCurrentUser } from "@/lib/auth"
 import type { ReviewRow } from "./import-review/types"
 import { ReviewStep } from "./import-review/review-step"
 import { TransferMemberPicker, TransferCardPicker } from "./import-review/transfer-account-picker"
+import { FormSheet, SheetPrimaryButton } from "@/components/ui/form-sheet"
+import { FieldLabel, PaymentMethodToggle } from "@/components/transaction-inputs/transaction-inputs"
 
 interface ImportStatementDialogProps {
   card: Card | null
@@ -309,7 +311,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
   const renderPendingBlock = (row: ReviewRow) => {
     if (!row.pendingMatch) return null
     return (
-      <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
+      <div className="border-l-2 border-primary/60 pl-3 space-y-2">
         {row.settleDecision === "yes" && (
           <p className="text-xs text-primary flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
@@ -343,12 +345,12 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
               <Question size={14} weight="bold" className="text-primary shrink-0 mt-0.5" />
               Essa é a pendência "{row.pendingMatch.description}" ({formatCurrency(row.pendingMatch.amount)}) já cadastrada?
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => updateRow(row.externalId, { settleDecision: "yes" })}
                 disabled={!row.include}
-                className="py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="rounded-full bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
               >
                 Sim, dar baixa
               </button>
@@ -356,7 +358,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
                 type="button"
                 onClick={() => updateRow(row.externalId, { settleDecision: "no" })}
                 disabled={!row.include}
-                className="py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-muted transition-colors disabled:opacity-50"
+                className="rounded-full bg-muted/50 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
               >
                 Não, é outra
               </button>
@@ -373,7 +375,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
   const renderTransferBlock = (row: ReviewRow) => {
     if (row.settleDecision === "yes" || !isTransferRow(row)) return null
     return (
-      <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
+      <div className="border-l-2 border-primary/60 pl-3 space-y-2">
         <p className="text-xs text-foreground flex items-center gap-1.5">
           <ArrowsLeftRight size={14} weight="bold" className="text-primary shrink-0" />
           {row.type === "expense" ? "Pra qual conta foi essa transferência?" : "De qual conta veio essa transferência?"}
@@ -401,99 +403,72 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
     )
   }
 
+  const fileCount = files.length
   return (
-    <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div
-        className={cn(
-          "bg-card w-full rounded-t-3xl md:rounded-3xl p-6 space-y-6 max-h-[92vh] overflow-y-auto transition-[max-width]",
-          step === "reviewing" ? "max-w-3xl" : "max-w-2xl",
-        )}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-foreground">Importar Extrato</h2>
-            <p className="text-sm text-muted-foreground">{card.name}</p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <X size={20} weight="bold" />
-          </button>
-        </div>
-
+    <FormSheet
+      title={`Importar extrato · ${card.name}`}
+      onClose={onClose}
+      className={cn("transition-[max-width]", step === "reviewing" ? "max-w-3xl" : "max-w-md")}
+      footer={
+        step === "select" ? (
+          <SheetPrimaryButton type="button" onClick={handleAnalyze} disabled={fileCount === 0 || isLoading}>
+            {isLoading ? "Analisando..." : fileCount > 1 ? `Analisar ${fileCount} arquivos` : "Analisar"}
+          </SheetPrimaryButton>
+        ) : undefined
+      }
+    >
         {step === "select" && (
-          <div className="space-y-6">
+          <>
             {isComboCard && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <CreditCardIcon size={16} weight="bold" />
-                  Esse extrato é do lado crédito ou débito desse cartão?
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("debit")}
-                    className={cn(
-                      "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                      paymentMethod === "debit" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground",
-                    )}
-                  >
-                    Débito
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("credit")}
-                    className={cn(
-                      "p-3 rounded-[1vw] border-2 transition-all font-medium",
-                      paymentMethod === "credit" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground",
-                    )}
-                  >
-                    Crédito
-                  </button>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <FieldLabel>Este extrato é do</FieldLabel>
+                <PaymentMethodToggle
+                  value={paymentMethod === "credit" || paymentMethod === "debit" ? paymentMethod : null}
+                  onChange={setPaymentMethod}
+                />
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Arquivo(s) do extrato</label>
+            <div className="space-y-3">
+              <FieldLabel hint="Pode escolher vários meses de uma vez">Arquivos</FieldLabel>
 
-              {files.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex flex-col items-center justify-center gap-2 p-8 rounded-[1vw] border-2 border-dashed border-border hover:border-primary/50 transition-colors text-muted-foreground"
-                >
-                  <UploadSimple size={28} weight="bold" />
-                  <span className="text-sm">Clique para escolher .ofx, .qfx, .csv, .xlsx ou .pdf</span>
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <ul className="space-y-2">
-                    {files.map((f, i) => (
-                      <li
-                        key={i}
-                        className="flex items-center gap-3 p-3 rounded-[1vw] border border-border bg-background"
+              {files.length > 0 && (
+                <ul className="divide-y divide-border">
+                  {files.map((f, i) => (
+                    <li key={i} className="flex items-center gap-3 py-2.5">
+                      <FileText size={18} weight="duotone" className="text-muted-foreground shrink-0" />
+                      <span className="flex-1 min-w-0 text-sm text-foreground truncate">{f.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                        aria-label={`Tirar ${f.name}`}
+                        className="p-1.5 -mr-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
                       >
-                        <FileText size={20} weight="bold" className="text-muted-foreground shrink-0" />
-                        <span className="flex-1 min-w-0 text-sm text-foreground truncate">{f.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground shrink-0"
-                        >
-                          <X size={16} weight="bold" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-[1vw] border-2 border-dashed border-border hover:border-primary/50 transition-colors text-muted-foreground text-sm font-medium"
-                  >
-                    <UploadSimple size={16} weight="bold" />
-                    Selecionar mais arquivos
-                  </button>
-                </div>
+                        <X size={14} weight="bold" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  "w-full flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors",
+                  files.length === 0 ? "flex-col py-10" : "py-3 text-sm font-medium",
+                )}
+              >
+                <UploadSimple size={files.length === 0 ? 26 : 16} weight="bold" />
+                {files.length === 0 ? (
+                  <>
+                    <span className="text-sm font-medium text-foreground">Escolher arquivos</span>
+                    <span className="text-xs">.ofx, .qfx, .csv, .xlsx ou .pdf</span>
+                  </>
+                ) : (
+                  "Adicionar mais"
+                )}
+              </button>
 
               <input
                 ref={fileInputRef}
@@ -513,29 +488,11 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
                   e.target.value = ""
                 }}
               />
-              <p className="text-xs text-muted-foreground px-1">
-                Pode escolher mais de um arquivo de uma vez (ex: vários meses) — eles são analisados juntos. PDF é suportado pra fatura do Banco do Brasil, Inter, Nubank e Santander, e extrato de conta do Banco do Brasil, Inter, Nubank, Santander e Itaú.
+              <p className="text-xs text-muted-foreground">
+                PDF funciona para fatura do BB, Inter, Nubank e Santander, e para extrato de conta do BB, Inter, Nubank, Santander e Itaú.
               </p>
             </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleAnalyze}
-                disabled={files.length === 0 || isLoading}
-                className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {isLoading ? "Analisando..." : "Analisar"}
-              </button>
-            </div>
-          </div>
+          </>
         )}
 
         {step === "reviewing" && (
@@ -555,7 +512,6 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
             onCreateCategory={handleCreateCategory}
           />
         )}
-      </div>
-    </div>
+    </FormSheet>
   )
 }

@@ -7,6 +7,7 @@ import { UncategorizedList } from "./uncategorized-list"
 import { CategoryPicker } from "./category-picker"
 import { CategoryGroup } from "./category-group"
 import { TransactionRow } from "./transaction-row"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 
 interface ReviewStepProps {
   rows: ReviewRow[]
@@ -93,7 +94,7 @@ export function ReviewStep({
   )
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <p className="text-sm text-muted-foreground">
         {includedCount} de {totalCount} transações marcadas pra importar —{" "}
         {uncategorizedIncluded === 0
@@ -115,8 +116,8 @@ export function ReviewStep({
 
       {groups.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Categorizadas</h3>
-          <div className="space-y-2">
+          <SectionTitle>Categorizadas</SectionTitle>
+          <div className="divide-y divide-border">
             {groups.map(({ category, rows: groupRows }) => (
               <CategoryGroup
                 key={category.id}
@@ -139,8 +140,8 @@ export function ReviewStep({
       )}
 
       <div className="space-y-2">
-        <div className="flex items-baseline justify-between gap-2 px-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sem categoria</h3>
+        <div className="flex items-baseline justify-between gap-2">
+          <SectionTitle>Sem categoria</SectionTitle>
           {uncategorizedIncluded > 0 && (
             <span className="text-[11px] text-muted-foreground">Pode confirmar assim — vai para A classificar</span>
           )}
@@ -159,8 +160,8 @@ export function ReviewStep({
 
       {settled.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Pendências que serão baixadas</h3>
-          <div className="space-y-2">
+          <SectionTitle>Pendências que serão baixadas</SectionTitle>
+          <div className="divide-y divide-border">
             {settled.map((row) => (
               <TransactionRow
                 key={row.externalId}
@@ -181,7 +182,7 @@ export function ReviewStep({
             type="button"
             onClick={onBack}
             disabled={isSaving}
-            className="flex-1 py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors disabled:opacity-50"
+            className="rounded-2xl px-4 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
           >
             Voltar
           </button>
@@ -190,7 +191,7 @@ export function ReviewStep({
           type="button"
           onClick={onConfirm}
           disabled={!canConfirm}
-          className="flex-1 py-3 px-4 rounded-[1vw] bg-primary text-background font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+          className="flex-1 rounded-2xl bg-foreground py-3 text-sm font-semibold text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
         >
           {confirmLabel}
         </button>

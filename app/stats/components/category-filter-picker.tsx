@@ -43,7 +43,7 @@ export function CategoryFilterPicker({ categories, value, onChange }: CategoryFi
               <span className="flex-1 min-w-0 text-left truncate">{selected.name}</span>
             </>
           ) : (
-            <span className="flex-1 text-left text-muted-foreground">Todas as categorias</span>
+            <span className="flex-1 min-w-0 text-left text-muted-foreground truncate">Categorias</span>
           )}
           <CaretDown size={12} weight="bold" className="text-muted-foreground shrink-0" />
         </button>

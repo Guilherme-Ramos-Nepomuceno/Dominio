@@ -1,29 +1,33 @@
 "use client"
 
 import { useState } from "react"
-import { TrashIcon, Pencil, TrendUp, TrendDown } from "@phosphor-icons/react"
+import { TrashIcon, Pencil } from "@phosphor-icons/react"
 // Adicionamos esta importação para poder buscar o ícone pelo nome (string)
 import * as PhosphorIcons from "@phosphor-icons/react"
-import type { Category, CategoryGoal } from "@/lib/types"
+import type { Category } from "@/lib/types"
 import { formatCurrency } from "@/lib/date-utils"
+import { transactionCountLabel } from "@/lib/category-utils"
+import { formatMoneyWhole, spentProgress } from "@/lib/plan-layout"
+import { cn } from "@/lib/utils"
 
 interface CategoryItemProps {
   category: Category
   totalAmount: number
   transactionCount: number
-  percentage: number
-  categoryGoals: CategoryGoal[]
+  // Planejado da categoria no plano do mês (null = fora do plano / sem plano).
+  planned?: number | null
+  // Cor do grupo do plano (ícone e barra).
+  color?: string
   icon?: React.ReactNode
   onDelete: (id: string) => void
   onEdit?: (category: Category) => void
   onClick?: (category: Category) => void
 }
 
-export function CategoryItem({ category, totalAmount, transactionCount, percentage, categoryGoals, icon, onDelete, onEdit, onClick }: CategoryItemProps) {
-  const Icon = category.type === "income" ? TrendUp : TrendDown
-
-  const goalData = categoryGoals.find((g) => g.categoryId === category.id)
-  const goalPercentage = goalData?.percentage || 0
+export function CategoryItem({ category, totalAmount, transactionCount, planned = null, color, onDelete, onEdit, onClick }: CategoryItemProps) {
+  // As seções Receitas/Despesas já dizem o tipo; aqui o que vale é gasto × planejado.
+  const showPlanned = category.type === "expense" && planned !== null && planned > 0
+  const progress = showPlanned ? spentProgress(totalAmount, planned!) : null
 
   // Lógica para pegar o ícone dinâmico baseado no nome salvo na categoria
   // Se não encontrar, usa o Circle como fallback
@@ -47,11 +51,12 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl group">
-      <div className="absolute inset-y-0 right-0 w-20 bg-destructive flex items-center justify-center rounded-r-2xl">
+    <div className="relative overflow-hidden group">
+      <div className="absolute inset-y-0 right-0 w-20 bg-destructive flex items-center justify-center">
         <button
           onClick={() => onDelete(category.id)}
           className="text-white w-full h-full flex items-center justify-center"
+          aria-label={`Excluir ${category.name}`}
         >
           <TrashIcon size={20} weight="bold" />
         </button>
@@ -59,46 +64,37 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
 
       <div
         onClick={() => onClick?.(category)}
-        className="relative z-10 flex items-center gap-4 p-4 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer"
+        className="relative z-10 flex items-center gap-3 py-3 bg-background cursor-pointer"
         style={{ transform: `translateX(${swipeOffset}px)`, transition: startX === null ? "transform 0.2s ease-out" : "none" }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        {/* Ícone da Categoria */}
-        <div className="w-12 h-12 flex items-center justify-center shrink-0 text-muted-foreground">
-          {/* @ts-ignore - Ignora erro de tipo do componente dinâmico */}
-          <CategoryIcon size={26} weight="duotone" />
-        </div>
+        {/* Ícone na cor do grupo do plano */}
+        {/* @ts-ignore - componente de ícone dinâmico */}
+        <CategoryIcon size={22} weight="duotone" className="shrink-0" style={{ color: color ?? undefined }} />
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-foreground">{category.name}</h3>
-            <Icon size={14} weight="bold" className={category.type === "income" ? "text-income" : "text-expense"} />
-            {goalPercentage > 0 && category.type === "expense" && (
-              <>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary/10 text-primary">
-                  Meta: {goalPercentage}%
-                </span>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    percentage > 100
-                      ? "bg-destructive/10 text-destructive"
-                      : percentage > 80
-                        ? "bg-yellow-500/10 text-yellow-600"
-                        : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {percentage.toFixed(0)}% gasto
-                </span>
-              </>
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-medium text-foreground truncate">{category.name}</h3>
+            <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{formatCurrency(totalAmount)}</p>
+          </div>
+          <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+            <span>{transactionCountLabel(transactionCount)}</span>
+            {showPlanned && (
+              <span className={cn("tabular-nums", progress?.over && "text-expense")}>
+                {progress?.over ? `${formatMoneyWhole(progress.overAmount)} acima de ${formatMoneyWhole(planned!)}` : `de ${formatMoneyWhole(planned!)} planejado`}
+              </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{transactionCount} transações</p>
-        </div>
-
-        <div className="text-right">
-          <p className="text-lg font-bold text-foreground">{formatCurrency(totalAmount)}</p>
+          {progress && (
+            <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "var(--plan-track)" }} aria-hidden>
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${progress.pct}%`, backgroundColor: progress.over ? "var(--expense)" : color || "var(--chart-3)" }}
+              />
+            </div>
+          )}
         </div>
 
         {onEdit && (
@@ -107,9 +103,10 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
               e.stopPropagation()
               onEdit(category)
             }}
-            className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+            className="p-1.5 -mr-1.5 rounded-lg text-muted-foreground/70 hover:text-foreground transition-colors"
+            aria-label={`Editar ${category.name}`}
           >
-            <Pencil size={18} weight="bold" />
+            <Pencil size={16} weight="bold" />
           </button>
         )}
 
@@ -118,7 +115,7 @@ export function CategoryItem({ category, totalAmount, transactionCount, percenta
             e.stopPropagation()
             onDelete(category.id)
           }}
-          className="hidden md:flex opacity-0 group-hover:opacity-100 items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all shrink-0"
+          className="hidden md:flex opacity-0 group-hover:opacity-100 items-center justify-center w-8 h-8 rounded-full text-destructive hover:bg-destructive/10 transition-all shrink-0"
           title="Excluir categoria"
         >
           <TrashIcon size={16} weight="bold" />

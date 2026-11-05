@@ -5,6 +5,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { formatMoneyInput, parseMoneyInput, type PlanWish } from "@/lib/plan"
 import type { WishInput } from "@/lib/planning-api"
 import type { Category } from "@/lib/types"
+import { AppSelect } from "@/components/ui/app-select"
 
 interface WishFormSheetProps {
   // null = fechado; "new" = novo desejo.
@@ -104,14 +105,13 @@ export function WishFormSheet({ wish, categories, canMarkCasal, onClose, onSave 
             <label htmlFor="wish-category" className="block text-sm font-medium mb-1">
               Categoria <span className="text-muted-foreground font-normal">(opcional)</span>
             </label>
-            <select id="wish-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
-              <option value="">Sem categoria</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <AppSelect
+              id="wish-category"
+              value={categoryId}
+              onChange={setCategoryId}
+              emptyLabel="Sem categoria"
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </div>
 
           <div>

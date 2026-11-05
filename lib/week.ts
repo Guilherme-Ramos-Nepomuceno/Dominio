@@ -71,7 +71,13 @@ export interface WeekData {
   categories: WeekCategory[]
   // hasPlan = aquela semana tinha plano (sem plano o limite vinha da meta mensal).
   lastWeek: { spent: number; limit: number; hasPlan: boolean } | null
+  // Para onde vai a sobra/excesso de cada semana (Configurações).
+  carryOver: WeekCarryOver
 }
+
+// MONTH: o que sobra ou passa numa semana ajusta as próximas.
+// WEEK: toda semana tem o mesmo limite; o que sobra ou passa fica nela.
+export type WeekCarryOver = "MONTH" | "WEEK"
 
 const num = (v: unknown): number => {
   const n = Number(v)
@@ -153,7 +159,27 @@ export function mapWeek(w: any): WeekData {
           hasPlan: w.lastWeek.hasPlan === undefined ? true : !!w.lastWeek.hasPlan,
         }
       : null,
+    carryOver: oneOf(w?.carryOver, ["MONTH", "WEEK"] as const, "MONTH"),
   }
+}
+
+// Frase curta de como as semanas se conectam (embaixo de "Semanas do mês").
+export function carryOverSummary(mode: WeekCarryOver): string {
+  return mode === "WEEK"
+    ? "Toda semana tem o mesmo limite: o que sobra ou passa fica nela."
+    : "O que sobra ou passa numa semana ajusta o limite das próximas."
+}
+
+// Semana estourada: o que acontece com o excesso.
+export function carryOverOverLine(mode: WeekCarryOver): string {
+  return mode === "WEEK"
+    ? "As próximas semanas não mudam: o excesso sai da sobra do mês."
+    : "O excesso vai deixar as próximas semanas um pouco menores."
+}
+
+// Semana estourada (passou do limite ou zerou com gasto).
+export function isWeekExceeded(week: { available: number; spentThisWeek: number; limit: number }): boolean {
+  return week.available < 0 || (week.available === 0 && week.spentThisWeek > 0 && week.limit > 0)
 }
 
 export type WeekTone = "ok" | "warning" | "over"
@@ -225,7 +251,11 @@ export function sortWeekTransactions(transactions: WeekTransaction[]): { list: W
 type Fmt = (v: number) => string
 
 // Selo de ritmo da semana (cor semântica sempre acompanhada de ícone + texto).
-export function paceBadge(status: PaceStatus): { label: string; tone: "good" | "neutral" | "over"; hint: string } {
+export function paceBadge(
+  status: PaceStatus,
+  exceeded = false,
+): { label: string; tone: "good" | "neutral" | "over" | "exceeded"; hint: string } {
+  if (exceeded) return { label: "Limite estourado", tone: "exceeded", hint: "acima do limite da semana" }
   if (status === "UNDER") return { label: "Abaixo do ritmo", tone: "good", hint: "gastando menos do que o limite permite até hoje" }
   if (status === "OVER") return { label: "Acima do ritmo", tone: "over", hint: "gastando mais do que o limite permite até hoje" }
   return { label: "No ritmo", tone: "neutral", hint: "gastando perto do que o limite permite até hoje" }
@@ -442,13 +472,24 @@ export function showMonthChart(series: MonthSeriesPoint[]): boolean {
 // --- Faixa de dias: o valor do dia ao tocar ---
 
 // "segunda, 3 nov: R$ 45,00 gastos · ideal R$ 30,00". Futuro não tem valor.
+// Com `recoveryPerDay` (hoje, acima do ritmo) o alvo é o da frase de
+// recuperação, arredondado para baixo, em vez do ideal original da semana.
 export function dayDetail(
   day: { date: string; spent: number; isFuture: boolean } | undefined,
   idealPerDay: number,
   format: Fmt,
+  recoveryPerDay: number | null = null,
 ): string | null {
   if (!day || day.isFuture) return null
-  const ideal = idealPerDay > 0 ? ` · ideal ${format(idealPerDay)}` : ""
+  // recoveryPerDay === 0: a semana já estourou — o ideal agora é não gastar.
+  const ideal =
+    recoveryPerDay === 0
+      ? " · limite da semana já foi, o ideal é não gastar"
+      : recoveryPerDay && recoveryPerDay > 0
+        ? ` · até ${format(Math.floor(recoveryPerDay))} para fechar no limite`
+        : idealPerDay > 0
+          ? ` · ideal ${format(idealPerDay)}`
+          : ""
   const spent = day.spent > 0 ? `${format(day.spent)} gastos` : "sem gasto"
   return `${formatWeekday(day.date)}: ${spent}${ideal}`
 }

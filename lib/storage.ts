@@ -38,18 +38,6 @@ const DEFAULT_CATEGORIES: Omit<Category, "id">[] = [
   { name: "Lazer", color: "#a78bfa", type: "expense", icon: "GameController" },
 ]
 
-// Toda conta nova (pessoal ou do casal) já vem com uma carteira "Dinheiro" —
-// usada para lançamentos pagos ou recebidos fisicamente, sem passar por banco/cartão.
-const DEFAULT_CASH_CARD: Omit<Card, "id" | "createdAt"> = {
-  name: "Dinheiro",
-  bankName: "cash",
-  lastDigits: "0000",
-  hasCredit: false,
-  hasDebit: true,
-  kind: "checking",
-  color: "#22c55e",
-}
-
 const DEFAULT_SETTINGS: AppSettings = {
   spendingGoal: 5000,
   currency: "BRL",
@@ -246,10 +234,6 @@ function mapCardToApi(c: Partial<Card>) {
   return body
 }
 
-// Evita que múltiplos componentes montando ao mesmo tempo disparem a criação
-// da carteira "Dinheiro" em paralelo (mesmo problema do seeding de categorias).
-let cardSeedingPromise: Promise<Card[]> | null = null
-
 // Ver comentário equivalente em getMemberTransactionsMapped — cartões de um
 // parceiro específico, usado para escolher o destino de uma transferência para
 // a conta dele (Transferir > Enviar para o cônjuge).
@@ -261,27 +245,10 @@ export async function getMemberCardsMapped(memberId: string): Promise<Card[]> {
 export async function getCards(): Promise<Card[]> {
   const ctx = getActiveAccountSelection()
   const raw = ctx.type === "partner" ? await familyApi.getMemberCards(ctx.id) : await fetchApi("/cards")
-  const cards = (raw || []).map(mapCardFromApi)
-
-  if (cards.length === 0 && ctx.type !== "partner") {
-    if (!cardSeedingPromise) {
-      cardSeedingPromise = seedDefaultCashCard().finally(() => {
-        cardSeedingPromise = null
-      })
-    }
-    return cardSeedingPromise
-  }
-
-  return cards
-}
-
-async function seedDefaultCashCard(): Promise<Card[]> {
-  try {
-    return [await addCard(DEFAULT_CASH_CARD)]
-  } catch (error) {
-    console.error("Failed to seed default cash card:", error)
-    return []
-  }
+  // A carteira "Dinheiro" é criada pelo backend no cadastro (e na conta do
+  // casal). O front não cria mais quando a lista vem vazia: duas telas lendo
+  // ao mesmo tempo criavam uma cada, e a pessoa ficava com dois "Dinheiro".
+  return (raw || []).map(mapCardFromApi)
 }
 
 export async function addCard(card: Omit<Card, "id" | "createdAt">): Promise<Card> {
@@ -335,6 +302,8 @@ function mapTransactionFromApi(t: any): Transaction {
     cardId: t.cardId ?? undefined,
     paymentMethod: t.paymentMethod ? (String(t.paymentMethod).toLowerCase() as Transaction["paymentMethod"]) : undefined,
     isCasal: !!t.isCasal,
+    userId: t.userId ?? undefined,
+    paidByUserId: t.paidByUserId ?? null,
     invoiceId: t.invoiceId ?? undefined,
     originalDescription: t.originalDescription ?? undefined,
     externalId: t.externalId ?? undefined,
@@ -901,11 +870,12 @@ export async function deleteAllTransactions(): Promise<void> {
   notifyStorageUpdate()
 }
 
-export async function markTransactionAsPaid(id: string, cardId?: string, paidAt?: string): Promise<void> {
+// `paidByUserId`: na conta do casal, qual dos dois pagou (entra no acerto do mês).
+export async function markTransactionAsPaid(id: string, cardId?: string, paidAt?: string, paidByUserId?: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${id}/paid`, {
     method: "PATCH",
-    body: JSON.stringify({ cardId, confirmDate: paidAt }),
+    body: JSON.stringify({ cardId, confirmDate: paidAt, paidByUserId }),
   })
   notifyStorageUpdate()
 }
@@ -1038,6 +1008,7 @@ function mapSettingsFromApi(s: any): AppSettings {
     firstDayOfWeek: s.firstDayOfWeek,
     categoryGoals: Array.isArray(s.categoryGoals) ? s.categoryGoals : [],
     monthStartDay: normalizeMonthStartDay(s.monthStartDay ?? 1),
+    weekCarryOver: s.weekCarryOver === "WEEK" ? "WEEK" : "MONTH",
     notificationPrefs: mapNotificationPrefs(s.notificationPrefs),
   }
 }
@@ -1049,6 +1020,7 @@ function mapSettingsToApi(s: Partial<AppSettings>) {
   if (s.firstDayOfWeek !== undefined) body.firstDayOfWeek = s.firstDayOfWeek
   if (s.categoryGoals !== undefined) body.categoryGoals = s.categoryGoals
   if (s.monthStartDay !== undefined) body.monthStartDay = normalizeMonthStartDay(s.monthStartDay)
+  if (s.weekCarryOver !== undefined) body.weekCarryOver = s.weekCarryOver
   if (s.notificationPrefs !== undefined) body.notificationPrefs = s.notificationPrefs
   return body
 }

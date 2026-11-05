@@ -5,6 +5,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { formatMoneyInput, parseMoneyInput } from "@/lib/plan"
 import type { CategoryRule, RuleFormInput } from "@/lib/rules"
 import type { Category } from "@/lib/types"
+import { AppSelect } from "@/components/ui/app-select"
 
 interface RuleFormSheetProps {
   rule: CategoryRule | "new" | null
@@ -89,27 +90,16 @@ export function RuleFormSheet({ rule, categories, onClose, onSave }: RuleFormShe
             <label htmlFor="rule-category" className="block text-sm font-medium mb-1">
               Categoria
             </label>
-            <select id="rule-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
-              <option value="">Escolha a categoria</option>
-              {expense.length > 0 && (
-                <optgroup label="Despesas">
-                  {expense.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {income.length > 0 && (
-                <optgroup label="Receitas">
-                  {income.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
+            <AppSelect
+              id="rule-category"
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="Escolha a categoria"
+              options={[
+                ...expense.map((c) => ({ value: c.id, label: c.name, group: "Despesas" })),
+                ...income.map((c) => ({ value: c.id, label: c.name, group: "Receitas" })),
+              ]}
+            />
           </div>
 
           <fieldset>

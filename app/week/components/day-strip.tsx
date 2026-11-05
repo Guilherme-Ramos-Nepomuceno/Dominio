@@ -20,9 +20,18 @@ const DOT: Record<DayStatus, string> = {
   FUTURE: "border border-dashed border-muted-foreground/50",
 }
 
-function DotIcon({ status }: { status: DayStatus }) {
-  if (status === "UNDER") return <Check size={12} weight="bold" className="text-black/75" aria-hidden />
-  if (status === "OVER") return <ArrowUp size={12} weight="bold" className="text-black/75" aria-hidden />
+// Variante discreta (Home): tudo neutro, o estado fica só na forma do ícone.
+const DOT_QUIET: Record<DayStatus, string> = {
+  UNDER: "bg-foreground/10 ring-1 ring-inset ring-border",
+  OVER: "bg-foreground/10 ring-1 ring-inset ring-border",
+  NO_SPEND: "ring-1 ring-inset ring-border",
+  FUTURE: "border border-dashed border-muted-foreground/40",
+}
+
+function DotIcon({ status, quiet }: { status: DayStatus; quiet: boolean }) {
+  const ink = quiet ? "text-foreground/80" : "text-black/75"
+  if (status === "UNDER") return <Check size={12} weight="bold" className={ink} aria-hidden />
+  if (status === "OVER") return <ArrowUp size={12} weight="bold" className={ink} aria-hidden />
   if (status === "NO_SPEND") return <Minus size={12} weight="bold" className="text-muted-foreground" aria-hidden />
   return null
 }
@@ -33,10 +42,14 @@ interface DayStripProps {
   // Gasto de cada dia (da semana), para o valor ao tocar numa bolinha.
   spending: WeekDay[]
   idealPerDay: number
+  // Acima do ritmo: o valor por dia da frase de recuperação (vale para hoje).
+  recoveryPerDay?: number | null
+  // Sem as cores de estado (Home, abaixo do herói).
+  quiet?: boolean
 }
 
 // Tocar numa bolinha mostra o valor daquele dia logo abaixo; começa em hoje.
-export function DayStrip({ days, todayISO, spending, idealPerDay }: DayStripProps) {
+export function DayStrip({ days, todayISO, spending, idealPerDay, recoveryPerDay = null, quiet = false }: DayStripProps) {
   const [selected, setSelected] = useState<string | null>(null)
   const dots = dayDots(days, todayISO)
   if (dots.length === 0) return null
@@ -46,6 +59,7 @@ export function DayStrip({ days, todayISO, spending, idealPerDay }: DayStripProp
     spending.find((d) => d.date === activeDate),
     idealPerDay,
     formatCurrency,
+    activeDate === todayISO ? recoveryPerDay : null,
   )
 
   return (
@@ -66,13 +80,13 @@ export function DayStrip({ days, todayISO, spending, idealPerDay }: DayStripProp
                 <span
                   className={cn(
                     "flex h-7 w-7 items-center justify-center rounded-full",
-                    DOT[d.status],
+                    (quiet ? DOT_QUIET : DOT)[d.status],
                     d.isToday && "outline outline-2 outline-offset-2 outline-foreground/70",
                     d.date === activeDate && !d.isToday && "outline outline-2 outline-offset-2 outline-foreground/30",
                   )}
                   aria-hidden
                 >
-                  <DotIcon status={d.status} />
+                  <DotIcon status={d.status} quiet={quiet} />
                 </span>
                 <span aria-hidden className={cn("text-[11px] leading-none", d.isToday ? "font-bold text-foreground" : "text-muted-foreground")}>
                   {d.letter}
@@ -90,12 +104,12 @@ export function DayStrip({ days, todayISO, spending, idealPerDay }: DayStripProp
       <figcaption className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground" aria-hidden>
         {present.has("UNDER") && (
           <span className="inline-flex items-center gap-1">
-            <Check size={10} weight="bold" className="text-positive-ink" /> dentro do ideal
+            <Check size={10} weight="bold" className={quiet ? undefined : "text-positive-ink"} /> dentro do ideal
           </span>
         )}
         {present.has("OVER") && (
           <span className="inline-flex items-center gap-1">
-            <ArrowUp size={10} weight="bold" className="text-attention-ink" /> acima do ideal
+            <ArrowUp size={10} weight="bold" className={quiet ? undefined : "text-attention-ink"} /> acima do ideal
           </span>
         )}
         {present.has("NO_SPEND") && (

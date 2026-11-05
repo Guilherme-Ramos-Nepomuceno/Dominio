@@ -8,15 +8,35 @@ import { PlanTower } from "@/app/plan/components/plan-tower"
 import { useOnboardingViewModel } from "../hooks/use-onboarding-view-model"
 
 const inputClass =
-  "w-full px-4 py-3 rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+  "w-full rounded-xl border border-border bg-transparent px-4 py-3 text-foreground placeholder:text-muted-foreground/60 outline-none transition-colors focus:border-foreground/50"
+
+// Botões do rodapé de cada passo: o secundário em contorno, o principal cheio.
+const secondaryButton = "flex-1 h-12 rounded-full border border-border font-semibold text-foreground hover:bg-muted transition-colors"
+const primaryButton = "flex-1 h-12 rounded-full bg-primary font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+
+// Valor grande, como o herói das outras telas.
+function AmountInput({ label, value, onChange, autoFocus }: { label: string; value: string; onChange: (v: string) => void; autoFocus?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-2 border-b border-border pb-2 focus-within:border-foreground/50 transition-colors">
+      <span className="text-2xl font-semibold text-muted-foreground">R$</span>
+      <input
+        autoFocus={autoFocus}
+        inputMode="decimal"
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="0,00"
+        className="w-full min-w-0 bg-transparent text-4xl font-semibold tracking-tight tabular-nums text-foreground placeholder:text-muted-foreground/40 outline-none"
+      />
+    </div>
+  )
+}
 
 function StepHeader({ icon: Icon, title, text }: { icon: typeof Wallet; title: string; text: string }) {
   return (
     <div className="space-y-2">
-      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-        <Icon size={26} weight="duotone" className="text-primary" />
-      </div>
-      <h1 className="text-2xl font-bold text-foreground text-balance">{title}</h1>
+      <Icon size={28} weight="duotone" className="text-muted-foreground" aria-hidden />
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground text-balance">{title}</h1>
       <p className="text-sm text-muted-foreground text-pretty">{text}</p>
     </div>
   )
@@ -30,13 +50,13 @@ export function OnboardingView() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-md mx-auto px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] space-y-6">
+      <div className="max-w-md mx-auto px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] space-y-8">
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5" aria-label={`Passo ${stepIndex + 1} de ${ONBOARDING_STEPS.length}`}>
             {ONBOARDING_STEPS.map((s, i) => (
               <span
                 key={s}
-                className={cn("h-1.5 rounded-full transition-all", i <= stepIndex ? "w-8 bg-primary" : "w-4 bg-muted")}
+                className={cn("h-1.5 rounded-full transition-all", i <= stepIndex ? "w-8 bg-foreground" : "w-4 bg-muted")}
               />
             ))}
           </div>
@@ -58,27 +78,16 @@ export function OnboardingView() {
               title="Quanto você espera receber por mês?"
               text="É o ponto de partida do seu plano: o orçamento do mês. Dá para mudar quando quiser."
             />
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
-              <input
-                autoFocus
-                inputMode="decimal"
-                aria-label="Renda prevista do mês"
-                value={vm.income}
-                onChange={(e) => vm.setIncome(e.target.value)}
-                placeholder="0,00"
-                className={cn(inputClass, "pl-12 text-2xl font-bold tabular-nums")}
-              />
-            </div>
+            <AmountInput autoFocus label="Renda prevista do mês" value={vm.income} onChange={vm.setIncome} />
             {vm.error && <p className="text-sm text-expense">{vm.error}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={vm.advance} className="flex-1 py-3 rounded-xl border border-border font-semibold">
+              <button type="button" onClick={vm.advance} className={secondaryButton}>
                 Depois
               </button>
               <button
                 type="submit"
                 disabled={vm.isBusy}
-                className="flex-1 py-3 rounded-xl bg-primary text-background font-semibold disabled:opacity-50"
+                className={primaryButton}
               >
                 {vm.isBusy ? "Salvando..." : "Continuar"}
               </button>
@@ -99,22 +108,24 @@ export function OnboardingView() {
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between rounded-2xl bg-card border border-border/50 px-4 py-3">
-                  <span className="text-sm text-muted-foreground">Orçamento do mês</span>
-                  <span className="font-bold tabular-nums">{formatCurrency(vm.plan.budgetAmount ?? vm.plan.suggestedBudget)}</span>
+                <div>
+                  <p className="text-sm text-muted-foreground">Orçamento do mês</p>
+                  <p className="mt-1 text-4xl font-semibold tracking-tight leading-none tabular-nums text-foreground">
+                    {formatCurrency(vm.plan.budgetAmount ?? vm.plan.suggestedBudget)}
+                  </p>
                 </div>
                 <PlanTower plan={vm.plan} groupHref={(id) => `/plan/${id}`} />
               </>
             )}
             <div className="flex gap-2">
-              <button type="button" onClick={vm.advance} className="flex-1 py-3 rounded-xl border border-border font-semibold">
+              <button type="button" onClick={vm.advance} className={secondaryButton}>
                 Depois
               </button>
               <button
                 type="button"
                 onClick={vm.confirmDraft}
                 disabled={vm.isBusy || !vm.plan}
-                className="flex-1 py-3 rounded-xl bg-primary text-background font-semibold disabled:opacity-50"
+                className={primaryButton}
               >
                 {vm.isBusy ? "Confirmando..." : "Confirmar plano"}
               </button>
@@ -142,26 +153,16 @@ export function OnboardingView() {
               placeholder="Ex.: Fone novo"
               className={inputClass}
             />
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">R$</span>
-              <input
-                inputMode="decimal"
-                aria-label="Valor estimado do desejo"
-                value={vm.wishAmount}
-                onChange={(e) => vm.setWishAmount(e.target.value)}
-                placeholder="0,00"
-                className={cn(inputClass, "pl-12 tabular-nums")}
-              />
-            </div>
+            <AmountInput label="Valor estimado do desejo" value={vm.wishAmount} onChange={vm.setWishAmount} />
             {vm.error && <p className="text-sm text-expense">{vm.error}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={vm.advance} className="flex-1 py-3 rounded-xl border border-border font-semibold">
+              <button type="button" onClick={vm.advance} className={secondaryButton}>
                 Agora não
               </button>
               <button
                 type="submit"
                 disabled={vm.isBusy}
-                className="flex-1 py-3 rounded-xl bg-primary text-background font-semibold disabled:opacity-50"
+                className={primaryButton}
               >
                 {vm.isBusy ? "Salvando..." : "Salvar e ir para a Home"}
               </button>

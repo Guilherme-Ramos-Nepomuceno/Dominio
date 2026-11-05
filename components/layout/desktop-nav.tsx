@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   HouseIcon,
   PlusIcon,
-  ChartBarIcon,
+  CompassIcon,
   GearIcon,
   MoonIcon,
   SunIcon,
@@ -33,7 +33,7 @@ const navItems = [
   { href: "/plan", icon: TargetIcon, label: "Planejar" },
   { href: "/week", icon: CalendarDotsIcon, label: "Minha semana" },
   { href: "/inbox", icon: TrayIcon, label: "A classificar" },
-  { href: "/stats", icon: ChartBarIcon, label: "Estatísticas" },
+  { href: "/stats", icon: CompassIcon, label: "Bússola" },
   { href: "/cards", icon: CreditCardIcon, label: "Cartões" },
   { href: "/categories", icon: FoldersIcon, label: "Categorias" },
   { href: "/savings", icon: PiggyBankIcon, label: "Reservas" },

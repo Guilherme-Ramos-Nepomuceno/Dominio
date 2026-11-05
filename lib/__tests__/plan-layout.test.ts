@@ -8,9 +8,12 @@ import {
   formatShortfall,
   groupColor,
   monthBar,
+  monthBarPlanned,
   monthBarSpentCaption,
   monthBarSummary,
   planGuide,
+  segmentDetail,
+  plannedByCategory,
   planHeadline,
   planMonthTitle,
   planPeriodLabel,
@@ -161,8 +164,11 @@ test("barra do mês: plano acima do orçamento mostra o excesso", () => {
 })
 
 test("barra do mês: legenda do gasto soma os grupos e o sem categoria", () => {
-  // 173,9 (Estilo de vida) + 22 (sem categoria) = 195,9 → R$ 196 de R$ 4.822.
-  assert.equal(monthBarSpentCaption(monthBar(mapPlan(rawPlan))), brl("R$ 196 já gasto de R$ 4.822 planejado"))
+  // 173,9 (Estilo de vida) + 22 (sem categoria) = 195,9 → R$ 196. Planejado =
+  // só os grupos (2900 + 550 + 600 + 750 = 4800), como no Fechamento.
+  const bar = monthBar(mapPlan(rawPlan))
+  assert.equal(monthBarPlanned(bar), 4800)
+  assert.equal(monthBarSpentCaption(bar), brl("R$ 196 já gasto de R$ 4.800 planejado"))
 })
 
 test("barra do mês: sem orçamento nem plano fica vazia", () => {
@@ -271,4 +277,37 @@ test("guia do topo e botão de confirmar", () => {
   assert.equal(canConfirmPlan("DRAFT", true), true)
   assert.equal(canConfirmPlan("DRAFT", false), false)
   assert.equal(canConfirmPlan("CONFIRMED", true), false)
+})
+
+test("plannedByCategory: comprometido + variável por categoria; sem plano, vazio", () => {
+  const plan = mapPlan(rawPlan)
+  const byCategory = plannedByCategory(plan)
+  assert.equal(byCategory["ess-cat"], 2900)
+  assert.equal(byCategory["life-cat"], 550)
+  assert.deepEqual(plannedByCategory({ ...plan, status: "NONE" }), {})
+})
+
+test("segmentDetail: texto e destino de cada pedaço da barra", () => {
+  const bar = monthBar(mapPlan(rawPlan))
+  const by = (key: string) => bar.segments.find((s) => s.key === key)!
+  assert.deepEqual(segmentDetail(by("life"), true), { text: brl("R$ 174 gastos de R$ 550 planejado"), href: "/plan/life" })
+  assert.deepEqual(segmentDetail(by("life"), false), { text: brl("R$ 550 planejado"), href: "/plan/life" })
+  assert.deepEqual(segmentDetail(by("uncategorized"), true), { text: brl("R$ 22 gastos sem categoria"), href: "/inbox" })
+  assert.equal(segmentDetail(by("wish"), true).href, "/plan#desejos")
+  assert.deepEqual(segmentDetail(by("free"), true), { text: brl("R$ 1.178 ainda sem destino"), href: null })
+  const over = { ...by("life"), spent: 700, overspent: true }
+  assert.equal(segmentDetail(over, true).text, brl("R$ 700 gastos de R$ 550 · R$ 150 acima"))
+})
+
+test("cor do ícone: grupo do plano, entrada em verde, sem grupo em cinza", async () => {
+  const { transactionIconColor, groupOfCategory } = await import("../plan-layout.ts")
+  const groups = [
+    { id: "g1", name: "Essenciais", kind: "ESSENTIALS" as const, order: 0, categoryIds: ["moradia"] },
+    { id: "g2", name: "Desejos", kind: "WISHES" as const, order: 3, categoryIds: ["viagem"] },
+  ]
+  assert.equal(groupOfCategory(groups, "viagem")?.name, "Desejos")
+  assert.equal(groupOfCategory(groups, null), undefined)
+  assert.equal(transactionIconColor(groups, "moradia", "expense"), "var(--plan-essentials)")
+  assert.equal(transactionIconColor(groups, "salario", "income"), "var(--income)")
+  assert.equal(transactionIconColor(groups, null, "expense"), "var(--plan-uncategorized)")
 })

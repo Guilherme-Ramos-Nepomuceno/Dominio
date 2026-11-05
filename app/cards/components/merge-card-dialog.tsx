@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowsLeftRight, X } from "@phosphor-icons/react"
+import { CheckCircle, Circle } from "@phosphor-icons/react"
 import type { Card } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
+import { FormSheet, SheetPrimaryButton } from "@/components/ui/form-sheet"
 
 interface MergeCardDialogProps {
   card: Card | null
@@ -13,83 +14,82 @@ interface MergeCardDialogProps {
   onClose: () => void
 }
 
+const capability = (c: Card) => (c.hasCredit && c.hasDebit ? "crédito e débito" : c.hasCredit ? "crédito" : "débito")
+
+// Juntar dois cadastros do mesmo cartão/conta: escolher o outro numa lista solta.
 export function MergeCardDialog({ card, otherCards, onMerge, onClose }: MergeCardDialogProps) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isMerging, setIsMerging] = useState(false)
 
   if (!card) return null
 
-  const handleMerge = async (mergeCardId: string) => {
-    if (isMerging) return
+  const selected = otherCards.find((c) => c.id === selectedId)
+
+  // Apaga o outro cadastro: escolher na lista só marca, quem executa é o botão.
+  const handleMerge = async () => {
+    if (!selectedId || isMerging) return
     setIsMerging(true)
     try {
-      await onMerge(mergeCardId)
+      await onMerge(selectedId)
     } finally {
       setIsMerging(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-card w-full max-w-md rounded-t-3xl md:rounded-3xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-foreground">Mesclar Cartão</h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <X size={20} weight="bold" />
-          </button>
-        </div>
+    <FormSheet
+      title={`Juntar com ${card.name}`}
+      onClose={onClose}
+      footer={
+        otherCards.length > 0 ? (
+          <SheetPrimaryButton type="button" onClick={handleMerge} disabled={!selected || isMerging}>
+            {isMerging ? "Juntando..." : selected ? `Juntar ${selected.name} em ${card.name}` : "Escolha o outro cadastro"}
+          </SheetPrimaryButton>
+        ) : undefined
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        Se o mesmo cartão foi cadastrado duas vezes, escolha o outro cadastro. Lançamentos e reservas dele passam para{" "}
+        <span className="text-foreground font-medium">{card.name}</span>, que fica com crédito e/ou débito dos dois. O outro cadastro é apagado.
+      </p>
 
-        <p className="text-sm text-muted-foreground">
-          Escolha outro cartão para juntar com <b className="text-foreground">{card.name}</b>. Todo o histórico de
-          transações e reservas do cartão escolhido passa para {card.name}, que fica com as capacidades (crédito e/ou
-          débito) dos dois — o outro registro é removido.
-        </p>
-
-        {otherCards.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">
-            Você precisa de pelo menos mais um cartão cadastrado para mesclar.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto">
-            {otherCards.map((other) => {
-              const BankIcon = getBankIcon(other.bankName)
-              const capability =
-                other.hasCredit && other.hasDebit ? "Crédito + Débito" : other.hasCredit ? "Crédito" : "Débito"
-              return (
+      {otherCards.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Não há outro cartão ou conta para juntar.</p>
+      ) : (
+        <ul role="radiogroup" aria-label="Outro cadastro" className="-mt-2 divide-y divide-border">
+          {otherCards.map((other) => {
+            const BankIcon = getBankIcon(other.bankName)
+            const final = other.lastDigits && other.lastDigits !== "0000" ? `final ${other.lastDigits} · ` : ""
+            const isSelected = selectedId === other.id
+            return (
+              <li key={other.id}>
                 <button
-                  key={other.id}
                   type="button"
-                  onClick={() => handleMerge(other.id)}
+                  role="radio"
+                  aria-checked={isSelected}
+                  onClick={() => setSelectedId(isSelected ? null : other.id)}
                   disabled={isMerging}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-[1vw] border-2 border-border bg-background hover:border-primary/50 hover:bg-muted transition-all text-left disabled:opacity-50",
-                  )}
+                  className={cn("flex w-full items-center gap-3 py-3 text-left transition-opacity", selectedId && !isSelected && "opacity-50")}
                 >
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: other.color + "20" }}
-                  >
-                    <BankIcon size={24} color={other.color} weight="fill" />
-                  </div>
+                  <BankIcon size={22} weight="fill" color={other.color} className="shrink-0" aria-hidden />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{other.name}</p>
-                    <p className="text-xs text-muted-foreground">•••• {other.lastDigits} • {capability}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {final}
+                      {capability(other)}
+                    </p>
                   </div>
-                  <ArrowsLeftRight size={18} className="text-muted-foreground shrink-0" weight="bold" />
+                  {isSelected ? (
+                    <CheckCircle size={20} weight="fill" className="shrink-0 text-foreground" />
+                  ) : (
+                    <Circle size={20} className="shrink-0 text-muted-foreground" />
+                  )}
                 </button>
-              )
-            })}
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={isMerging}
-          className="w-full py-3 px-4 rounded-[1vw] border border-border text-foreground font-semibold hover:bg-muted transition-colors disabled:opacity-50"
-        >
-          {isMerging ? "Mesclando..." : "Cancelar"}
-        </button>
-      </div>
-    </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </FormSheet>
   )
 }

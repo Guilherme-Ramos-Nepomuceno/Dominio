@@ -103,6 +103,16 @@ export function useQuickAddViewModel() {
     [categories, type, suggestion, frequent, categoryId],
   )
 
+  // Todas as categorias do tipo, as mais registradas primeiro (para "Outras").
+  const allCategories = useMemo(() => {
+    const ofType = categories.filter((c) => c.type === type && !c.excludedFromTotals)
+    const rank = (id: string) => {
+      const i = frequent.indexOf(id)
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i
+    }
+    return ofType.slice().sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, "pt-BR"))
+  }, [categories, type, frequent])
+
   const changeType = (next: TransactionType) => {
     if (next === type) return
     setType(next)
@@ -177,6 +187,7 @@ export function useQuickAddViewModel() {
     date,
     setDate,
     chips,
+    allCategories,
     suggestedCategoryId: suggestion?.categoryId ?? null,
     categoryId,
     tapChip,

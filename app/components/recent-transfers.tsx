@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { formatCurrency } from "@/lib/date-utils"
 import { getCards } from "@/lib/storage"
 import type { Card, Transaction } from "@/lib/types"
@@ -43,17 +44,17 @@ export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: R
     .slice(0, maxItems)
 
   return (
-    <div className="rounded-[20px] bg-card p-6 shadow-sm border border-border/50">
-      <h3 className="text-lg font-semibold text-foreground mb-4">Transferências Recentes</h3>
+    <section aria-labelledby="home-transfers-title">
+      <SectionTitle id="home-transfers-title" className="mb-1">Transferências recentes</SectionTitle>
 
-      <div className="space-y-3">
+      <div className="divide-y divide-border">
         {items.map((item) => {
           if (item.kind === "single") {
             const transaction = item.transaction
             return (
               <div
                 key={transaction.id}
-                className="flex items-center gap-4 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors"
+                className="flex items-center gap-4 py-3"
               >
                 <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
                   <ArrowsLeftRight size={20} weight="bold" />
@@ -82,7 +83,7 @@ export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: R
           return (
             <div
               key={`${from.id}-${to.id}`}
-              className="flex items-center gap-2 p-3 rounded-[1vw] hover:bg-muted/50 transition-colors"
+              className="flex items-center gap-2 py-3"
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div
@@ -123,6 +124,6 @@ export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: R
           )
         })}
       </div>
-    </div>
+    </section>
   )
 }

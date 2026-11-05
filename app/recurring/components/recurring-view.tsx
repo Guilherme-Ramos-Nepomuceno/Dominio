@@ -3,10 +3,12 @@
 import { useState } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { Button } from "@/components/ui/button"
-import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
-import { RepeatIcon, CalendarBlankIcon, XCircle } from "@phosphor-icons/react"
+import { formatMoneyWhole } from "@/lib/plan-layout"
+import { installmentProgress, recurringSummary } from "@/lib/recurring"
+import { Repeat } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import {
     AlertDialog,
@@ -20,6 +22,18 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useRecurringViewModel } from "../hooks/use-recurring-view-model"
 
+// Valor com sinal só na receita (despesa é o padrão da tela).
+function Amount({ value, type, className }: { value: number; type: string; className?: string }) {
+    return (
+        <span className={cn("font-semibold tabular-nums", type === "income" ? "text-income" : "text-foreground", className)}>
+            {type === "income" ? "+ " : ""}
+            {formatCurrency(value)}
+        </span>
+    )
+}
+
+// Página corrida, no desenho do Planejar: herói solto (quanto já sai todo mês)
+// e duas listas com divisórias, sem um cartão em volta de cada item.
 export function RecurringView() {
     const {
         loading,
@@ -31,6 +45,9 @@ export function RecurringView() {
         confirmCancelRecurrence,
     } = useRecurringViewModel()
     const [isCancelling, setIsCancelling] = useState(false)
+    const summary = recurringSummary(recurringList, installmentList)
+    const isEmpty = recurringList.length === 0 && installmentList.length === 0
+    const toCancel = recurringList.find((t) => t.id === transactionToCancel)
 
     const handleConfirmCancel = async () => {
         if (isCancelling) return
@@ -44,135 +61,139 @@ export function RecurringView() {
 
     return (
         <AppLayout>
-            <PageHeader title="Recorrentes" subtitle="Acompanhe suas assinaturas e parcelas" />
+            <PageHeader back="/all-menus" title="Recorrentes" subtitle="Assinaturas, contas fixas e parcelas" />
 
-            <div className="space-y-6">
-                {/* Recurring Transactions (Assinaturas) */}
-                <div>
-                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                        <RepeatIcon weight="bold" size={24} className="text-primary" />
-                        Assinaturas & Fixas
-                    </h2>
-
-                    {loading ? (
-                        <SkeletonRowList count={3} />
-                    ) : recurringList.length === 0 ? (
-                        <div className="rounded-2xl bg-card p-8 text-center border border-border/50">
-                            <p className="text-muted-foreground">Nenhuma assinatura ativa encontrada</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {recurringList.map((transaction) => (
-                                <div
-                                    key={transaction.id}
-                                    className="rounded-2xl bg-card p-5 border border-border/50 hover:border-primary/50 transition-colors"
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex-1">
-                                            <h3 className="text-lg font-semibold text-foreground">{transaction.description}</h3>
-                                            <div className="flex items-center gap-3 mt-1">
-                                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
-                                                    <RepeatIcon size={12} weight="bold" />
-                                                    {formatFrequency(transaction.recurrence || "monthly")}
-                                                </span>
-                                                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                                    <CalendarBlankIcon size={14} />
-                                                    Vence: {formatDate(transaction.date)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className={cn("text-xl font-bold text-text-primary")}>
-                                                {transaction.type === "expense" ? "-" : "+"}
-                                                {formatCurrency(transaction.amount)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end mt-3 pt-3 border-t border-border/50">
-                                        <Button
-                                            onClick={() => setTransactionToCancel(transaction.id)}
-                                            variant="outline"
-                                            size="sm"
-                                            className="border-expense text-expense hover:bg-expense/10"
-                                        >
-                                            <XCircle size={16} weight="bold" className="mr-2" />
-                                            Cancelar recorrência
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+            {loading ? (
+                <div className="max-w-2xl mx-auto space-y-10" aria-busy>
+                    <div className="space-y-3">
+                        <Skeleton className="h-4 w-36 rounded-full" />
+                        <Skeleton className="h-12 w-52 rounded-xl" />
+                        <Skeleton className="h-4 w-64 rounded-full" />
+                    </div>
+                    <Skeleton className="h-40 rounded-xl" />
                 </div>
+            ) : isEmpty ? (
+                <div className="max-w-2xl mx-auto py-10 text-center space-y-2">
+                    <Repeat size={40} weight="duotone" className="mx-auto text-muted-foreground" />
+                    <h2 className="text-lg font-semibold">Nada se repetindo</h2>
+                    <p className="text-sm text-muted-foreground">
+                        Ao registrar uma conta, marque que ela se repete ou parcele a compra — ela aparece aqui.
+                    </p>
+                </div>
+            ) : (
+                <div className="max-w-2xl mx-auto space-y-10">
+                    {/* 1. Herói: o compromisso de todo mês */}
+                    <section aria-labelledby="recurring-total-label">
+                        <p id="recurring-total-label" className="text-sm text-muted-foreground">
+                            Já sai todo mês
+                        </p>
+                        <p className="mt-1 text-5xl font-semibold tracking-tight leading-none tabular-nums text-foreground">
+                            {formatMoneyWhole(summary.monthlyOut)}
+                        </p>
+                        <p className="mt-3 text-sm text-muted-foreground tabular-nums">
+                            <span className="font-semibold text-foreground">{formatMoneyWhole(summary.fixedOut)}</span> em fixas
+                            {summary.installmentsOut > 0 && (
+                                <>
+                                    {" · "}
+                                    <span className="font-semibold text-foreground">{formatMoneyWhole(summary.installmentsOut)}</span> em parcelas
+                                </>
+                            )}
+                        </p>
+                        {summary.fixedIn > 0 && (
+                            <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+                                Entram <span className="font-semibold text-foreground">{formatMoneyWhole(summary.fixedIn)}</span> por mês em receitas
+                                fixas
+                            </p>
+                        )}
+                    </section>
 
-                {/* Installments (Parcelados) */}
-                <div>
-                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                        <CalendarBlankIcon weight="bold" size={24} className="text-primary" />
-                        Compras Parceladas
-                    </h2>
+                    {/* 2. Assinaturas e fixas */}
+                    <section aria-labelledby="recurring-fixed-title">
+                        <SectionTitle id="recurring-fixed-title">Assinaturas e fixas</SectionTitle>
+                        {recurringList.length === 0 ? (
+                            <p className="mt-3 text-sm text-muted-foreground">Nenhuma assinatura ativa.</p>
+                        ) : (
+                            <ul className="mt-1 divide-y divide-border">
+                                {recurringList.map((t) => (
+                                    <li key={t.id} className="flex items-start gap-3 py-4">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="truncate font-semibold text-foreground">{t.description}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {formatFrequency(t.recurrence || "monthly")} · próxima {formatDate(t.date)}
+                                            </p>
+                                        </div>
+                                        <div className="flex shrink-0 flex-col items-end">
+                                            <Amount value={t.amount} type={t.type} />
+                                            <button
+                                                type="button"
+                                                onClick={() => setTransactionToCancel(t.id)}
+                                                className="mt-1 text-xs text-muted-foreground underline decoration-muted-foreground/30 underline-offset-4 hover:text-expense hover:decoration-expense transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
 
-                    {loading ? (
-                        <SkeletonRowList count={3} />
-                    ) : installmentList.length === 0 ? (
-                        <div className="rounded-2xl bg-card p-8 text-center border border-border/50">
-                            <p className="text-muted-foreground">Nenhum parcelamento ativo encontrado</p>
+                    {/* 3. Parcelas: quanto falta e o andamento */}
+                    <section aria-labelledby="recurring-installments-title">
+                        <div className="flex items-baseline justify-between gap-3">
+                            <SectionTitle id="recurring-installments-title">Compras parceladas</SectionTitle>
+                            {summary.installmentsRemaining > 0 && (
+                                <span className="text-sm tabular-nums text-muted-foreground">
+                                    faltam <span className="font-semibold text-foreground">{formatMoneyWhole(summary.installmentsRemaining)}</span>
+                                </span>
+                            )}
                         </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {installmentList.map((transaction) => {
-                                const totalInstallments = transaction.installments || 1;
-                                const currentInstallment = transaction.currentInstallment || 1;
-                                const installmentValue = transaction.amount;
-                                const installmentsLeft = totalInstallments - currentInstallment + 1;
-                                const remainingDebt = installmentValue * installmentsLeft;
-
-                                return (
-                                    <div
-                                        key={transaction.id}
-                                        className="rounded-2xl bg-card p-5 border border-border/50 flex items-center justify-between hover:border-primary/50 transition-colors"
-                                    >
-                                        <div className="flex-1">
-                                            <h3 className="text-lg font-semibold text-foreground">{transaction.description}</h3>
-                                            <div className="flex flex-col gap-1 mt-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                                                        Parcela {currentInstallment}/{totalInstallments}
-                                                    </span>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        Vence: {formatDate(transaction.date)}
-                                                    </span>
+                        {installmentList.length === 0 ? (
+                            <p className="mt-3 text-sm text-muted-foreground">Nenhum parcelamento ativo.</p>
+                        ) : (
+                            <ul className="mt-1 divide-y divide-border">
+                                {installmentList.map((t) => {
+                                    const p = installmentProgress(t)
+                                    return (
+                                        <li key={t.id} className="py-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="truncate font-semibold text-foreground">{t.description}</p>
+                                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                                        Parcela {p.current} de {p.total} · próxima {formatDate(t.date)}
+                                                    </p>
                                                 </div>
-                                                {/* Progress Bar */}
-                                                <div className="w-32 h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-primary"
-                                                        style={{ width: `${(currentInstallment / totalInstallments) * 100}%` }}
-                                                    />
+                                                <div className="shrink-0 text-right">
+                                                    <Amount value={t.amount} type={t.type} />
+                                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                                        {p.left === 1 ? "última" : `faltam ${formatMoneyWhole(p.remaining)}`}
+                                                    </p>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className={cn("text-xl font-bold text-text-primary")}>
-                                                {transaction.type === "expense" ? "-" : "+"}
-                                                {formatCurrency(installmentValue)}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Resta: {formatCurrency(remainingDebt)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    )}
+                                            <div
+                                                className="mt-2.5 h-1.5 overflow-hidden rounded-full"
+                                                style={{ backgroundColor: "var(--plan-track)" }}
+                                                role="progressbar"
+                                                aria-valuemin={0}
+                                                aria-valuemax={p.total}
+                                                aria-valuenow={p.current - 1}
+                                                aria-label={`${p.current - 1} de ${p.total} parcelas pagas`}
+                                            >
+                                                <div className="h-full rounded-full bg-foreground/60" style={{ width: `${p.pct}%` }} />
+                                            </div>
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        )}
+                    </section>
                 </div>
-            </div>
+            )}
 
             <AlertDialog open={!!transactionToCancel} onOpenChange={() => setTransactionToCancel(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Cancelar recorrência?</AlertDialogTitle>
+                        <AlertDialogTitle>Cancelar {toCancel ? `"${toCancel.description}"` : "recorrência"}?</AlertDialogTitle>
                         <AlertDialogDescription>
                             Isso cancela esta e todas as próximas ocorrências desta recorrência (meses futuros). Ocorrências já pagas em meses anteriores não são afetadas.
                         </AlertDialogDescription>
@@ -180,7 +201,7 @@ export function RecurringView() {
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={isCancelling}>Voltar</AlertDialogCancel>
                         <AlertDialogAction onClick={handleConfirmCancel} disabled={isCancelling} className="bg-destructive text-white hover:bg-destructive/90">
-                            {isCancelling ? "Cancelando..." : "Confirmar Cancelamento"}
+                            {isCancelling ? "Cancelando..." : "Cancelar recorrência"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

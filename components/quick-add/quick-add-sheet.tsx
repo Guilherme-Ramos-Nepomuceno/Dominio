@@ -1,20 +1,23 @@
 "use client"
 
 import type React from "react"
-import * as PhosphorIcons from "@phosphor-icons/react"
-import { ArrowDownIcon, ArrowUpIcon, BackspaceIcon, CalendarIcon, SparkleIcon, WalletIcon } from "@phosphor-icons/react"
+import { useState } from "react"
+import { BackspaceIcon } from "@phosphor-icons/react"
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
 import { cn } from "@/lib/utils"
 import { formatCentsBRL, type KeypadKey } from "@/lib/quick-add"
+import { CardChips, CategoryChip, Chip, ChipRow, DateChips, FieldLabel, PaymentMethodToggle } from "@/components/transaction-inputs/transaction-inputs"
 import type { QuickAddViewModel } from "./use-quick-add-view-model"
 
 const KEYPAD: KeypadKey[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "backspace"]
 
 // Registro rápido: valor no teclado numérico grande + confirmação já é o
-// registro completo. Descrição, conta, data e categoria são opcionais e ficam
-// na mesma tela (sem abrir outra). "Mais opções" leva ao formulário completo.
+// registro completo. Categoria (as 4 mais registradas), conta e data são
+// opcionais e ficam na mesma tela, em pílulas. "Mais opções" leva ao
+// formulário completo.
 export function QuickAddSheet({ vm }: { vm: QuickAddViewModel }) {
   const isIncome = vm.type === "income"
+  const [showAllCategories, setShowAllCategories] = useState(false)
 
   // Teclado físico (desktop): dígitos, Backspace e Enter funcionam fora dos
   // campos de texto/data.
@@ -33,50 +36,55 @@ export function QuickAddSheet({ vm }: { vm: QuickAddViewModel }) {
     }
   }
 
+  const categories = showAllCategories ? vm.allCategories : vm.chips
+  const hasMoreCategories = vm.allCategories.length > vm.chips.length
+
   return (
-    <Drawer open={vm.open} onOpenChange={vm.setOpen}>
+    <Drawer
+      open={vm.open}
+      onOpenChange={(open) => {
+        vm.setOpen(open)
+        if (!open) setShowAllCategories(false)
+      }}
+    >
       <DrawerContent
         onKeyDown={handleKeyDown}
-        className="bg-card md:max-w-md md:mx-auto data-[vaul-drawer-direction=bottom]:max-h-[94vh] rounded-t-3xl"
+        className="bg-background md:max-w-md md:mx-auto data-[vaul-drawer-direction=bottom]:max-h-[94vh] rounded-t-3xl"
       >
-        <div className="overflow-y-auto px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4">
+        <div className="overflow-y-auto px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <DrawerTitle className="text-lg font-bold">Registro rápido</DrawerTitle>
-              <DrawerDescription className="text-xs">Só o valor já basta — o resto é opcional.</DrawerDescription>
+              <DrawerTitle className="text-lg font-semibold">Registro rápido</DrawerTitle>
+              <DrawerDescription className="text-xs">Só o valor já basta, o resto é opcional.</DrawerDescription>
             </div>
-            {/* Alternância despesa/receita */}
-            <div className="grid grid-cols-2 bg-muted rounded-full p-1 text-xs font-semibold shrink-0">
-              <button
-                type="button"
-                onClick={() => vm.changeType("expense")}
-                className={cn(
-                  "flex items-center gap-1 px-3 py-1.5 rounded-full transition-colors",
-                  !isIncome ? "bg-expense text-white shadow-sm" : "text-muted-foreground",
-                )}
-              >
-                <ArrowDownIcon size={12} weight="bold" />
-                Despesa
-              </button>
-              <button
-                type="button"
-                onClick={() => vm.changeType("income")}
-                className={cn(
-                  "flex items-center gap-1 px-3 py-1.5 rounded-full transition-colors",
-                  isIncome ? "bg-income text-white shadow-sm" : "text-muted-foreground",
-                )}
-              >
-                <ArrowUpIcon size={12} weight="bold" />
-                Receita
-              </button>
+            {/* Despesa / receita */}
+            <div role="radiogroup" aria-label="Tipo" className="inline-flex shrink-0 rounded-full bg-muted/50 p-0.5 text-xs font-semibold">
+              {(["expense", "income"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={vm.type === t}
+                  onClick={() => {
+                    vm.changeType(t)
+                    setShowAllCategories(false)
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 transition-colors",
+                    vm.type === t ? (t === "income" ? "bg-income text-white" : "bg-expense text-white") : "text-muted-foreground",
+                  )}
+                >
+                  {t === "income" ? "Receita" : "Despesa"}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Valor */}
           <p
             className={cn(
-              "text-center text-4xl font-bold tabular-nums tracking-tight py-1",
-              vm.cents === 0 ? "text-muted-foreground" : isIncome ? "text-income" : "text-expense",
+              "text-center text-5xl font-semibold tabular-nums tracking-tight",
+              vm.cents === 0 ? "text-muted-foreground/60" : isIncome ? "text-income" : "text-foreground",
             )}
             aria-live="polite"
           >
@@ -90,94 +98,63 @@ export function QuickAddSheet({ vm }: { vm: QuickAddViewModel }) {
             onChange={(e) => vm.setDescription(e.target.value)}
             placeholder="Descrição (opcional)"
             maxLength={120}
-            className="w-full px-4 py-2.5 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full border-b border-border bg-transparent px-0 py-2 text-center text-sm text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
           />
 
-          {/* Chips de categoria: toque categoriza, outro toque desmarca */}
-          {vm.chips.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {vm.chips.map((category) => {
-                const Icon = (category.icon && (PhosphorIcons as any)[category.icon]) || PhosphorIcons.Circle
-                const selected = vm.categoryId === category.id
-                const suggested = vm.suggestedCategoryId === category.id
-                return (
-                  <button
+          {/* Categoria: as mais registradas; "Outras" abre todas */}
+          {categories.length > 0 && (
+            <div className="space-y-2">
+              <FieldLabel>Categoria</FieldLabel>
+              <ChipRow wrap>
+                {categories.map((category) => (
+                  <CategoryChip
                     key={category.id}
-                    type="button"
+                    category={category}
+                    selected={vm.categoryId === category.id}
+                    suggested={vm.suggestedCategoryId === category.id}
                     onClick={() => vm.tapChip(category.id)}
-                    aria-pressed={selected}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors",
-                      selected
-                        ? "border-primary bg-primary text-background"
-                        : "border-border bg-background text-foreground hover:bg-muted",
-                    )}
-                  >
-                    <Icon size={14} weight="duotone" />
-                    {category.name}
-                    {suggested && !selected && <SparkleIcon size={12} weight="fill" className="text-primary/70" aria-label="sugestão" />}
-                  </button>
-                )
-              })}
+                  />
+                ))}
+                {hasMoreCategories && (
+                  <Chip selected={false} onClick={() => setShowAllCategories((v) => !v)} className="text-muted-foreground">
+                    {showAllCategories ? "Menos" : "Outras"}
+                  </Chip>
+                )}
+              </ChipRow>
             </div>
           )}
 
-          {/* Conta + data */}
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background border border-border text-xs min-w-0">
-              <WalletIcon size={14} weight="bold" className="text-muted-foreground shrink-0" />
-              <span className="sr-only">Conta</span>
-              <select
-                value={vm.cardId ?? ""}
-                onChange={(e) => vm.setCardId(e.target.value || null)}
-                className="flex-1 min-w-0 bg-transparent text-foreground focus:outline-none truncate"
-              >
-                <option value="">Sem conta</option>
-                {vm.availableCards.map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background border border-border text-xs min-w-0">
-              <CalendarIcon size={14} weight="bold" className="text-muted-foreground shrink-0" />
-              <span className="sr-only">Data</span>
-              <input
-                type="date"
-                value={vm.date}
-                onChange={(e) => e.target.value && vm.setDate(e.target.value)}
-                className="flex-1 min-w-0 bg-transparent text-foreground focus:outline-none"
-              />
-            </label>
+          {/* Conta */}
+          {vm.availableCards.length > 0 && (
+            <div className="space-y-2">
+              <FieldLabel hint={vm.isComboCard ? <PaymentMethodToggle value={vm.paymentMethod} onChange={vm.setPaymentMethod} /> : undefined}>
+                Conta
+              </FieldLabel>
+              <CardChips cards={vm.availableCards} value={vm.cardId} onChange={vm.setCardId} />
+            </div>
+          )}
+
+          {/* Quando */}
+          <div className="space-y-2">
+            <FieldLabel>Quando</FieldLabel>
+            <DateChips value={vm.date} onChange={vm.setDate} />
           </div>
 
-          {/* Cartão combinado: crédito ou débito */}
-          {vm.isComboCard && (
-            <div className="grid grid-cols-2 gap-2 text-xs font-medium">
-              {(["credit", "debit"] as const).map((method) => (
-                <button
-                  key={method}
-                  type="button"
-                  onClick={() => vm.setPaymentMethod(method)}
-                  className={cn(
-                    "py-2 rounded-xl border transition-colors",
-                    vm.paymentMethod === method ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground",
-                  )}
-                >
-                  {method === "credit" ? "Crédito" : "Débito"}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Teclado numérico */}
-          <div className="grid grid-cols-3 gap-2 select-none">
+          {/* Teclado numérico: responde no toque (pointerdown), sem esperar o
+              clique — o valor lá em cima muda na hora. */}
+          <div className="grid grid-cols-3 gap-1 select-none touch-manipulation">
             {KEYPAD.map((key) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => vm.pressKey(key)}
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  vm.pressKey(key)
+                }}
+                onClick={(e) => {
+                  // Teclado/leitor de tela (sem ponteiro): o clique ainda funciona.
+                  if (e.detail === 0) vm.pressKey(key)
+                }}
                 onContextMenu={(e) => {
                   // Segurar o apagar limpa tudo.
                   if (key === "backspace") {
@@ -186,7 +163,7 @@ export function QuickAddSheet({ vm }: { vm: QuickAddViewModel }) {
                   }
                 }}
                 aria-label={key === "backspace" ? "Apagar" : key}
-                className="h-14 rounded-2xl bg-muted/60 hover:bg-muted active:scale-95 transition-all text-2xl font-semibold text-foreground flex items-center justify-center"
+                className="h-14 rounded-2xl text-2xl font-medium text-foreground flex items-center justify-center active:bg-muted transition-colors"
               >
                 {key === "backspace" ? <BackspaceIcon size={24} weight="bold" /> : key}
               </button>
@@ -198,8 +175,8 @@ export function QuickAddSheet({ vm }: { vm: QuickAddViewModel }) {
             onClick={vm.save}
             disabled={!vm.canSave}
             className={cn(
-              "w-full py-4 rounded-2xl font-bold text-white transition-colors disabled:opacity-40",
-              isIncome ? "bg-income hover:bg-income/90" : "bg-expense hover:bg-expense/90",
+              "w-full py-4 rounded-2xl font-semibold transition-colors disabled:opacity-40",
+              isIncome ? "bg-income text-white hover:bg-income/90" : "bg-foreground text-background hover:bg-foreground/90",
             )}
           >
             {vm.isSaving ? "Registrando..." : isIncome ? "Registrar receita" : "Registrar despesa"}

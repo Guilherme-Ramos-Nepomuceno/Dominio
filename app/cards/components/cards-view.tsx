@@ -1,11 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowsLeftRight, Plus } from "@phosphor-icons/react"
+import { ArrowsLeftRight } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
-import { CardItem } from "./card-item"
+import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
+import { formatCurrency } from "@/lib/date-utils"
+import { AccountRow, CreditCardRow, type CardActions } from "./card-item"
 import { AddCardDialog } from "./add-card-dialog"
 import { EditCardDialog } from "./edit-card-dialog"
 import { MergeCardDialog } from "./merge-card-dialog"
@@ -20,6 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { cn } from "@/lib/utils"
 import { useAccount } from "@/components/account/account-context"
 import { useCardsViewModel } from "../hooks/use-cards-view-model"
 
@@ -45,55 +48,82 @@ export function CardsView() {
     } = useCardsViewModel()
     const { isReadOnly } = useAccount()
 
+    // Cartão combinado aparece nas duas listas: a fatura em crédito, o saldo em contas.
+    const creditCards = processedCards.filter((c) => c.hasCredit)
+    const accounts = processedCards.filter((c) => c.hasDebit).sort((a, b) => (b.calculatedBalance ?? 0) - (a.calculatedBalance ?? 0))
+    const totalBalance = accounts.reduce((sum, c) => sum + (c.calculatedBalance ?? 0), 0)
+    const totalInvoices = creditCards.reduce((sum, c) => sum + c.spentAmount, 0)
+    const actionsFor: CardActions = isReadOnly
+        ? {}
+        : { onDelete: (id) => setCardToDelete(id), onEdit: setEditingCard, onMerge: setMergingCard, onImport: setImportingCard }
+
     return (
-        <AppLayout>
-            <PageHeader title="Meus Cartões" subtitle="Gerencie suas contas e limites" />
+        <AppLayout primaryAction={{ label: "Adicionar cartão", onPress: () => setIsDialogOpen(true) }}>
+            <div className="max-w-2xl mx-auto space-y-10 pb-24 md:pb-10">
+                <PageHeader back="/all-menus" title="Cartões e contas" subtitle="Onde está o seu dinheiro" />
 
-            <div className="flex justify-center mt-6">
-                <Link
-                    href="/transfer"
-                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-background font-semibold shadow-lg hover:shadow-xl hover:bg-primary/90 hover:-translate-y-0.5 transition-all duration-300"
-                >
-                    <ArrowsLeftRight size={20} weight="bold" />
-                    <span>Transferir</span>
-                </Link>
-            </div>
-
-            {loading ? (
-                <div className="mt-8">
-                    <SkeletonCardGrid count={3} />
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
-                    {processedCards.map((card) => (
-                        <CardItem
-                            key={card.id}
-                            card={card}
-                            spent={card.spentAmount}
-                            debitSpent={card.debitSpentAmount}
-                            balance={card.calculatedBalance}
-                            savingsGoals={card.cardGoals}
-                            onDelete={isReadOnly ? undefined : (id) => setCardToDelete(id)}
-                            onEdit={isReadOnly ? undefined : (c) => setEditingCard(c)}
-                            onMerge={isReadOnly ? undefined : (c) => setMergingCard(c)}
-                            onImport={isReadOnly ? undefined : (c) => setImportingCard(c)}
-                            readOnly={isReadOnly}
-                        />
-                    ))}
-
-                    {!isReadOnly && (
-                        <button
-                            onClick={() => setIsDialogOpen(true)}
-                            className="min-h-[220px] rounded-[2rem] border-2 border-dashed border-foreground/40 flex flex-col items-center justify-center gap-3 text-neutral-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all duration-300 group"
-                        >
-                            <div className="w-14 h-14 rounded-full bg-foreground/40 group-hover:bg-foreground flex items-center justify-center transition-colors">
-                                <Plus weight="bold" size={24} className="text-background" />
+                {loading ? (
+                    <SkeletonRowList count={4} />
+                ) : (
+                    <>
+                        {/* Resumo */}
+                        <section aria-label="Resumo" className="space-y-4">
+                            <div className="flex items-baseline gap-6">
+                                <div>
+                                    <p className="text-xs text-muted-foreground">Nas contas</p>
+                                    <p className={cn("text-2xl font-semibold tabular-nums", totalBalance < 0 ? "text-expense" : "text-foreground")}>{formatCurrency(totalBalance)}</p>
+                                </div>
+                                {creditCards.length > 0 && (
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Em faturas</p>
+                                        <p className="text-2xl font-semibold tabular-nums text-foreground">{formatCurrency(totalInvoices)}</p>
+                                    </div>
+                                )}
                             </div>
-                            <span className="font-medium">Adicionar Cartão</span>
-                        </button>
-                    )}
-                </div>
-            )}
+                            {!isReadOnly && <Link href="/transfer" className="inline-flex items-center gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
+                                <ArrowsLeftRight size={14} weight="bold" />
+                                Transferir
+                            </Link>}
+                        </section>
+
+                        {creditCards.length > 0 && (
+                            <section aria-labelledby="cards-credit">
+                                <div className="flex items-baseline justify-between">
+                                    <SectionTitle id="cards-credit">Cartões de crédito</SectionTitle>
+                                    <Link href="/invoices" className="text-xs font-medium text-primary hover:underline">Faturas ›</Link>
+                                </div>
+                                <ul className="mt-1 divide-y divide-border">
+                                    {creditCards.map((card) => (
+                                        <CreditCardRow key={card.id} card={card} invoice={card.spentAmount} actions={actionsFor} />
+                                    ))}
+                                </ul>
+                            </section>
+                        )}
+
+                        {accounts.length > 0 && (
+                            <section aria-labelledby="cards-accounts">
+                                <SectionTitle id="cards-accounts">Contas</SectionTitle>
+                                <ul className="mt-1 divide-y divide-border">
+                                    {accounts.map((card) => (
+                                        <AccountRow
+                                            key={card.id}
+                                            card={card}
+                                            balance={card.calculatedBalance}
+                                            spent={card.debitSpentAmount}
+                                            savingsGoals={card.cardGoals}
+                                            actions={actionsFor}
+                                        />
+                                    ))}
+                                </ul>
+                            </section>
+                        )}
+
+                        {processedCards.length === 0 && (
+                            <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma conta ainda. Toque no + para adicionar a primeira.</p>
+                        )}
+                    </>
+                )}
+            </div>
 
             {!isReadOnly && (
                 <>
@@ -129,7 +159,7 @@ export function CardsView() {
             <AlertDialog open={!!cardToDelete} onOpenChange={() => setCardToDelete(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir Cartão?</AlertDialogTitle>
+                        <AlertDialogTitle>Excluir esta conta?</AlertDialogTitle>
                         <AlertDialogDescription>
                             Tem certeza que deseja remover este cartão? O histórico de transações vinculado a ele poderá ser afetado.
                         </AlertDialogDescription>

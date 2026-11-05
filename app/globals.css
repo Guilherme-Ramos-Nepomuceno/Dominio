@@ -5,6 +5,10 @@
 
 /* Updated to ultra-minimalist finance app with clean white aesthetic */
 :root {
+  /* Controles nativos (lista do <select>, calendário do <input type="date">,
+     barras de rolagem) no tema do app — sem isso, no escuro a lista abria
+     com fundo claro e o texto claro herdado, ilegível. */
+  color-scheme: light;
   /* Clean white background for minimalist look */
   --background: oklab(96.712% -0.00407 -0.00136);
   --foreground: oklch(0.23 0 0);
@@ -70,6 +74,7 @@
 
 /* Dark mode with deep charcoal */
 .dark {
+  color-scheme: dark;
   --background: oklch(0.12 0.01 247);
   --foreground: oklch(0.97 0.01 247);
 
@@ -252,4 +257,11 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/30;
   }
+}
+
+/* Opções do <select> nativo nas cores do tema (Chrome/Edge no Windows e
+   Android respeitam; iOS usa o seletor do sistema). */
+select option {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
 }

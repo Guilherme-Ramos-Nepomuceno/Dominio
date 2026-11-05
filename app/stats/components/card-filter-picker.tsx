@@ -37,7 +37,7 @@ export function CardFilterPicker({ cards, value, onChange }: CardFilterPickerPro
               <span className="text-[11px] text-muted-foreground shrink-0">•••• {selected.lastDigits}</span>
             </>
           ) : (
-            <span className="flex-1 text-left text-muted-foreground">Todos os cartões</span>
+            <span className="flex-1 min-w-0 text-left text-muted-foreground truncate">Cartões</span>
           )}
           <CaretDown size={12} weight="bold" className="text-muted-foreground shrink-0" />
         </button>

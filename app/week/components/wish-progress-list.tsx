@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { PiggyBank } from "@phosphor-icons/react"
 import { wishProgressMessage, type WinsData } from "@/lib/wins"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 
 // "Economia que vira desejo": a economia vs a média dos 3 meses, em % de cada
 // desejo que ainda não cabe. Uma barra por desejo (série única, na cor dos
@@ -11,11 +12,11 @@ export function WishProgressList({ items }: { items: WinsData["month"]["wishProg
   const shown = items.slice(0, 2)
   if (shown.length === 0) return null
   return (
-    <section className="rounded-[20px] border border-border/50 bg-card p-5" aria-labelledby="wish-progress-title">
-      <h2 id="wish-progress-title" className="flex items-center gap-2 text-base font-bold text-foreground">
-        <PiggyBank size={18} weight="duotone" className="text-positive-ink" aria-hidden />
+    <section aria-labelledby="wish-progress-title">
+      <SectionTitle id="wish-progress-title" className="flex items-center gap-1.5">
+        <PiggyBank size={14} weight="duotone" className="text-positive-ink" aria-hidden />
         Economia que vira desejo
-      </h2>
+      </SectionTitle>
       <ul className="mt-3 space-y-3">
         {shown.map((item) => (
           <li key={item.wishId}>

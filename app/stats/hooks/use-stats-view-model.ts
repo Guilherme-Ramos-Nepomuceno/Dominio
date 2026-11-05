@@ -5,7 +5,7 @@ import { useMonthData, isInternalTransfer } from "@/hooks/use-transactions"
 import { useFamilyTotals } from "@/hooks/use-family-totals"
 import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
-import { setSettings, getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
+import { getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 import type { CategoryAlert } from "@/app/types/category"
 import type { AppSettings, Category, Card, Transaction } from "@/lib/types"
@@ -61,11 +61,6 @@ export function useStatsViewModel() {
     }, [])
 
     useEffect(() => { loadData() }, [loadData])
-
-    const handleThresholdChange = async (newThreshold: number) => {
-        await setSettings({ spendingGoal: newThreshold })
-        window.location.reload()
-    }
 
     // Pool "Geral": mesmo critério de sempre — mês pela data da própria transação.
     // O gráfico "Fluxo de Gastos" já soma pendentes (ex: ocorrências futuras de
@@ -208,7 +203,6 @@ export function useStatsViewModel() {
         sortedDates,
         confirmCancelTransaction,
         categoryAlerts,
-        handleThresholdChange,
         refresh: loadData,
     }
 }

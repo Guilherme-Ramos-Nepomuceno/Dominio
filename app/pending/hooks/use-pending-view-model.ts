@@ -10,6 +10,8 @@ import {
     getCards
 } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
+import { useAccount } from "@/components/account/account-context"
+import { getCurrentUser } from "@/lib/auth"
 import type { Category, Card, Transaction } from "@/lib/types"
 
 export function usePendingViewModel() {
@@ -26,6 +28,15 @@ export function usePendingViewModel() {
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
     const [transactionToCancelRecurrence, setTransactionToCancelRecurrence] = useState<string | null>(null)
     const [isConfirmingPayment, setIsConfirmingPayment] = useState(false)
+
+    // Conta do casal: a baixa pergunta qual dos dois pagou (entra no acerto do
+    // mês), não de qual conta saiu — a conta do casal não tem o dinheiro.
+    const { selection, family } = useAccount()
+    const isCoupleView = selection.type === "couple"
+    const payers = (family?.members ?? [])
+        .filter((m) => m.accountType === "PERSONAL")
+        .map((m) => ({ id: m.id, name: (m.name || m.email).split(" ")[0] }))
+    const [paidBy, setPaidBy] = useState<string>("")
 
     const loadData = useCallback(async () => {
         const [allPending, allCategories, allCards] = await Promise.all([
@@ -92,7 +103,10 @@ export function usePendingViewModel() {
         if (transaction) {
             if (transaction.cardId) setSelectedCard(transaction.cardId)
             else setSelectedCard("")
-            setConfirmDate(transaction.date.split('T')[0])
+            // Dar baixa é registrar o que acabou de acontecer: hoje por padrão.
+            const now = new Date()
+            setConfirmDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`)
+            setPaidBy(getCurrentUser()?.id ?? "")
         }
         setSelectedTransaction(transactionId)
     }
@@ -103,7 +117,12 @@ export function usePendingViewModel() {
         const transaction = pendingTransactions.find(t => t.id === selectedTransaction)
         if (!transaction) return
 
-        if (cards.length > 0 && !selectedCard) {
+        if (isCoupleView && !paidBy) {
+            toast({ title: "Quem pagou?", description: "Escolha qual dos dois pagou esta conta.", variant: "warning" })
+            return
+        }
+
+        if (!isCoupleView && cards.length > 0 && !selectedCard) {
             toast({
                 title: "Selecione uma conta",
                 description: "É necessário informar de onde saiu/entrou o dinheiro.",
@@ -114,7 +133,7 @@ export function usePendingViewModel() {
 
         setIsConfirmingPayment(true)
         try {
-            await markTransactionAsPaid(selectedTransaction, selectedCard || undefined, confirmDate)
+            await markTransactionAsPaid(selectedTransaction, isCoupleView ? undefined : selectedCard || undefined, confirmDate, isCoupleView ? paidBy : undefined)
 
             toast({
                 title: transaction.type === 'expense' ? "Pago com sucesso!" : "Recebido com sucesso!",
@@ -187,5 +206,9 @@ export function usePendingViewModel() {
         confirmCancel,
         confirmCancelRecurrence,
         refresh: loadData,
+        isCoupleView,
+        payers,
+        paidBy,
+        setPaidBy,
     }
 }

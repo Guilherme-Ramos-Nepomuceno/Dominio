@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { EVENT_NAMES, useAdminViewModel } from "../hooks/use-admin-view-model"
+import { AppSelect } from "@/components/ui/app-select"
 
 const pct = (value: number | null | undefined) => (value == null ? "—" : `${Math.round(value)}%`)
 const num = (value: number | null | undefined, digits = 0) =>
@@ -45,7 +46,7 @@ export function AdminView() {
 
   return (
     <AppLayout>
-      <PageHeader title="Admin" subtitle="Métricas de uso da Fase 1 (registro sem atrito)" />
+      <PageHeader back="/settings" title="Admin" subtitle="Métricas de uso da Fase 1 (registro sem atrito)" />
 
       <div className="space-y-6">
         {vm.metricsError ? (
@@ -135,18 +136,13 @@ export function AdminView() {
           >
             <label className="space-y-1 text-xs text-muted-foreground">
               Evento
-              <select
+              <AppSelect
                 value={vm.filter.name}
-                onChange={(e) => vm.setFilter({ ...vm.filter, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
-              >
-                <option value="">Todos</option>
-                {EVENT_NAMES.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+                onChange={(name) => vm.setFilter({ ...vm.filter, name })}
+                emptyLabel="Todos"
+                options={EVENT_NAMES.map((n) => ({ value: n, label: n }))}
+                className="h-9 text-sm"
+              />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
               De

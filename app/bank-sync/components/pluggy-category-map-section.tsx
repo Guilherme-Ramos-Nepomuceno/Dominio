@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CaretDown, Tag } from "@phosphor-icons/react"
+import { CaretDown } from "@phosphor-icons/react"
 import { getCategories } from "@/lib/storage"
 import { getPluggyCategoryMap, setPluggyCategoryMapping } from "@/lib/rules-api"
 import type { PluggyCategoryMapping } from "@/lib/rules"
 import type { Category } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { AppSelect } from "@/components/ui/app-select"
 
 // Categoria que o banco (Pluggy) dá a cada lançamento → categoria da conta.
 // Lançamentos com categoria mapeada já chegam categorizados ("automático").
@@ -48,16 +49,15 @@ export function PluggyCategoryMapSection() {
   const mappedCount = rows?.filter((r) => r.categoryId).length ?? 0
 
   return (
-    <section className="rounded-[1vw] border border-border bg-card p-5 space-y-3">
+    <section className="space-y-2">
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         className="w-full flex items-center gap-2 text-left"
       >
-        <Tag size={18} weight="bold" className="text-primary" />
-        <h2 className="flex-1 font-semibold text-foreground">Categorias do banco</h2>
-        {rows && <span className="text-xs text-muted-foreground">{mappedCount}/{rows.length}</span>}
+        <h2 className="flex-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Categorias do banco</h2>
+        {rows && <span className="text-xs text-muted-foreground tabular-nums">{mappedCount}/{rows.length}</span>}
         <CaretDown size={14} weight="bold" className={cn("text-muted-foreground transition-transform", isOpen && "rotate-180")} />
       </button>
       <p className="text-xs text-muted-foreground">
@@ -72,34 +72,30 @@ export function PluggyCategoryMapSection() {
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhuma categoria do banco apareceu ainda. Sincronize para ver a lista.</p>
         ) : (
-          <ul className="divide-y divide-border/50">
+          <ul className="divide-y divide-border">
             {rows.map((row) => (
               <li key={row.pluggyCategory} className="flex flex-col sm:flex-row sm:items-center gap-2 py-2.5">
                 <span className="flex-1 min-w-0 flex items-center gap-2">
                   <span className="text-sm text-foreground truncate">{row.pluggyCategory}</span>
                   <span
-                    className={cn(
-                      "text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0",
-                      row.source === "LEARNED" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-                    )}
+                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 bg-muted text-muted-foreground"
                   >
                     {row.source === "LEARNED" ? "aprendido" : "padrão"}
                   </span>
                 </span>
-                <select
+                <AppSelect
                   aria-label={`Categoria para ${row.pluggyCategory}`}
                   value={row.categoryId ?? ""}
                   disabled={savingKey === row.pluggyCategory}
-                  onChange={(e) => change(row.pluggyCategory, e.target.value || null)}
-                  className="sm:w-56 px-3 py-2 rounded-lg bg-background border border-border text-sm disabled:opacity-60"
-                >
-                  <option value="">{row.source === "LEARNED" ? "Voltar ao padrão" : "Sem categoria (vai para A classificar)"}</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.type === "income" ? "receita" : "despesa"})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => change(row.pluggyCategory, v || null)}
+                  emptyLabel={row.source === "LEARNED" ? "Voltar ao padrão" : "Sem categoria (vai para A classificar)"}
+                  options={categories.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    group: c.type === "income" ? "Receitas" : "Despesas",
+                  }))}
+                  className="h-9 text-sm sm:w-56"
+                />
               </li>
             ))}
           </ul>

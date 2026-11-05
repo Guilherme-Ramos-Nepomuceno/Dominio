@@ -1,13 +1,15 @@
 "use client"
 
-import { Plus } from "@phosphor-icons/react"
+import { PiggyBank, Plus } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { SavingsGoalCard } from "./savings-goal-card"
 import { AddSavingsGoalDialog } from "./add-savings-goal-dialog"
 import { EditSavingsDialog } from "./edit-savings-dialog"
-import { SkeletonCardGrid } from "@/components/ui/loading-skeletons"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { formatCurrency } from "@/lib/date-utils"
+import { formatMoneyWhole } from "@/lib/plan-layout"
 import { useSavingsViewModel } from "../hooks/use-savings-view-model"
 
 export function SavingsView() {
@@ -27,58 +29,75 @@ export function SavingsView() {
         totalTarget
     } = useSavingsViewModel()
 
-    return (
-        <AppLayout>
-            <div className="flex items-center justify-between mb-6">
-                <PageHeader title="Reservas" subtitle="Organize seu dinheiro por objetivos" />
-                <button
-                    onClick={() => setIsDialogOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
-                >
-                    <Plus size={20} weight="bold" />
-                    Nova Reserva
-                </button>
-            </div>
+    const pct = totalTarget > 0 ? Math.floor((totalSaved / totalTarget) * 100) : 0
 
-            {!loading && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div className="rounded-2xl bg-card p-6 border border-border/50 shadow-sm">
-                        <p className="text-sm text-muted-foreground mb-1">Total Guardado</p>
-                        <p className="text-3xl font-bold text-income">{formatCurrency(totalSaved)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-card p-6 border border-border/50 shadow-sm">
-                        <p className="text-sm text-muted-foreground mb-1">Meta Total</p>
-                        <p className="text-3xl font-bold text-foreground">{formatCurrency(totalTarget)}</p>
-                    </div>
-                </div>
-            )}
+    return (
+        <AppLayout primaryAction={{ label: "Nova reserva", onPress: () => setIsDialogOpen(true) }}>
+            <PageHeader back="/all-menus"
+                title="Reservas"
+                subtitle="Dinheiro guardado por objetivo"
+            />
 
             {loading ? (
-                <SkeletonCardGrid count={3} />
-            ) : goals.length === 0 ? (
-                <div className="rounded-2xl bg-card p-12 border border-border/50 shadow-sm text-center">
-                    <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
-                        <Plus size={32} className="text-muted-foreground" />
+                <div className="max-w-2xl mx-auto space-y-10" aria-busy>
+                    <div className="space-y-3">
+                        <Skeleton className="h-4 w-32 rounded-full" />
+                        <Skeleton className="h-12 w-56 rounded-xl" />
+                        <Skeleton className="h-2 w-full rounded-full" />
                     </div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma reserva criada</h3>
-                    <p className="text-sm text-muted-foreground mb-6">Crie reservas para organizar seu dinheiro por objetivos</p>
+                    <Skeleton className="h-28 rounded-xl" />
+                </div>
+            ) : goals.length === 0 ? (
+                <div className="max-w-2xl mx-auto py-10 text-center space-y-3">
+                    <PiggyBank size={40} weight="duotone" className="mx-auto text-muted-foreground" />
+                    <h2 className="text-lg font-semibold">Nenhuma reserva ainda</h2>
+                    <p className="text-sm text-muted-foreground">
+                        Separe o dinheiro guardado por objetivo — emergência, viagem, troca do carro.
+                    </p>
                     <button
+                        type="button"
                         onClick={() => setIsDialogOpen(true)}
-                        className="px-6 py-3 bg-primary text-background rounded-[1vw] font-semibold hover:bg-primary/90 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-background text-sm font-semibold hover:bg-primary/90 transition-colors"
                     >
-                        Criar Primeira Reserva
+                        <Plus size={16} weight="bold" />
+                        Criar a primeira reserva
                     </button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {goals.map((goal) => (
-                        <SavingsGoalCard
-                            key={goal.id}
-                            goal={goal}
-                            onDelete={handleDelete}
-                            onEdit={handleEdit}
-                        />
-                    ))}
+                // Página corrida, no desenho do Planejar: herói solto (o total
+                // guardado) e a lista das reservas, sem um cartão em volta de cada parte.
+                <div className="max-w-2xl mx-auto space-y-10">
+                    <section aria-labelledby="savings-total-label">
+                        <p id="savings-total-label" className="text-sm text-muted-foreground">
+                            Total guardado
+                        </p>
+                        <p className="mt-1 text-5xl font-semibold tracking-tight leading-none tabular-nums text-foreground">
+                            {formatCurrency(totalSaved)}
+                        </p>
+                        {totalTarget > 0 && (
+                            <p className="mt-3 text-sm text-muted-foreground tabular-nums">
+                                <span className="font-semibold text-foreground">{pct}%</span> das metas ·{" "}
+                                {formatMoneyWhole(totalTarget)} no total
+                            </p>
+                        )}
+                        {/* Com uma reserva só, a barra dela (logo abaixo) já diz isso. */}
+                        {goals.length > 1 && totalTarget > 0 && (
+                            <div className="mt-4 h-2 overflow-hidden rounded-full" style={{ backgroundColor: "var(--plan-track)" }} aria-hidden>
+                                <div className="h-full rounded-full bg-foreground/60 transition-[width] duration-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                            </div>
+                        )}
+                    </section>
+
+                    <section aria-labelledby="savings-list-title">
+                        <SectionTitle id="savings-list-title">
+                            {goals.length === 1 ? "Sua reserva" : `Suas ${goals.length} reservas`}
+                        </SectionTitle>
+                        <ul className="mt-1 divide-y divide-border">
+                            {goals.map((goal) => (
+                                <SavingsGoalCard key={goal.id} goal={goal} onDelete={handleDelete} onEdit={handleEdit} />
+                            ))}
+                        </ul>
+                    </section>
                 </div>
             )}
 

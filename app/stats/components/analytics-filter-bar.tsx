@@ -1,6 +1,6 @@
 "use client"
 
-import { MagnifyingGlass, Wallet, CreditCard, Circle, CheckCircle } from "@phosphor-icons/react"
+import { MagnifyingGlass } from "@phosphor-icons/react"
 import { Input } from "@/components/ui/input"
 import { CategoryFilterPicker } from "./category-filter-picker"
 import { CardFilterPicker } from "./card-filter-picker"
@@ -26,17 +26,17 @@ function SegmentedControl<T extends string>({
     onChange: (value: T) => void
 }) {
     return (
-        <div className="bg-card p-1 rounded-xl border border-border inline-flex shadow-sm">
+        <div className="bg-muted/40 p-0.5 rounded-lg inline-flex">
             {options.map((option) => (
                 <button
                     key={option.value}
                     type="button"
                     onClick={() => onChange(option.value)}
                     className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                        "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors",
                         value === option.value
                             ? "bg-foreground text-background shadow-sm"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                            : "text-muted-foreground hover:text-foreground",
                     )}
                 >
                     {option.icon}
@@ -51,7 +51,7 @@ export function AnalyticsFilterBar({ filters, onChange, categories, cards, class
     const set = <K extends keyof StatsFilters>(key: K, value: StatsFilters[K]) => onChange({ ...filters, [key]: value })
 
     return (
-        <div className={cn("bg-card border border-border rounded-2xl p-4 space-y-4", className)}>
+        <div className={cn("space-y-3", className)}>
             <div className="relative">
                 <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -62,19 +62,19 @@ export function AnalyticsFilterBar({ filters, onChange, categories, cards, class
                 />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
                 <CategoryFilterPicker categories={categories} value={filters.categoryId} onChange={(value) => set("categoryId", value)} />
                 <CardFilterPicker cards={cards} value={filters.cardId} onChange={(value) => set("cardId", value)} />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center justify-between gap-2">
                 <SegmentedControl
                     value={filters.paymentMethod}
                     onChange={(value) => set("paymentMethod", value)}
                     options={[
-                        { value: "all", label: "Débito e crédito" },
-                        { value: "debit", label: "Débito", icon: <Wallet size={14} /> },
-                        { value: "credit", label: "Crédito", icon: <CreditCard size={14} /> },
+                        { value: "all", label: "Tudo" },
+                        { value: "debit", label: "Débito" },
+                        { value: "credit", label: "Crédito" },
                     ]}
                 />
 
@@ -83,8 +83,8 @@ export function AnalyticsFilterBar({ filters, onChange, categories, cards, class
                     onChange={(value) => set("status", value)}
                     options={[
                         { value: "all", label: "Todos" },
-                        { value: "open", label: "Aberto", icon: <Circle size={12} weight="fill" /> },
-                        { value: "paid", label: "Pago", icon: <CheckCircle size={14} weight="fill" /> },
+                        { value: "open", label: "Aberto" },
+                        { value: "paid", label: "Pago" },
                     ]}
                 />
             </div>
