@@ -37,7 +37,9 @@ jobs:
 
   e2e:
     name: E2E (front + API + banco)
-    runs-on: ubuntu-latest
+    # Fixo no 24.04: o ubuntu-latest virou 26.04, que o Playwright 1.56 ainda
+    # não suporta (não instala o Chromium).
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       API_REPO: Guilherme-Ramos-Nepomuceno/dominio-api
