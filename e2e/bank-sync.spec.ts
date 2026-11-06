@@ -73,7 +73,8 @@ test.describe("Sincronização bancária", () => {
     await expect(section).toContainText("R$ 912,54")
 
     await section.getByRole("button", { name: "Confirmar 2" }).click()
-    await expect(page.getByText("Confirmado!")).toBeVisible()
+    // O aviso aparece duas vezes no DOM (o toast e o anúncio para leitor de tela).
+    await expect(page.getByText("Confirmado!").first()).toBeVisible()
 
     // Só a desmarcada continua na fila, na tela e no banco.
     await expect(section).toContainText("1 transferência")

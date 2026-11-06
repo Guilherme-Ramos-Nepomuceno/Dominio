@@ -27,6 +27,9 @@ export function useSettingsViewModel() {
     const [monthStartDay, setMonthStartDay] = useState(1)
     // Para onde vai a sobra/excesso de cada semana.
     const [weekCarryOver, setWeekCarryOver] = useState<"MONTH" | "WEEK">("MONTH")
+    // Pluggy sem revisão — salva na hora, sem passar pelo "Salvar preferências".
+    const [pluggyDirectSync, setPluggyDirectSync] = useState(false)
+    const [savingDirectSync, setSavingDirectSync] = useState(false)
     const [categoryGoals, setCategoryGoals] = useState<any[]>([])
     const [showClearDialog, setShowClearDialog] = useState(false)
     const [user, setUser] = useState<User | null>(null)
@@ -55,6 +58,7 @@ export function useSettingsViewModel() {
                 setCurrency(settings.currency)
                 setMonthStartDay(settings.monthStartDay ?? 1)
                 setWeekCarryOver(settings.weekCarryOver ?? "MONTH")
+                setPluggyDirectSync(settings.pluggyDirectSync ?? false)
                 setCategoryGoals(settings.categoryGoals || [])
                 setCategories(allCategories.filter((c) => c.type === "expense"))
                 setTransactions(allTransactions)
@@ -90,6 +94,27 @@ export function useSettingsViewModel() {
             toast({ title: "Configurações salvas!", description: "Suas configurações foram salvas com sucesso.", variant: "success" })
         } finally {
             setSavingSettings(false)
+        }
+    }
+
+    const handleDirectSyncChange = async (enabled: boolean) => {
+        if (savingDirectSync) return
+        setSavingDirectSync(true)
+        setPluggyDirectSync(enabled)
+        try {
+            await saveSettings({ pluggyDirectSync: enabled })
+            toast({
+                title: enabled ? "Sincronização direta ligada" : "Sincronização direta desligada",
+                description: enabled
+                    ? "O que chegar do banco entra sozinho na próxima sincronização."
+                    : "O que chegar do banco volta a passar pela revisão.",
+                variant: "success",
+            })
+        } catch {
+            setPluggyDirectSync(!enabled)
+            toast({ title: "Não foi possível salvar", description: "Tente de novo em instantes.", variant: "destructive" })
+        } finally {
+            setSavingDirectSync(false)
         }
     }
 
@@ -239,6 +264,9 @@ export function useSettingsViewModel() {
         setMonthStartDay,
         weekCarryOver,
         setWeekCarryOver,
+        pluggyDirectSync,
+        savingDirectSync,
+        handleDirectSyncChange,
         categoryGoals,
         categories,
         groupedCategories,

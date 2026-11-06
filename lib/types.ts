@@ -147,6 +147,8 @@ export interface AppSettings {
   monthStartDay?: number
   // Sobra/excesso da semana: ajusta as próximas (MONTH) ou fica nela (WEEK).
   weekCarryOver?: "MONTH" | "WEEK"
+  // Sincronização direta: o que chega da Pluggy entra sem revisão.
+  pluggyDirectSync?: boolean
   // Quais notificações push a pessoa quer receber (ver lib/push.ts).
   notificationPrefs?: { weekStart: boolean; weekly80: boolean; monthPlan: boolean }
 }

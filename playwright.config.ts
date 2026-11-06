@@ -17,6 +17,9 @@ export default defineConfig({
   retries: CI ? 1 : 0,
   workers: CI ? 2 : undefined,
   reporter: CI ? [["github"], ["html", { open: "never" }]] : [["list"], ["html", { open: "never" }]],
+  // Login + primeira carga da Home passa dos 5s padrão com vários testes em
+  // paralelo na mesma máquina.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: WEB_URL,
     locale: "pt-BR",

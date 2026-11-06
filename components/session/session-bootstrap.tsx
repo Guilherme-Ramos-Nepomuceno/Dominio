@@ -9,6 +9,7 @@ import { oncePerSession, trackEvent } from "@/lib/events"
 import { syncPluggyTransactions } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
+import { pluggySyncMessage } from "@/lib/pluggy-sync-message"
 
 // Só mostra o indicador se o sync demorar um pouco — quem nem tem Pluggy
 // conectada recebe um "NO_CONNECTION" rápido e não deve ver nada piscando.
@@ -49,13 +50,18 @@ export function SessionBootstrap() {
             skippedCount: result.skippedCount,
             reason: result.reason ?? null,
           })
-          if (created > 0) {
+          const message = pluggySyncMessage(result)
+          if (message) {
+            const toInbox = message.target === "inbox"
             toast({
-              title: `${created} ${created === 1 ? "transação nova" : "transações novas"} do banco`,
-              description: "Já estão na revisão da sincronização bancária.",
+              title: message.title,
+              description: message.description,
               action: (
-                <ToastAction altText="Revisar transações do banco" onClick={() => router.push("/bank-sync")}>
-                  Revisar
+                <ToastAction
+                  altText={toInbox ? "Abrir A classificar" : "Revisar transações do banco"}
+                  onClick={() => router.push(toInbox ? "/inbox" : "/bank-sync")}
+                >
+                  {toInbox ? "Ver" : "Revisar"}
                 </ToastAction>
               ),
             })

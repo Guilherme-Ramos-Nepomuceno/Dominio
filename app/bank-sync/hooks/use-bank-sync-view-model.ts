@@ -22,6 +22,7 @@ import {
 } from "@/lib/storage"
 import type { Category, Card, PaymentMethod, TransactionType } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+import { pluggySyncMessage } from "@/lib/pluggy-sync-message"
 import { DEFAULT_CATEGORY_COLOR } from "@/app/categories/components/add-category-dialog"
 
 export function useBankSyncViewModel() {
@@ -165,9 +166,10 @@ export function useBankSyncViewModel() {
         await loadAll()
         return
       }
+      const message = pluggySyncMessage(result)
       toast({
         title: "Sincronização concluída",
-        description: result.created > 0 ? `${result.created} transaç${result.created === 1 ? "ão nova" : "ões novas"} pra revisar.` : "Nenhuma transação nova.",
+        description: message ? `${message.title}. ${message.description}` : "Nenhuma transação nova.",
         variant: "success",
       })
       await loadAll()

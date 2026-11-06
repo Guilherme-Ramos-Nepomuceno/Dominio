@@ -640,6 +640,8 @@ export interface PluggySyncResult {
   skipped: boolean
   // Quantas transações do banco foram puladas (já existiam etc.) num sync que rodou.
   skippedCount: number
+  // Com a sincronização direta ligada: quantas entraram sem revisão.
+  autoConfirmedCount: number
   reason?: "NO_CONNECTION" | "RECENT" | "IN_PROGRESS" | "FAILED"
 }
 
@@ -650,6 +652,7 @@ export async function syncPluggyTransactions(options: { auto?: boolean } = {}): 
     created: Number(raw?.created ?? 0),
     skipped: raw?.skipped === true,
     skippedCount: Number(raw?.skippedCount ?? 0),
+    autoConfirmedCount: Number(raw?.autoConfirmedCount ?? 0),
     reason: raw?.reason ?? undefined,
   }
   // Nenhuma Transaction real muda aqui ainda (só cria pendências pra revisar),
@@ -1009,6 +1012,7 @@ function mapSettingsFromApi(s: any): AppSettings {
     categoryGoals: Array.isArray(s.categoryGoals) ? s.categoryGoals : [],
     monthStartDay: normalizeMonthStartDay(s.monthStartDay ?? 1),
     weekCarryOver: s.weekCarryOver === "WEEK" ? "WEEK" : "MONTH",
+    pluggyDirectSync: s.pluggyDirectSync === true,
     notificationPrefs: mapNotificationPrefs(s.notificationPrefs),
   }
 }
@@ -1021,6 +1025,7 @@ function mapSettingsToApi(s: Partial<AppSettings>) {
   if (s.categoryGoals !== undefined) body.categoryGoals = s.categoryGoals
   if (s.monthStartDay !== undefined) body.monthStartDay = normalizeMonthStartDay(s.monthStartDay)
   if (s.weekCarryOver !== undefined) body.weekCarryOver = s.weekCarryOver
+  if (s.pluggyDirectSync !== undefined) body.pluggyDirectSync = s.pluggyDirectSync
   if (s.notificationPrefs !== undefined) body.notificationPrefs = s.notificationPrefs
   return body
 }

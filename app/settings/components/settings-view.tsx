@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, type ReactNode } from "react"
-import { Moon, Sun, PencilSimple, Trash, SignOut, Target, CaretRight, Bank, ListChecks, ChartLineUp, Link as LinkIcon, Wallet } from "@phosphor-icons/react"
+import { Moon, Sun, PencilSimple, Trash, SignOut, Target, CaretRight, Bank, ListChecks, ChartLineUp, Link as LinkIcon, Wallet, Lightning } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AppSelect } from "@/components/ui/app-select"
+import { Switch } from "@/components/ui/switch"
 import { useSettingsViewModel } from "../hooks/use-settings-view-model"
 import { CoupleSplitSetting } from "./couple-split-setting"
 import { NotificationsSection } from "./notifications-section"
@@ -79,6 +80,9 @@ export function SettingsView() {
         monthStartDay,
         weekCarryOver,
         setWeekCarryOver,
+        pluggyDirectSync,
+        savingDirectSync,
+        handleDirectSyncChange,
         setMonthStartDay,
         showClearDialog,
         setShowClearDialog,
@@ -331,6 +335,23 @@ export function SettingsView() {
                         title="Sincronização bancária"
                         description="Importa o extrato pela Pluggy, sem subir arquivo."
                     />
+                    <div className="flex items-center gap-3 py-3.5">
+                        <span className="shrink-0 text-muted-foreground">
+                            <Lightning size={20} weight="duotone" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <p id="settings-direct-sync-label" className="text-sm font-medium text-foreground">Sincronização direta</p>
+                            <p className="text-xs text-muted-foreground">
+                                O que chega do banco entra sozinho: com categoria quando o app reconhece, senão em A classificar. Fatura, possível duplicata e transferência sem a outra ponta ainda pedem revisão.
+                            </p>
+                        </div>
+                        <Switch
+                            checked={pluggyDirectSync}
+                            disabled={savingDirectSync}
+                            onCheckedChange={handleDirectSyncChange}
+                            aria-labelledby="settings-direct-sync-label"
+                        />
+                    </div>
                     <LinkRow
                         href="/rules"
                         icon={<ListChecks size={20} weight="duotone" />}
