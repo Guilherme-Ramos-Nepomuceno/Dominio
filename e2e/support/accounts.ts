@@ -16,5 +16,21 @@ export async function createAccount(request: APIRequestContext, name = "Pessoa d
     data: { name, email, password: PASSWORD },
   })
   if (!response.ok()) throw new Error(`Cadastro falhou: ${response.status()} ${await response.text()}`)
-  return { email, password: PASSWORD, name }
+  const body = (await response.json()) as { user: { id: string }; token: string }
+  return { email, password: PASSWORD, name, id: body.user.id, token: body.token }
+}
+
+// POST autenticado direto na API, para montar o cenário do teste.
+export async function apiPost<T = any>(request: APIRequestContext, token: string, path: string, data: unknown): Promise<T> {
+  const response = await request.post(`${API_URL}${path}`, { data, headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok()) throw new Error(`POST ${path} falhou: ${response.status()} ${await response.text()}`)
+  return (await response.json()) as T
+}
+
+export async function login(page: import("@playwright/test").Page, account: { email: string; password: string }) {
+  await page.goto("/login")
+  await page.getByLabel("Email").fill(account.email)
+  await page.getByLabel("Senha").fill(account.password)
+  await page.getByRole("button", { name: "Entrar" }).click()
+  await page.waitForURL(/\/$/)
 }

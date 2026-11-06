@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bank, Plus, ArrowsClockwise, CheckCircle, CaretLeft, CaretRight, CaretDown, ArrowRight, Question, ArrowsLeftRight, Wallet, CreditCard } from "@phosphor-icons/react"
+import { Bank, Plus, ArrowsClockwise, Check, CheckCircle, CaretLeft, CaretRight, CaretDown, ArrowRight, Question, ArrowsLeftRight, Wallet, CreditCard } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,6 +15,7 @@ import { MonthYearPicker } from "./month-year-picker"
 import { getBankIcon, bankColors, bankLogos } from "@/lib/bank-icons"
 import { formatCurrency } from "@/lib/date-utils"
 import { pairTransfers } from "@/lib/pair-transfers"
+import { transferBatchSummary } from "@/lib/transfer-batch"
 import type { Card, PaymentMethod, TransactionType } from "@/lib/types"
 import { getMemberCardsMapped, ensureSystemCategory, addTransaction, type ConfirmPluggyPendingResult } from "@/lib/storage"
 import { createTransactionForFamilyMember } from "@/lib/family"
@@ -218,17 +219,35 @@ export function BankSyncView() {
     return familyMembers.find((m) => memberCardsCache[m.id]?.some((c) => c.id === cardId))?.name ?? undefined
   }
 
-  const [confirmingPairKey, setConfirmingPairKey] = useState<string | null>(null)
-  const confirmTransferPair = async (pair: { from: PluggyReviewRow; to: PluggyReviewRow }) => {
-    const key = `${pair.from.id}:${pair.to.id}`
-    setConfirmingPairKey(key)
+  // Transferências confirmadas em lote: todas vêm marcadas, a pessoa desmarca
+  // em "Ver detalhes" o que não quer, e um único "Confirmar" manda tudo numa
+  // requisição só.
+  const pairKey = (pair: { from: PluggyReviewRow; to: PluggyReviewRow }) => `${pair.from.id}:${pair.to.id}`
+  const [skippedPairKeys, setSkippedPairKeys] = useState<Set<string>>(() => new Set())
+  const [showTransferDetails, setShowTransferDetails] = useState(false)
+  const [isConfirmingTransfers, setIsConfirmingTransfers] = useState(false)
+  const selectedTransferPairs = transferPairs.filter((pair) => !skippedPairKeys.has(pairKey(pair)))
+  const transferSummary = transferBatchSummary(selectedTransferPairs, cardOwnerLabel)
+  const toggleTransferPair = (key: string) =>
+    setSkippedPairKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  const confirmTransferPairs = async () => {
+    if (selectedTransferPairs.length === 0) return
+    setIsConfirmingTransfers(true)
     try {
       // As duas pernas já vieram sincronizadas de contas mapeadas de verdade —
       // confirmar as duas já basta, sem precisar criar nenhuma ponta espelhada
       // (isso só é necessário quando só um dos lados está conectado à Pluggy).
-      await vm.confirmPending([pair.from.id, pair.to.id])
+      const result = await vm.confirmPending(selectedTransferPairs.flatMap((pair) => [pair.from.id, pair.to.id]))
+      // As que ficaram de fora continuam na fila e voltam marcadas — desmarcar
+      // vale para este envio, não para sempre.
+      if (result) setSkippedPairKeys(new Set())
     } finally {
-      setConfirmingPairKey(null)
+      setIsConfirmingTransfers(false)
     }
   }
 
@@ -748,46 +767,95 @@ export function BankSyncView() {
             <section aria-labelledby="sync-transfers-title">
               <SectionTitle id="sync-transfers-title">Transferências entre contas</SectionTitle>
               <p className="mt-1 text-xs text-muted-foreground">Já reconhecidas — confirme sem precisar categorizar.</p>
-              <ul className="mt-1 divide-y divide-border">
-                {transferPairs.map((pair) => {
-                  const { from, to } = pair
-                  const fromCard = allKnownCards.find((c) => c.id === from.cardId)
-                  const toCard = allKnownCards.find((c) => c.id === to.cardId)
-                  const fromOwner = cardOwnerLabel(from.cardId)
-                  const toOwner = cardOwnerLabel(to.cardId)
-                  const key = `${from.id}:${to.id}`
-                  const isConfirming = confirmingPairKey === key
 
-                  return (
-                    <li key={key} className="flex items-center gap-3 py-3.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                          <span className="truncate">{fromCard?.name ?? "Conta"}</span>
-                          <ArrowRight size={12} weight="bold" className="shrink-0 text-muted-foreground" aria-label="para" />
-                          <span className="truncate">{toCard?.name ?? "Conta"}</span>
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground tabular-nums">
-                          {[
-                            new Date(from.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-                            fromOwner && toOwner && fromOwner !== toOwner ? `${fromOwner} → ${toOwner}` : fromOwner || toOwner,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                      <span className="shrink-0 font-semibold tabular-nums text-foreground">{formatCurrency(from.amount)}</span>
-                      <button
-                        type="button"
-                        disabled={isConfirming}
-                        onClick={() => confirmTransferPair(pair)}
-                        className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                      >
-                        {isConfirming ? "..." : "Confirmar"}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <p className="mt-4 text-sm text-foreground">
+                <span className="text-2xl font-semibold tabular-nums">{transferSummary.count}</span>{" "}
+                {transferSummary.count === 1 ? "transferência" : "transferências"}
+                {transferSummary.count < transferPairs.length && <span className="text-muted-foreground"> de {transferPairs.length}</span>}
+                <span className="text-muted-foreground"> · </span>
+                <span className="font-semibold tabular-nums">{formatCurrency(transferSummary.total)}</span>
+              </p>
+              {transferSummary.count > 0 && <p className="mt-0.5 text-xs text-muted-foreground">{transferSummary.label}</p>}
+
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={transferSummary.count === 0 || isConfirmingTransfers}
+                  onClick={confirmTransferPairs}
+                  aria-busy={isConfirmingTransfers}
+                  className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-background transition-colors hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isConfirmingTransfers && <ArrowsClockwise size={16} weight="bold" className="animate-spin" />}
+                  {isConfirmingTransfers
+                    ? `Confirmando ${transferSummary.count}...`
+                    : transferSummary.count === 0
+                      ? "Nenhuma marcada"
+                      : `Confirmar ${transferSummary.count}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTransferDetails((v) => !v)}
+                  aria-expanded={showTransferDetails}
+                  aria-controls="sync-transfers-list"
+                  className="flex h-11 items-center gap-1.5 rounded-full border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  {showTransferDetails ? "Esconder" : "Ver detalhes"}
+                  <CaretDown size={12} weight="bold" className={cn("transition-transform", showTransferDetails && "rotate-180")} />
+                </button>
+              </div>
+
+              {showTransferDetails && (
+                <ul id="sync-transfers-list" className="mt-3 divide-y divide-border">
+                  {transferPairs.map((pair) => {
+                    const { from, to } = pair
+                    const fromCard = allKnownCards.find((c) => c.id === from.cardId)
+                    const toCard = allKnownCards.find((c) => c.id === to.cardId)
+                    const fromOwner = cardOwnerLabel(from.cardId)
+                    const toOwner = cardOwnerLabel(to.cardId)
+                    const key = pairKey(pair)
+                    const selected = !skippedPairKeys.has(key)
+
+                    return (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected}
+                          disabled={isConfirmingTransfers}
+                          onClick={() => toggleTransferPair(key)}
+                          className={cn("flex w-full items-center gap-3 py-3.5 text-left transition-opacity", !selected && "opacity-50")}
+                        >
+                          <span
+                            className={cn(
+                              "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                              selected ? "border-foreground bg-foreground text-background" : "border-border",
+                            )}
+                            aria-hidden
+                          >
+                            {selected && <Check size={12} weight="bold" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                              <span className="truncate">{fromCard?.name ?? "Conta"}</span>
+                              <ArrowRight size={12} weight="bold" className="shrink-0 text-muted-foreground" aria-label="para" />
+                              <span className="truncate">{toCard?.name ?? "Conta"}</span>
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground tabular-nums">
+                              {[
+                                new Date(from.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+                                fromOwner && toOwner && fromOwner !== toOwner ? `${fromOwner} → ${toOwner}` : fromOwner || toOwner,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-semibold tabular-nums text-foreground">{formatCurrency(from.amount)}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </section>
           )}
 

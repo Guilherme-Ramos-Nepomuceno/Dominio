@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   getPluggyConnection,
   savePluggyCredentials,
@@ -41,25 +41,36 @@ export function useBankSyncViewModel() {
   const [accountsByItem, setAccountsByItem] = useState<Record<string, PluggyAccount[]>>({})
   const [loadingAccountsItemId, setLoadingAccountsItemId] = useState<string | null>(null)
 
-  const loadAll = useCallback(async () => {
-    // "Transferência" só nasce sozinha na primeira vez que uma transferência é
-    // salva — garante ela aqui antes pra pessoa poder escolher na revisão,
-    // igual ao import manual de extrato.
-    await Promise.all([
-      ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
-      ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
-    ])
-    const [conn, cats, allCards, pending] = await Promise.all([
-      getPluggyConnection(),
-      getCategories(),
-      getCards(),
-      getPluggyPending(),
-    ])
-    setConnection(conn)
-    setCategories(cats)
-    setCards(allCards)
-    setPendingRows(pending)
-    setIsLoaded(true)
+  // Uma recarga por vez: várias confirmações seguidas reaproveitam a recarga
+  // em andamento em vez de abrir outra (cada uma dispara várias consultas na
+  // API e, empilhadas, esgotavam o pool de conexões do banco).
+  const loadingRef = useRef<Promise<void> | null>(null)
+  const loadAll = useCallback(() => {
+    if (loadingRef.current) return loadingRef.current
+    const run = async () => {
+      // "Transferência" só nasce sozinha na primeira vez que uma transferência é
+      // salva — garante ela aqui antes pra pessoa poder escolher na revisão,
+      // igual ao import manual de extrato.
+      await Promise.all([
+        ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
+        ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
+      ])
+      const [conn, cats, allCards, pending] = await Promise.all([
+        getPluggyConnection(),
+        getCategories(),
+        getCards(),
+        getPluggyPending(),
+      ])
+      setConnection(conn)
+      setCategories(cats)
+      setCards(allCards)
+      setPendingRows(pending)
+      setIsLoaded(true)
+    }
+    loadingRef.current = run().finally(() => {
+      loadingRef.current = null
+    })
+    return loadingRef.current
   }, [])
 
   useEffect(() => {
@@ -190,31 +201,44 @@ export function useBankSyncViewModel() {
 
   const confirmPending = async (ids: string[]) => {
     setIsConfirming(true)
+    let result: Awaited<ReturnType<typeof confirmPluggyPending>>
     try {
-      const result = await confirmPluggyPending(ids)
-      if (result.rowErrors.length > 0) {
-        toast({
-          title: "Algumas transações não foram importadas",
-          description: `${result.rowErrors.length} com problema — confira as marcadas.`,
-          variant: "destructive",
-        })
-      } else {
-        const parts = [
-          result.createdCount > 0 ? `${result.createdCount} nova${result.createdCount === 1 ? "" : "s"}` : "",
-          result.linkedCount > 0 ? `${result.linkedCount} vinculada${result.linkedCount === 1 ? "" : "s"} a lançamento já existente` : "",
-        ].filter(Boolean)
-        toast({ title: "Confirmado!", description: `${parts.join(", ") || "Nada a importar"}.`, variant: "success" })
-      }
-      await loadAll()
-      // Devolve o resultado pra tela poder criar a ponta espelhada de
-      // transferências que viraram transação nova de fato.
-      return result
+      result = await confirmPluggyPending(ids)
     } catch (error: any) {
       toast({ title: "Não foi possível confirmar", description: error.message, variant: "destructive" })
-      return undefined
-    } finally {
       setIsConfirming(false)
+      return undefined
     }
+
+    // Sai da lista na hora o que foi confirmado — sem esperar a recarga, que
+    // antes deixava a linha na tela por vários segundos depois do "Confirmado".
+    const failed = new Set(result.rowErrors.map((e) => e.pendingId))
+    const sent = new Set(ids)
+    setPendingRows((prev) => prev.filter((r) => !sent.has(r.id) || failed.has(r.id)))
+    setIsConfirming(false)
+
+    if (result.rowErrors.length > 0) {
+      toast({
+        title: "Algumas transações não foram importadas",
+        description: `${result.rowErrors.length} com problema — confira as marcadas.`,
+        variant: "destructive",
+      })
+    } else {
+      const parts = [
+        result.createdCount > 0 ? `${result.createdCount} nova${result.createdCount === 1 ? "" : "s"}` : "",
+        result.linkedCount > 0 ? `${result.linkedCount} vinculada${result.linkedCount === 1 ? "" : "s"} a lançamento já existente` : "",
+      ].filter(Boolean)
+      toast({ title: "Confirmado!", description: `${parts.join(", ") || "Nada a importar"}.`, variant: "success" })
+    }
+
+    // Recarga em segundo plano: se ela falhar, a confirmação já valeu — não
+    // é "não foi possível confirmar".
+    loadAll().catch(() => {
+      toast({ title: "Confirmado, mas a lista não atualizou", description: "Abra a tela de novo para ver a fila atualizada.", variant: "destructive" })
+    })
+    // Devolve o resultado pra tela poder criar a ponta espelhada de
+    // transferências que viraram transação nova de fato.
+    return result
   }
 
   return {
