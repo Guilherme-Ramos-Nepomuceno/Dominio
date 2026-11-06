@@ -7,7 +7,10 @@
     "dev": "next dev -p 3001",
     "lint": "eslint .",
     "start": "next start",
-    "test": "node --no-warnings --test \"lib/**/*.test.ts\""
+    "test": "node --no-warnings --test \"lib/**/*.test.ts\"",
+    "test:e2e": "playwright test",
+    "stack": "node scripts/local-stack.mjs up",
+    "test:all": "node scripts/local-stack.mjs test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -64,6 +67,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^19",

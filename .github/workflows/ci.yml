@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Tipos e testes de regra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  e2e:
+    name: E2E (front + API + banco)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      API_REPO: Guilherme-Ramos-Nepomuceno/dominio-api
+      # Chave de deploy só de leitura do dominio-api (Settings → Deploy keys
+      # lá; a privada fica no secret API_DEPLOY_KEY daqui).
+      API_DEPLOY_KEY: ${{ secrets.API_DEPLOY_KEY }}
+    defaults:
+      run:
+        working-directory: Dominio
+    steps:
+      # Mesma organização de pastas da máquina local: Dominio/ e dominio-api/
+      # lado a lado, então o playwright.config.ts acha a API em ../dominio-api.
+      - uses: actions/checkout@v4
+        with:
+          path: Dominio
+
+      - name: Escolhe a branch da API (a de mesmo nome, senão a main)
+        id: api-ref
+        working-directory: .
+        run: |
+          if [ -z "$API_DEPLOY_KEY" ]; then
+            echo "::error::Falta o secret API_DEPLOY_KEY (chave de deploy só de leitura do $API_REPO)."
+            exit 1
+          fi
+          KEY_FILE="$RUNNER_TEMP/api_deploy_key"
+          printf '%s\n' "$API_DEPLOY_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          if git ls-remote --exit-code --heads "git@github.com:${API_REPO}.git" "$BRANCH" > /dev/null; then
+            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+          rm -f "$KEY_FILE"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.API_REPO }}
+          ref: ${{ steps.api-ref.outputs.ref }}
+          ssh-key: ${{ secrets.API_DEPLOY_KEY }}
+          path: dominio-api
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            Dominio/package-lock.json
+            dominio-api/package-lock.json
+
+      - run: npm ci
+      - name: Dependências da API
+        working-directory: dominio-api
+        run: |
+          npm ci
+          npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright
+        run: npx playwright test
+        env:
+          CI: "true"
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            Dominio/playwright-report
+            Dominio/test-results
+          retention-days: 7
