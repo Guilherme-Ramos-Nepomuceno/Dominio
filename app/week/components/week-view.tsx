@@ -33,8 +33,11 @@ import { DayStrip } from "./day-strip"
 import { WeekClosedCard } from "./week-closed-card"
 import { WishProgressList } from "./wish-progress-list"
 import { WeekNotifyCard } from "./week-notify-card"
+import { Bento, BentoAside, BentoMain, BentoTile, PAGE_WIDTH } from "@/components/layout/bento"
 import { TourGuide } from "@/components/guide/tour-guide"
-import { LockedList, Unlockable, useUnlocks } from "@/components/guide/unlockable"
+import { Unlockable, useUnlocks } from "@/components/guide/unlockable"
+import { SamplePreview } from "@/components/guide/sample-preview"
+import { SAMPLE_CATEGORIES, sampleMonthSeries, samplePeriodWeeks } from "@/lib/samples"
 import { useGuide } from "@/components/guide/guide-provider"
 import { usePushNotifications } from "@/hooks/use-push-notifications"
 import { shouldOfferNotify } from "@/lib/push"
@@ -105,7 +108,7 @@ export function WeekView() {
   const offerNotify = !push.isLoading && shouldOfferNotify(push) && !notifyDismissed && !vm.isReadOnly
 
   return (
-    <AppLayout>
+    <AppLayout wide>
       <PageHeader back="/"
         title="Minha semana"
         subtitle={week?.weekStart ? formatWeekRange(week.weekStart, week.weekEnd) : "Quanto ainda dá para gastar até domingo"}
@@ -146,18 +149,22 @@ export function WeekView() {
         // Página corrida, no desenho do Planejar: herói solto e seções com
         // título, sem um cartão em volta de cada parte. pb extra: o fim da
         // página nunca fica embaixo do botão "+" flutuante.
-        <div className="max-w-2xl mx-auto space-y-12 pb-24 md:pb-20">
+        <Bento className={`${PAGE_WIDTH} pb-24 md:pb-20`}>
+          <BentoMain>
           {!week.hasPlan && (
-            <Link href="/plan" className="group mb-8 flex items-start gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <BentoTile order={1}>
+            <Link href="/plan" className="group -mb-4 xl:mb-0 flex items-start gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Target size={16} weight="duotone" className="mt-0.5 shrink-0 text-foreground/60" />
               <span className="flex-1">
                 Os números abaixo vêm da meta mensal. <span className="font-medium text-foreground">Planeje o mês</span> para um limite sob medida.
               </span>
               <CaretRight size={12} weight="bold" className="mt-1 shrink-0" />
             </Link>
+            </BentoTile>
           )}
 
           {/* 1. Herói: quanto dá para gastar até o fim da semana, o ritmo, os dias e a barra */}
+          <BentoTile order={2}>
           <section aria-labelledby="week-hero-label">
             <div className="flex items-center justify-between gap-3">
               <p id="week-hero-label" className="text-sm text-muted-foreground">
@@ -229,52 +236,29 @@ export function WeekView() {
             )}
           </section>
 
-          {/* 2. Fechamento da semana (último dia, dentro do limite) */}
-          {wins?.week.weekClosed && <WeekClosedCard closed={wins.week.weekClosed} weekEnd={week.weekEnd} monthKey={vm.monthKey} />}
+          </BentoTile>
 
-          {offerNotify && (
-            <WeekNotifyCard
-              support={push.support}
-              isBusy={push.isBusy}
-              onEnable={push.enable}
-              onDismiss={() => guide.ack(WEEK_TOUR, "notify")}
-            />
+          {/* 5. Projeção do mês (conta nova: exemplo) */}
+          {!unlocks.isUnlocked("week-projection") && (
+            <BentoTile order={7}>
+              <Section title="Projeção do mês" subtitle="Gasto variável acumulado × o planejado">
+                <SamplePreview hint={unlocks.hintOf("week-projection")}>
+                  <p className="flex items-start gap-2 text-sm text-foreground">
+                    <TrendDown size={18} weight="bold" aria-hidden className="mt-0.5 shrink-0 text-positive-ink" />
+                    No ritmo atual, o mês termina com R$ 300 de sobra.
+                  </p>
+                  <div className="mt-4">
+                    <MonthProjectionChart week={{ ...week, monthSeries: sampleMonthSeries(week.monthSeries, week.variablePlanned) }} />
+                  </div>
+                </SamplePreview>
+              </Section>
+            </BentoTile>
           )}
-
-          {/* 3. Vitórias + sequência e semana passada, juntas */}
-          {wins && (
-            <div className="space-y-3">
-              <WinsStrip wins={wins.week.wins} scope="week" hasPlan={week.hasPlan} periodKey={week.weekStart} />
-              {unlocks.isUnlocked("week-history") && (
-              <Unlockable isNew={unlocks.isNew("week-history")} title="Sequência no azul">
-              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Resumo">
-                {/* A sequência já aparece como vitória quando é ≥ 2. */}
-                {!wins.week.wins.some((w) => w.kind === "WEEKS_STREAK") && (
-                  <li className="flex items-center gap-1.5">
-                    <Fire size={14} weight={week.streak > 0 ? "fill" : "regular"} aria-hidden className={week.streak > 0 ? "text-attention-ink" : ""} />
-                    {streakLabel(week.streak) ?? "Feche a semana no limite para começar uma sequência"}
-                  </li>
-                )}
-                {week.lastWeek && (
-                  <li className="flex items-center gap-1.5 tabular-nums">
-                    <ClockCounterClockwise size={14} weight="bold" aria-hidden />
-                    {lastWeekLabel(week.lastWeek, formatCurrency)}
-                  </li>
-                )}
-              </ul>
-              </Unlockable>
-              )}
-            </div>
-          )}
-
-          {/* 4. Economia que vira desejo */}
-          {wins && <WishProgressList items={wins.month.wishProgress} />}
-
-          {/* 5. Projeção do mês */}
           {unlocks.isUnlocked("week-projection") && (() => {
             const pace = projectionMessage(week.monthPace, formatCurrency)
             const Icon = pace.tone === "ok" ? TrendDown : pace.tone === "over" ? TrendUp : Equals
             return (
+              <BentoTile order={7}>
               <Unlockable isNew={unlocks.isNew("week-projection")} title="Projeção do mês">
               <Section
                 title="Projeção do mês"
@@ -306,11 +290,98 @@ export function WeekView() {
                 )}
               </Section>
               </Unlockable>
+              </BentoTile>
             )
           })()}
 
-          {/* 6. Semanas do mês */}
+          {/* 7. Para onde foi (conta nova: exemplo) */}
+          {!unlocks.isUnlocked("week-categories") && (
+            <BentoTile order={9}>
+              <Section title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
+                <SamplePreview hint={unlocks.hintOf("week-categories")}>
+                  <WeekCategories categories={SAMPLE_CATEGORIES} />
+                </SamplePreview>
+              </Section>
+            </BentoTile>
+          )}
+          {unlocks.isUnlocked("week-categories") && (
+            <BentoTile order={9}>
+            <Unlockable isNew={unlocks.isNew("week-categories")} title="Para onde foi">
+              <Section title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
+                <WeekCategories categories={week.categories} />
+              </Section>
+            </Unlockable>
+            </BentoTile>
+          )}
+
+          </BentoMain>
+
+          <BentoAside label="Apoio da semana">
+          {/* 2. Fechamento da semana (último dia, dentro do limite) */}
+          {wins?.week.weekClosed && (
+            <BentoTile order={3}>
+              <WeekClosedCard closed={wins.week.weekClosed} weekEnd={week.weekEnd} monthKey={vm.monthKey} />
+            </BentoTile>
+          )}
+
+          {offerNotify && (
+            <BentoTile order={4}>
+            <WeekNotifyCard
+              support={push.support}
+              isBusy={push.isBusy}
+              onEnable={push.enable}
+              onDismiss={() => guide.ack(WEEK_TOUR, "notify")}
+            />
+            </BentoTile>
+          )}
+
+          {/* 3. Vitórias + sequência e semana passada, juntas */}
+          {wins && (
+            <BentoTile order={5}>
+            <div className="space-y-3">
+              <WinsStrip wins={wins.week.wins} scope="week" hasPlan={week.hasPlan} periodKey={week.weekStart} />
+              {unlocks.isUnlocked("week-history") && (
+              <Unlockable isNew={unlocks.isNew("week-history")} title="Sequência no azul">
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Resumo">
+                {/* A sequência já aparece como vitória quando é ≥ 2. */}
+                {!wins.week.wins.some((w) => w.kind === "WEEKS_STREAK") && (
+                  <li className="flex items-center gap-1.5">
+                    <Fire size={14} weight={week.streak > 0 ? "fill" : "regular"} aria-hidden className={week.streak > 0 ? "text-attention-ink" : ""} />
+                    {streakLabel(week.streak) ?? "Feche a semana no limite para começar uma sequência"}
+                  </li>
+                )}
+                {week.lastWeek && (
+                  <li className="flex items-center gap-1.5 tabular-nums">
+                    <ClockCounterClockwise size={14} weight="bold" aria-hidden />
+                    {lastWeekLabel(week.lastWeek, formatCurrency)}
+                  </li>
+                )}
+              </ul>
+              </Unlockable>
+              )}
+            </div>
+            </BentoTile>
+          )}
+
+          {/* 4. Economia que vira desejo */}
+          {wins && (
+            <BentoTile order={6}>
+              <WishProgressList items={wins.month.wishProgress} />
+            </BentoTile>
+          )}
+
+          {/* 6. Semanas do mês (conta nova: exemplo) */}
+          {!unlocks.isUnlocked("week-weeks") && (
+            <BentoTile order={8}>
+              <Section title="Semanas do mês" subtitle={carryOverSummary(week.carryOver)}>
+                <SamplePreview hint={unlocks.hintOf("week-weeks")}>
+                  <PeriodWeeksList weeks={samplePeriodWeeks(week.weeks)} />
+                </SamplePreview>
+              </Section>
+            </BentoTile>
+          )}
           {unlocks.isUnlocked("week-weeks") && (
+          <BentoTile order={8}>
           <Unlockable isNew={unlocks.isNew("week-weeks")} title="Semanas do mês">
           <Section
             title="Semanas do mês"
@@ -326,18 +397,10 @@ export function WeekView() {
             <PeriodWeeksList weeks={week.weeks} />
           </Section>
           </Unlockable>
+          </BentoTile>
           )}
 
-          {/* 7. Para onde foi */}
-          {unlocks.isUnlocked("week-categories") && (
-            <Unlockable isNew={unlocks.isNew("week-categories")} title="Para onde foi">
-              <Section title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
-                <WeekCategories categories={week.categories} />
-              </Section>
-            </Unlockable>
-          )}
-
-          <LockedList items={unlocks.locked} />
+          </BentoAside>
 
           <TourGuide
             tour={WEEK_TOUR}
@@ -345,7 +408,7 @@ export function WeekView() {
             doneByData={{ notify: push.subscribed }}
             enabled={week.enabled && !push.isLoading}
           />
-        </div>
+        </Bento>
       )}
     </AppLayout>
   )

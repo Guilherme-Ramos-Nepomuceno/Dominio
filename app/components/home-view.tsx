@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { TrayIcon, CaretRightIcon, TargetIcon } from "@phosphor-icons/react"
 import { InboxCountBadge } from "@/components/inbox/inbox-count-badge"
@@ -21,7 +21,10 @@ import { HomeUpcoming } from "@/components/home/home-upcoming"
 import { HomeWeekSoFar } from "@/components/home/home-week-so-far"
 import { CoupleSplitLine, CoupleSplitSection } from "@/components/couple/couple-split-section"
 import { TourGuide } from "@/components/guide/tour-guide"
-import { LockedList, Unlockable, useUnlocks } from "@/components/guide/unlockable"
+import { Bento, BentoAside, BentoMain, BentoTile, PAGE_WIDTH } from "@/components/layout/bento"
+import { Unlockable, useUnlocks } from "@/components/guide/unlockable"
+import { SamplePreview } from "@/components/guide/sample-preview"
+import { sampleTransactions, sampleWeekDays } from "@/lib/samples"
 import { HOME_TOUR, HOME_TOUR_STEPS } from "@/lib/guide"
 import { homeUnlocks } from "@/lib/unlocks"
 
@@ -64,9 +67,18 @@ export function HomeView() {
             ? homeUnlocks({ spentThisWeek: week.spentThisWeek, expensesThisMonth: balanceData.expense })
             : null,
     )
+
     const showPlanning = viewMode !== "familia"
     const monthName = MONTH_NAMES[Number(selectedMonth.split("-")[1]) - 1] ?? ""
     const isEmptyMonth = balanceData.transactions.length === 0 && balanceData.transfers.length === 0
+    // Exemplos da conta nova: só no mês atual da própria conta, com a semana carregada.
+    const showSamples = showPlanning && isCurrentMonth && !!week?.enabled && unlocks.locked.length > 0
+    const sampleTx = useMemo(() => sampleTransactions(new Date()), [])
+    const sampleSpent = sampleTx.reduce((sum, t) => sum + t.amount, 0)
+    const sampleWeek = (w: NonNullable<typeof week>) => {
+        const days = sampleWeekDays(w.days, w.idealPerDay)
+        return { ...w, days, spentThisWeek: Math.round(days.reduce((sum, d) => sum + d.spent, 0) * 100) / 100 }
+    }
 
     // Dia clicado numa barra do gráfico (Receitas ou Despesas, incluindo a
     // aba "Fatura Pendente") — filtra "Transações recentes" pra esse dia;
@@ -82,8 +94,8 @@ export function HomeView() {
         : undefined
 
     return (
-        <AppLayout showMonthFilter>
-            <div className="max-w-2xl mx-auto space-y-10 pb-4">
+        <AppLayout showMonthFilter wide>
+            <div className={`${PAGE_WIDTH} space-y-10 pb-4`}>
                 {/* No mobile o seletor de mês mora no cabeçalho fixo (AppLayout); aqui só aparece no desktop. */}
                 <div className="hidden md:flex items-center justify-end">
                     <MonthHeaderSelector />
@@ -119,9 +131,11 @@ export function HomeView() {
                         </div>
                     </div>
                 ) : (
-                    <>
+                    <Bento className="gap-10">
+                        <BentoMain>
                         {/* Conta nova: convite para montar o primeiro plano */}
                         {showOnboardingCard && (
+                            <BentoTile order={1}>
                             <Link
                                 href="/plan"
                                 className="flex items-center gap-3 px-4 py-4 rounded-[20px] bg-primary text-background hover:bg-primary/90 transition-colors"
@@ -133,28 +147,119 @@ export function HomeView() {
                                 </span>
                                 <CaretRightIcon size={14} weight="bold" className="shrink-0" />
                             </Link>
+                            </BentoTile>
                         )}
 
                         {/* DAQUI PRA FRENTE (só no mês atual: a semana é sempre a de hoje).
                             Nível 1: quanto dá para gastar até domingo e por dia; logo abaixo,
                             o que já está agendado para sair e a vitória do momento. */}
                         {showPlanning && isCurrentMonth && (
-                            <div className="space-y-5">
+                            <BentoTile order={2} className="space-y-5">
                                 <WeekHero week={week} isLoading={weekLoading} isCouple={isCouple} recovery={wins?.week.recovery ?? null} />
                                 {week?.enabled && <HomeUpcoming todayISO={todayISO} weekEnd={week.weekEnd} />}
                                 {wins && <HomeWinLine wins={wins.week.wins} />}
-                            </div>
+                            </BentoTile>
                         )}
 
                         {/* Total da Família não tem semana nem plano: o saldo é a resposta. */}
                         {!showPlanning && (
-                            <BalanceSummary checkingBalance={balanceData.checkingBalance} totalSavings={balanceData.totalSavings} prominent />
+                            <BentoTile order={2}>
+                                <BalanceSummary checkingBalance={balanceData.checkingBalance} totalSavings={balanceData.totalSavings} prominent />
+                            </BentoTile>
                         )}
 
+                        {isEmptyMonth && showSamples ? (
+                            // Conta nova (mês atual sem nada): como vai ficar, com dados de exemplo.
+                            <BentoTile order={4}>
+                                <SamplePreview hint={unlocks.hintOf("home-daily")}>
+                                    <IncomeExpenseCards
+                                        income={0}
+                                        expense={sampleSpent}
+                                        transactions={sampleTx}
+                                        allTransactions={sampleTx}
+                                        selectedMonth={selectedMonth}
+                                        period={period}
+                                        onPeriodChange={() => {}}
+                                        showIncome={false}
+                                        title="Gastos por dia"
+                                    />
+                                </SamplePreview>
+                            </BentoTile>
+                        ) : isEmptyMonth ? (
+                            // Mês passado sem movimentação: uma frase, e não gráficos zerados.
+                            <BentoTile order={4}>
+                                <p className="text-sm text-muted-foreground">Nenhuma movimentação em {monthName}.</p>
+                            </BentoTile>
+                        ) : (
+                            <>
+                                {/* Nível 3: gastos por dia (tocar num dia filtra a lista abaixo) */}
+                                {!unlocks.isUnlocked("home-daily") && showSamples && (
+                                <BentoTile order={5}>
+                                <SamplePreview hint={unlocks.hintOf("home-daily")}>
+                                    <IncomeExpenseCards
+                                        income={0}
+                                        expense={sampleSpent}
+                                        transactions={sampleTx}
+                                        allTransactions={sampleTx}
+                                        selectedMonth={selectedMonth}
+                                        period={period}
+                                        onPeriodChange={() => {}}
+                                        showIncome={false}
+                                        title="Gastos por dia"
+                                    />
+                                </SamplePreview>
+                            </BentoTile>
+                                )}
+                                {unlocks.isUnlocked("home-daily") && (
+                                <BentoTile order={5}>
+                                <Unlockable isNew={unlocks.isNew("home-daily")} title="Gastos por dia">
+                                <IncomeExpenseCards
+                                    income={balanceData.income}
+                                    expense={balanceData.expense}
+                                    transactions={balanceData.transactions}
+                                    allTransactions={balanceData.allTransactions}
+                                    selectedMonth={selectedMonth}
+                                    period={period}
+                                    onPeriodChange={setPeriod}
+                                    showIncome={false}
+                                    title="Gastos por dia"
+                                    onDayClick={(dateStr, transactionsForDay) =>
+                                        setSelectedDay((prev) => (prev?.dateStr === dateStr ? null : { dateStr, transactions: transactionsForDay }))
+                                    }
+                                />
+                                </Unlockable>
+                                </BentoTile>
+                                )}
+
+                                {/* Nível 4: o detalhe */}
+                                <BentoTile order={6}>
+                                    <RecentTransactions
+                                        transactions={dayTransactions}
+                                        filterLabel={selectedDayLabel}
+                                        onClearFilter={() => setSelectedDay(null)}
+                                    />
+                                </BentoTile>
+
+                                {balanceData.transfers.length > 0 && (
+                                    <BentoTile order={7}>
+                                        <RecentTransfers transfers={balanceData.transfers} cards={cards} />
+                                    </BentoTile>
+                                )}
+                            </>
+                        )}
+
+                        </BentoMain>
+
+                        <BentoAside label="Seu mês">
                         {/* ATÉ AQUI: o que já aconteceu, do mais perto (a semana) ao mais
                             amplo (o mês), e o que ficou para classificar. Em outro mês, o mês
                             vira a resposta principal da tela. */}
-                        <div className="space-y-8">
+                        <BentoTile order={3} className="space-y-8">
+                            {showSamples && week && !unlocks.isUnlocked("home-week-so-far") && (
+                                <SamplePreview hint={unlocks.hintOf("home-week-so-far")}>
+                                    <HomeWeekSoFar week={sampleWeek(week)} wins={null} todayISO={todayISO} />
+                                </SamplePreview>
+                            )}
                             {showPlanning && isCurrentMonth && week && unlocks.isUnlocked("home-week-so-far") && (
                                 <Unlockable isNew={unlocks.isNew("home-week-so-far")} title="Sua semana até agora">
                                     <HomeWeekSoFar week={week} wins={wins} todayISO={todayISO} />
@@ -186,52 +291,16 @@ export function HomeView() {
                                     <CaretRightIcon size={14} weight="bold" className="text-muted-foreground shrink-0" />
                                 </Link>
                             )}
-                        </div>
+                        </BentoTile>
 
-                        {isEmptyMonth ? (
-                            // Mês sem nenhuma movimentação: uma frase, e não gráficos zerados.
-                            <p className="text-sm text-muted-foreground">Nenhuma movimentação em {monthName}.</p>
-                        ) : (
-                            <>
-                                {/* Nível 3: gastos por dia (tocar num dia filtra a lista abaixo) */}
-                                {unlocks.isUnlocked("home-daily") && (
-                                <Unlockable isNew={unlocks.isNew("home-daily")} title="Gastos por dia">
-                                <IncomeExpenseCards
-                                    income={balanceData.income}
-                                    expense={balanceData.expense}
-                                    transactions={balanceData.transactions}
-                                    allTransactions={balanceData.allTransactions}
-                                    selectedMonth={selectedMonth}
-                                    period={period}
-                                    onPeriodChange={setPeriod}
-                                    showIncome={false}
-                                    title="Gastos por dia"
-                                    onDayClick={(dateStr, transactionsForDay) =>
-                                        setSelectedDay((prev) => (prev?.dateStr === dateStr ? null : { dateStr, transactions: transactionsForDay }))
-                                    }
-                                />
-                                </Unlockable>
-                                )}
-
-                                {/* Nível 4: o detalhe */}
-                                <RecentTransactions
-                                    transactions={dayTransactions}
-                                    filterLabel={selectedDayLabel}
-                                    onClearFilter={() => setSelectedDay(null)}
-                                />
-
-                                <RecentTransfers transfers={balanceData.transfers} cards={cards} />
-                            </>
-                        )}
-
-                        {/* Primeiro contato: o que ainda vai aparecer na Home (só no mês atual). */}
-                        {showPlanning && isCurrentMonth && <LockedList items={unlocks.locked} />}
-
-                        {/* A conta do casal não recebe renda: o saldo dela não diz nada (a divisão acima responde). */}
-                        {showPlanning && !isCouple && (
-                            <BalanceSummary checkingBalance={balanceData.checkingBalance} totalSavings={balanceData.totalSavings} />
-                        )}
-                    </>
+                            {/* A conta do casal não recebe renda: o saldo dela não diz nada (a divisão acima responde). */}
+                            {showPlanning && !isCouple && (
+                                <BentoTile order={9}>
+                                    <BalanceSummary checkingBalance={balanceData.checkingBalance} totalSavings={balanceData.totalSavings} />
+                                </BentoTile>
+                            )}
+                        </BentoAside>
+                    </Bento>
                 )}
             </div>
             <TourGuide

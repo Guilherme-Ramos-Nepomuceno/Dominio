@@ -35,6 +35,7 @@ export type EventName =
   | "guide_step_shown"
   | "feature_unlocked"
   | "guide_replayed"
+  | "screen_viewed"
 
 export type EventProperties = Record<string, string | number | boolean | null>
 

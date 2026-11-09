@@ -144,6 +144,8 @@
   --positive-ink: #1e6b15;
   --attention-ink: #8a5100;
   /* Guiado: véu em volta do componente em destaque, anel e brilho. */
+  /* Painel de apoio do desktop (telas largas): um degrau de tom. */
+  --panel: color-mix(in oklab, var(--foreground) 3.5%, var(--background));
   --guide-scrim: rgb(15 23 42 / 0.5);
   --guide-ring: var(--foreground);
   --guide-glow: color-mix(in oklab, var(--foreground) 22%, transparent);
@@ -159,6 +161,7 @@
   --plan-tint: 0.5;
   --positive-ink: var(--income);
   --attention-ink: #fbbf24;
+  --panel: color-mix(in oklab, var(--foreground) 4.5%, var(--background));
   --guide-scrim: rgb(0 0 0 / 0.62);
   --guide-ring: var(--foreground);
   --guide-glow: color-mix(in oklab, var(--foreground) 28%, transparent);
@@ -271,4 +274,24 @@
 select option {
   background-color: var(--popover);
   color: var(--popover-foreground);
+}
+
+/* Largura do painel de apoio (layout "principal + painel" do desktop). */
+:root {
+  --panel-w: 400px;
+}
+@media (min-width: 1536px) {
+  :root {
+    --panel-w: 460px;
+  }
+}
+
+/* Telas largas: o painel de apoio é desenhado no fundo da página, de cima a
+   baixo, colado à borda direita, com uma linha fina na divisa. */
+@media (min-width: 1280px) {
+  .with-panel {
+    background-image:
+      linear-gradient(to left, transparent var(--panel-w), var(--border) var(--panel-w), var(--border) calc(var(--panel-w) + 1px), transparent calc(var(--panel-w) + 1px)),
+      linear-gradient(to left, var(--panel) var(--panel-w), transparent var(--panel-w));
+  }
 }

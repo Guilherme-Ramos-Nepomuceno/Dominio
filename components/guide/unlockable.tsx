@@ -47,6 +47,12 @@ export function useUnlocks(screen: UnlockScreen, statuses: UnlockStatus[] | null
     isUnlocked: (id: string) => !personal || !statuses || !!byId.get(id)?.unlocked,
     isNew: (id: string) => fresh.includes(id),
     locked: personal && statuses ? statuses.filter((s) => !s.unlocked) : [],
+    // O que falta para liberar, para o exemplo ("… · 1 de 3").
+    hintOf: (id: string) => {
+      const s = byId.get(id)
+      if (!s) return undefined
+      return s.progress ? `${s.hint} ${s.progress.current} de ${s.progress.target}.` : s.hint
+    },
   }
 }
 

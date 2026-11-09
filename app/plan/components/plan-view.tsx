@@ -28,6 +28,7 @@ import { BuyWishSheet } from "./buy-wish-sheet"
 import { ConfirmSummaryDialog } from "./confirm-summary-dialog"
 import { WinsStrip } from "@/components/wins/wins-strip"
 import { PlanTourGuide } from "@/components/guide/plan-tour"
+import { Bento, BentoAside, BentoMain, BentoTile, PAGE_WIDTH } from "@/components/layout/bento"
 
 // Status = bolinha + rótulo (nunca só a cor).
 const STATUS_DOT: Record<PlanStatus, string> = {
@@ -70,8 +71,8 @@ export function PlanView() {
   const ready = !vm.isReadOnly && !vm.isLoading && !vm.loadError && !!plan
 
   return (
-    <AppLayout showMonthFilter>
-      <div className="max-w-2xl mx-auto">
+    <AppLayout showMonthFilter wide>
+      <div className={PAGE_WIDTH}>
         <header className="mb-6 flex items-center justify-between gap-4 md:mb-8">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">
@@ -121,10 +122,15 @@ export function PlanView() {
         ) : null}
 
         {ready && plan && vm.bar && vm.headline && vm.queue && (
-          <div className="space-y-12 pb-4">
-            {vm.guide && <GuideLine status={plan.status} text={vm.guide} />}
+          <Bento className="pb-4">
+            <BentoMain>
+              {vm.guide && (
+                <BentoTile order={1}>
+                  <GuideLine status={plan.status} text={vm.guide} />
+                </BentoTile>
+              )}
 
-            <div>
+              <BentoTile order={2}>
               <PlanHero plan={plan} headline={vm.headline} incomeWarning={vm.incomeWarning} budget={vm.budget} editable={vm.editable} onSaveBudget={vm.setBudget} />
               {vm.wins && (
                 <WinsStrip
@@ -142,16 +148,9 @@ export function PlanView() {
                 showSpending={vm.showSpending}
                 groupHref={(id) => `/plan/${id}`}
               />
-            </div>
+              </BentoTile>
 
-            <PlanGroupList
-              plan={plan}
-              bar={vm.bar}
-              groupHref={(id) => `/plan/${id}`}
-              groupStatus={vm.wins?.month.groupStatus}
-              vsLastMonth={vm.wins?.month.vsLastMonth}
-            />
-
+              <BentoTile order={4}>
             <WishList
               wishes={vm.openWishes}
               boughtWishes={vm.boughtWishes}
@@ -168,7 +167,21 @@ export function PlanView() {
               onDelete={(w) => vm.setDeletingWish(w)}
               onToGoal={(w) => vm.setGoalingWish(w)}
             />
+              </BentoTile>
+            </BentoMain>
 
+            <BentoAside label="Grupos e ajustes do plano">
+              <BentoTile order={3}>
+            <PlanGroupList
+              plan={plan}
+              bar={vm.bar}
+              groupHref={(id) => `/plan/${id}`}
+              groupStatus={vm.wins?.month.groupStatus}
+              vsLastMonth={vm.wins?.month.vsLastMonth}
+            />
+              </BentoTile>
+
+              <BentoTile order={5}>
             <PlanSettings
               weeklyLimitEnabled={plan.weeklyLimitEnabled}
               editable={vm.editable}
@@ -177,11 +190,12 @@ export function PlanView() {
               showWeekLink={vm.showWeekLink}
               onToggleWeeklyLimit={vm.setWeeklyLimitEnabled}
             />
+              </BentoTile>
 
-            {vm.canConfirm && (
-              // Fixo no rodapé (acima do menu inferior no celular); no desktop deixa
-              // à direita o espaço do botão "+" do registro rápido.
-              <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-8 md:pr-[5.5rem] xl:pr-0">
+              {vm.canConfirm && (
+                // Celular: fixo no rodapé (acima do menu inferior). Desktop: no
+                // fim do painel, que já fica à vista ao rolar.
+                <div className="order-6 sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-8 md:pr-[5.5rem] xl:static xl:pr-0">
                 <button
                   type="button"
                   data-guide="plan-confirm"
@@ -192,9 +206,10 @@ export function PlanView() {
                   <CheckCircle size={18} weight="bold" />
                   {vm.isConfirming ? "Confirmando..." : "Confirmar plano"}
                 </button>
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </BentoAside>
+          </Bento>
         )}
       </div>
 

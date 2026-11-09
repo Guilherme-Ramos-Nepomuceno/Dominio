@@ -70,7 +70,7 @@ test.describe("Entrada no app", () => {
 
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByText("Para gastar hoje")).toBeVisible()
-    await expect(page.getByRole("button", { name: "Registrar" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Registrar", exact: true })).toBeVisible()
   })
 
   test("senha errada mostra o erro e continua no login", async ({ page, request }) => {
