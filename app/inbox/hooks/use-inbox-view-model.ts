@@ -38,6 +38,7 @@ export function useInboxViewModel() {
   const [loadError, setLoadError] = useState(false)
   const [busyGroupKey, setBusyGroupKey] = useState<string | null>(null)
   const [isAcceptingAll, setIsAcceptingAll] = useState(false)
+  const [isReviewOpen, setIsReviewOpen] = useState(false)
   const viewedTracked = useRef(false)
 
   const load = useCallback(async () => {
@@ -120,15 +121,19 @@ export function useInboxViewModel() {
 
   const suggestedGroups = useMemo(() => groupsWithSuggestion(groups, categories), [groups, categories])
 
-  const acceptAllSuggestions = async () => {
-    if (suggestedGroups.length === 0 || isAcceptingAll || busyGroupKey) return
+  // Aplica as sugestões só dos grupos marcados na revisão (por chave).
+  const acceptSuggestions = async (keys: string[]) => {
+    const chosen = new Set(keys)
+    const toApply = suggestedGroups.filter((g) => chosen.has(inboxGroupKey(g)))
+    if (toApply.length === 0 || isAcceptingAll || busyGroupKey) return
+    setIsReviewOpen(false)
     setIsAcceptingAll(true)
     let updatedTotal = 0
     let failures = 0
     // Um grupo por vez: cada um tem sua própria categoria, e uma falha num
     // grupo não deve impedir os outros.
     beginRuleFeedbackBatch()
-    for (const group of suggestedGroups) {
+    for (const group of toApply) {
       try {
         const ids = group.transactions.map((t) => t.id)
         updatedTotal += await categorizeTransactions(ids, group.suggestion!.categoryId)
@@ -161,11 +166,15 @@ export function useInboxViewModel() {
     isReadOnly,
     busyGroupKey,
     isAcceptingAll,
+    suggestedGroups,
     suggestedCount: suggestedGroups.length,
+    isReviewOpen,
+    openReview: () => setIsReviewOpen(true),
+    closeReview: () => setIsReviewOpen(false),
     selectCategory,
     toggleExpanded,
     categorizeGroup,
-    acceptAllSuggestions,
+    acceptSuggestions,
     retry: () => {
       setIsLoading(true)
       load()

@@ -1,9 +1,10 @@
 "use client"
 
+import { ExpandableText } from "@/components/ui/expandable-text"
 import { CaretDown, Check, Sparkle, Confetti, ArrowClockwise } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SkeletonSection } from "@/components/ui/loading-skeletons"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { CategoryIcon } from "@/app/cards/components/import-review/category-icon"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
@@ -11,6 +12,7 @@ import { inboxGroupKey, inboxGroupType, isSuggestionValid, selectableCategories 
 import { cn } from "@/lib/utils"
 import { useInboxViewModel } from "../hooks/use-inbox-view-model"
 import { InboxCategorySelect } from "./inbox-category-select"
+import { AcceptSuggestionsSheet } from "./accept-suggestions-sheet"
 
 const CONFIDENCE_LABEL: Record<string, string> = {
   HIGH: "alta confiança",
@@ -32,7 +34,7 @@ export function InboxView() {
       <PageHeader back="/" title="A classificar" subtitle={subtitle} />
 
       {vm.isLoading ? (
-        <SkeletonRowList count={4} />
+        <SkeletonSection count={5} className="max-w-2xl mx-auto" />
       ) : vm.loadError ? (
         <div className="py-12 text-center space-y-3">
           <p className="text-sm text-muted-foreground">Não foi possível carregar a caixa de entrada agora.</p>
@@ -65,11 +67,11 @@ export function InboxView() {
               </p>
               <button
                 type="button"
-                onClick={vm.acceptAllSuggestions}
+                onClick={vm.openReview}
                 disabled={vm.isAcceptingAll || !!vm.busyGroupKey}
                 className="shrink-0 rounded-full bg-primary px-3.5 py-1.5 text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                {vm.isAcceptingAll ? "Aplicando..." : "Aceitar todas"}
+                {vm.isAcceptingAll ? "Aplicando..." : "Revisar e aceitar"}
               </button>
             </div>
           )}
@@ -98,7 +100,7 @@ export function InboxView() {
                   <li key={key} className={cn("py-4 transition-opacity", isBusy && "opacity-60")}>
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-foreground truncate">{group.label}</p>
+                        <ExpandableText className="font-semibold text-foreground">{group.label}</ExpandableText>
                         {single ? (
                           <p className="text-xs text-muted-foreground">{formatDate(single.date)}</p>
                         ) : (
@@ -123,9 +125,9 @@ export function InboxView() {
                       <ul className="mt-2 space-y-1.5 border-l-2 border-border pl-3">
                         {group.transactions.map((t) => (
                           <li key={t.id} className="flex items-center gap-3 text-xs">
-                            <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                            <ExpandableText as="span" className="flex-1 min-w-0 text-muted-foreground">
                               {formatDate(t.date)} · {t.description}
-                            </span>
+                            </ExpandableText>
                             <span className="tabular-nums text-foreground shrink-0">{formatCurrency(t.amount)}</span>
                           </li>
                         ))}
@@ -176,6 +178,15 @@ export function InboxView() {
             </ul>
           </section>
         </div>
+      )}
+
+      {vm.isReviewOpen && (
+        <AcceptSuggestionsSheet
+          groups={vm.suggestedGroups}
+          categories={vm.categories}
+          onApply={vm.acceptSuggestions}
+          onClose={vm.closeReview}
+        />
       )}
     </AppLayout>
   )

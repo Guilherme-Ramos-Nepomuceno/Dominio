@@ -1,10 +1,11 @@
 "use client"
 
+import { ExpandableText } from "@/components/ui/expandable-text"
 import { useState } from "react"
 import { ArrowClockwise, Check, ListChecks, PencilSimple, Trash, X } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SkeletonSection } from "@/components/ui/loading-skeletons"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,7 +44,7 @@ export function RulesView() {
         <PageHeader back="/categories" title="Regras" subtitle="O que entra categorizado sozinho" />
 
         {vm.isLoading ? (
-          <SkeletonRowList count={4} />
+          <SkeletonSection count={4} />
         ) : vm.loadError ? (
           <div className="py-10 text-center space-y-3">
             <p className="text-sm text-muted-foreground">Não foi possível carregar as regras agora.</p>
@@ -68,7 +69,7 @@ export function RulesView() {
                       <li key={suggestion.merchantKey} className={cn("flex items-center gap-3 py-3 transition-opacity", busy && "opacity-50")}>
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot(suggestion.categoryId) }} aria-hidden />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{suggestion.label}</p>
+                          <ExpandableText className="text-sm font-medium text-foreground">{suggestion.label}</ExpandableText>
                           <p className="text-xs text-muted-foreground truncate">
                             → {categoryName(suggestion.categoryId)} · {suggestion.count} vezes
                           </p>
@@ -124,7 +125,7 @@ export function RulesView() {
                     <li key={rule.id} className="group flex items-center gap-3 py-3">
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot(rule.categoryId) }} aria-hidden />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{rule.merchantKey}</p>
+                        <ExpandableText className="text-sm font-medium text-foreground">{rule.merchantKey}</ExpandableText>
                         <p className="text-xs text-muted-foreground truncate">
                           → <span className="text-foreground">{categoryName(rule.categoryId)}</span> · {formatAmountRange(rule.minAmount, rule.maxAmount, formatCurrency)}
                         </p>

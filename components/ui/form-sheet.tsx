@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { X } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
@@ -16,6 +16,30 @@ interface FormSheetProps {
   className?: string
 }
 
+// No iOS o teclado não encolhe a página (só a "visual viewport"): uma folha
+// presa em inset-0 fica atrás do teclado. Acompanha a área visível para a
+// folha subir junto com o teclado e o rodapé continuar à vista.
+function useVisibleViewport() {
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      // Sem teclado (área visível ~ janela), deixa o CSS cuidar.
+      const keyboardOpen = window.innerHeight - vv.height > 80
+      setBox(keyboardOpen ? { top: vv.offsetTop, height: vv.height } : null)
+    }
+    update()
+    vv.addEventListener("resize", update)
+    vv.addEventListener("scroll", update)
+    return () => {
+      vv.removeEventListener("resize", update)
+      vv.removeEventListener("scroll", update)
+    }
+  }, [])
+  return box
+}
+
 // Folha que sobe de baixo no celular (centralizada no computador), no desenho
 // das telas novas: fundo da página, título discreto, conteúdo com respiro e o
 // botão principal num rodapé próprio. Fecha com Esc ou tocando fora.
@@ -26,10 +50,15 @@ export function FormSheet({ title, onClose, children, footer, onSubmit, classNam
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
+  const viewportBox = useVisibleViewport()
   const Shell = onSubmit ? "form" : "div"
 
   return (
-    <div className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-100 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm"
+      style={viewportBox ? { top: viewportBox.top, height: viewportBox.height, bottom: "auto" } : undefined}
+      onClick={onClose}
+    >
       <Shell
         role="dialog"
         aria-modal="true"
@@ -37,7 +66,7 @@ export function FormSheet({ title, onClose, children, footer, onSubmit, classNam
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
         onSubmit={onSubmit}
         className={cn(
-          "bg-background w-full max-w-md rounded-t-3xl md:rounded-3xl border-t border-border md:border max-h-[92vh] flex flex-col animate-in slide-in-from-bottom-4 fade-in duration-200 motion-reduce:animate-none",
+          "bg-background w-full max-w-md rounded-t-3xl md:rounded-3xl border-t border-border md:border max-h-[92%] flex flex-col animate-in slide-in-from-bottom-4 fade-in duration-200 motion-reduce:animate-none",
           className,
         )}
       >
