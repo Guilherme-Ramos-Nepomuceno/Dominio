@@ -113,12 +113,23 @@ export function RulesView() {
             <section aria-labelledby="rules-active">
               <SectionTitle id="rules-active">Suas regras</SectionTitle>
               {vm.rules.length === 0 ? (
-                <div className="mt-3 flex items-start gap-3 text-sm text-muted-foreground">
-                  <ListChecks size={20} weight="duotone" className="mt-0.5 shrink-0" />
-                  <p>
-                    Nenhuma regra ainda. Ao classificar um lançamento o app pergunta se deve fazer sempre assim, e o que você já classificou aparece
-                    acima para confirmar. Para criar do zero, toque no +.
-                  </p>
+                <div className="mt-3 rounded-[20px] border border-dashed border-border p-5">
+                  <div className="flex items-start gap-3">
+                    <ListChecks size={22} weight="duotone" className="mt-0.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 space-y-2 text-sm">
+                      <p className="font-medium text-foreground">Regras classificam sozinhas</p>
+                      <p className="text-muted-foreground text-pretty">
+                        Uma regra diz para onde vai tudo de um mesmo lugar. Por exemplo:
+                      </p>
+                      <p className="rounded-xl bg-foreground/[0.04] px-3 py-2 text-foreground">
+                        Tudo de <span className="font-semibold">iFood</span> vai para <span className="font-semibold">Restaurantes e delivery</span>
+                      </p>
+                      <p className="text-muted-foreground text-pretty">
+                        Você não precisa criar à mão: quando classificar o mesmo lugar duas vezes, o app pergunta se deve fazer sempre assim. Para
+                        criar agora, toque no +.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <ul className="mt-2 divide-y divide-border">

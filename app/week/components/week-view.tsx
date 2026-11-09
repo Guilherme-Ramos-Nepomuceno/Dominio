@@ -32,6 +32,14 @@ import { WeekCategories } from "./week-categories"
 import { DayStrip } from "./day-strip"
 import { WeekClosedCard } from "./week-closed-card"
 import { WishProgressList } from "./wish-progress-list"
+import { WeekNotifyCard } from "./week-notify-card"
+import { TourGuide } from "@/components/guide/tour-guide"
+import { LockedList, Unlockable, useUnlocks } from "@/components/guide/unlockable"
+import { useGuide } from "@/components/guide/guide-provider"
+import { usePushNotifications } from "@/hooks/use-push-notifications"
+import { shouldOfferNotify } from "@/lib/push"
+import { WEEK_TOUR, tourState, weekTourSteps } from "@/lib/guide"
+import { daysWithSpending, weekUnlocks } from "@/lib/unlocks"
 
 // Barra do herói na cor do estado do ritmo — a mesma do selo acima dela.
 const TONE_BAR: Record<HeroBarTone, string> = {
@@ -77,6 +85,25 @@ export function WeekView() {
   const recovery = recoveryMessage(wins?.week.recovery ?? null)
   const showChart = week ? showMonthChart(week.monthSeries) : false
 
+  // Primeiro contato: o que depende de dados fica escondido e libera com eles.
+  const unlockStatuses = week?.enabled
+    ? weekUnlocks({
+        daysWithSpending: daysWithSpending(week.monthSeries),
+        // Só conta semana em que a pessoa já registrava (conta nova não "fecha"
+        // as semanas de antes de existir).
+        completedWeeks: week.weeks.filter((w) => (w.status === "DONE_UNDER" || w.status === "DONE_OVER") && (w.spent ?? 0) > 0).length,
+        categoriesThisWeek: week.categories.length,
+        hasLastWeek: !!week.lastWeek && week.lastWeek.spent > 0,
+      })
+    : null
+  const unlocks = useUnlocks("week", unlockStatuses)
+
+  // Avisos: oferecidos aqui enquanto der para ativar e a pessoa não dispensou.
+  const guide = useGuide()
+  const push = usePushNotifications()
+  const notifyDismissed = !!guide.state && tourState(guide.state, WEEK_TOUR).acked.includes("notify")
+  const offerNotify = !push.isLoading && shouldOfferNotify(push) && !notifyDismissed && !vm.isReadOnly
+
   return (
     <AppLayout>
       <PageHeader back="/"
@@ -121,7 +148,7 @@ export function WeekView() {
         // página nunca fica embaixo do botão "+" flutuante.
         <div className="max-w-2xl mx-auto space-y-12 pb-24 md:pb-20">
           {!week.hasPlan && (
-            <Link href="/plan" className="group -mb-4 flex items-start gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/plan" className="group mb-8 flex items-start gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Target size={16} weight="duotone" className="mt-0.5 shrink-0 text-foreground/60" />
               <span className="flex-1">
                 Os números abaixo vêm da meta mensal. <span className="font-medium text-foreground">Planeje o mês</span> para um limite sob medida.
@@ -139,8 +166,9 @@ export function WeekView() {
               <PaceBadge status={week.paceStatus} exceeded={isWeekExceeded(week)} />
             </div>
             <p
+              data-guide="week-available"
               className={cn(
-                "mt-1 text-5xl font-semibold tracking-tight leading-none tabular-nums",
+                "mt-1 w-fit text-5xl font-semibold tracking-tight leading-none tabular-nums",
                 week.available < 0 ? "text-expense" : "text-foreground",
               )}
             >
@@ -149,17 +177,17 @@ export function WeekView() {
             {/* Acima do ritmo, a frase de recuperação toma o lugar do "por dia":
                 um valor diário só, e o que dá para fazer com ele. */}
             {week.available > 0 && recovery ? (
-              <p className="mt-3 flex items-start gap-2 text-sm text-foreground">
+              <p data-guide="week-days" className="mt-3 flex items-start gap-2 text-sm text-foreground">
                 <Path size={16} weight="bold" aria-hidden className="mt-0.5 shrink-0 text-attention-ink" />
                 {recovery}
               </p>
             ) : week.available > 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">
+              <p data-guide="week-days" className="mt-3 w-fit text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">{formatCurrency(week.perDayRemaining)} por dia</span> ·{" "}
                 {daysLeftLabel(week.daysLeftInWeek)}
               </p>
             ) : (
-              <p className="mt-3 text-sm text-expense">
+              <p data-guide="week-days" className="mt-3 text-sm text-expense">
                 {week.available < 0 ? "A semana passou do limite." : "O limite da semana acabou."} Segure os gastos até{" "}
                 {formatWeekday(week.weekEnd)}.
                 {week.available < 0 && <span className="mt-1 block text-muted-foreground">{carryOverOverLine(week.carryOver)}</span>}
@@ -202,12 +230,23 @@ export function WeekView() {
           </section>
 
           {/* 2. Fechamento da semana (último dia, dentro do limite) */}
-          {wins?.week.weekClosed && <WeekClosedCard closed={wins.week.weekClosed} weekEnd={week.weekEnd} />}
+          {wins?.week.weekClosed && <WeekClosedCard closed={wins.week.weekClosed} weekEnd={week.weekEnd} monthKey={vm.monthKey} />}
+
+          {offerNotify && (
+            <WeekNotifyCard
+              support={push.support}
+              isBusy={push.isBusy}
+              onEnable={push.enable}
+              onDismiss={() => guide.ack(WEEK_TOUR, "notify")}
+            />
+          )}
 
           {/* 3. Vitórias + sequência e semana passada, juntas */}
           {wins && (
             <div className="space-y-3">
               <WinsStrip wins={wins.week.wins} scope="week" hasPlan={week.hasPlan} periodKey={week.weekStart} />
+              {unlocks.isUnlocked("week-history") && (
+              <Unlockable isNew={unlocks.isNew("week-history")} title="Sequência no azul">
               <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Resumo">
                 {/* A sequência já aparece como vitória quando é ≥ 2. */}
                 {!wins.week.wins.some((w) => w.kind === "WEEKS_STREAK") && (
@@ -223,6 +262,8 @@ export function WeekView() {
                   </li>
                 )}
               </ul>
+              </Unlockable>
+              )}
             </div>
           )}
 
@@ -230,10 +271,11 @@ export function WeekView() {
           {wins && <WishProgressList items={wins.month.wishProgress} />}
 
           {/* 5. Projeção do mês */}
-          {(() => {
+          {unlocks.isUnlocked("week-projection") && (() => {
             const pace = projectionMessage(week.monthPace, formatCurrency)
             const Icon = pace.tone === "ok" ? TrendDown : pace.tone === "over" ? TrendUp : Equals
             return (
+              <Unlockable isNew={unlocks.isNew("week-projection")} title="Projeção do mês">
               <Section
                 title="Projeção do mês"
                 subtitle={
@@ -263,10 +305,13 @@ export function WeekView() {
                   </div>
                 )}
               </Section>
+              </Unlockable>
             )
           })()}
 
           {/* 6. Semanas do mês */}
+          {unlocks.isUnlocked("week-weeks") && (
+          <Unlockable isNew={unlocks.isNew("week-weeks")} title="Semanas do mês">
           <Section
             title="Semanas do mês"
             subtitle={
@@ -280,11 +325,26 @@ export function WeekView() {
           >
             <PeriodWeeksList weeks={week.weeks} />
           </Section>
+          </Unlockable>
+          )}
 
           {/* 7. Para onde foi */}
-          <Section title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
-            <WeekCategories categories={week.categories} />
-          </Section>
+          {unlocks.isUnlocked("week-categories") && (
+            <Unlockable isNew={unlocks.isNew("week-categories")} title="Para onde foi">
+              <Section title="Para onde foi" subtitle="Gastos desta semana que contam no limite, por categoria">
+                <WeekCategories categories={week.categories} />
+              </Section>
+            </Unlockable>
+          )}
+
+          <LockedList items={unlocks.locked} />
+
+          <TourGuide
+            tour={WEEK_TOUR}
+            steps={weekTourSteps({ offerNotify })}
+            doneByData={{ notify: push.subscribed }}
+            enabled={week.enabled && !push.isLoading}
+          />
         </div>
       )}
     </AppLayout>

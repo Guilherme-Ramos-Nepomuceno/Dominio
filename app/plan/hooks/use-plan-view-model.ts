@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { useAccount } from "@/components/account/account-context"
 import { getCards, getCategories } from "@/lib/storage"
-import { createWish, deleteWish, updateWish, type WishInput } from "@/lib/planning-api"
+import { createWish, deleteWish, updateWish, wishToGoal, type WishInput } from "@/lib/planning-api"
 import { trackEvent } from "@/lib/events"
 import { effectiveBudget, isPlanEditable, planTotals, type PlanWish } from "@/lib/plan"
 import {
   canConfirmPlan,
+  confirmShortfall,
+  incomeWarning,
   monthBar,
   monthBarSummary,
   planGuide,
@@ -40,6 +42,7 @@ export function usePlanViewModel() {
   const [editingWish, setEditingWish] = useState<PlanWish | "new" | null>(null)
   const [buyingWish, setBuyingWish] = useState<PlanWish | null>(null)
   const [deletingWish, setDeletingWish] = useState<PlanWish | null>(null)
+  const [goalingWish, setGoalingWish] = useState<PlanWish | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
 
   useEffect(() => {
@@ -67,6 +70,7 @@ export function usePlanViewModel() {
   const bar = useMemo(() => (plan ? monthBar(plan) : null), [plan])
   const barSummary = useMemo(() => (bar ? monthBarSummary(bar) : ""), [bar])
   const headline = useMemo(() => (plan ? planHeadline(plan) : null), [plan])
+  const income = useMemo(() => (plan ? incomeWarning(plan) : null), [plan])
   const queue = useMemo(() => (plan ? wishQueue(plan) : null), [plan])
   const showSpending = !!plan && showsSpending(plan.status, plan.periodStart, toISODate(new Date()))
   const title = planMonthTitle(year, month, new Date().getFullYear())
@@ -111,7 +115,26 @@ export function usePlanViewModel() {
     }
   }, [deletingWish, reload])
 
+  const confirmWishToGoal = useCallback(async () => {
+    if (!goalingWish) return
+    try {
+      await wishToGoal(goalingWish.id)
+      trackEvent("wish_to_goal", { from: "plan" })
+      toast({ title: "Virou objetivo", description: `“${goalingWish.name}” está em Objetivos, para juntar aos poucos.`, variant: "success" })
+      setGoalingWish(null)
+      await reload()
+    } catch (error: any) {
+      toast({ title: "Não foi possível virar objetivo", description: error?.message, variant: "destructive" })
+    }
+  }, [goalingWish, reload])
+
+  // Margem negativa: pede um aviso antes de confirmar (PRD, feature 1).
+  const [negativeConfirm, setNegativeConfirm] = useState<number | null>(null)
+
   const confirmPlan = useCallback(async () => {
+    const shortfall = plan ? confirmShortfall(plan) : null
+    setNegativeConfirm(null)
+    if (shortfall !== null) trackEvent("plan_confirmed_negative_margin")
     setIsConfirming(true)
     const ok = await planState.confirm()
     setIsConfirming(false)
@@ -120,7 +143,13 @@ export function usePlanViewModel() {
       // No lugar do toast: o resumo do "mês organizado".
       setShowConfirmSummary(true)
     }
-  }, [planState, openWishes.length])
+  }, [planState, openWishes.length, plan])
+
+  const requestConfirm = useCallback(() => {
+    const shortfall = plan ? confirmShortfall(plan) : null
+    if (shortfall !== null) setNegativeConfirm(shortfall)
+    else confirmPlan()
+  }, [plan, confirmPlan])
 
   return {
     ...planState,
@@ -132,6 +161,7 @@ export function usePlanViewModel() {
     bar,
     barSummary,
     headline,
+    incomeWarning: income,
     queue,
     showSpending,
     title,
@@ -154,6 +184,12 @@ export function usePlanViewModel() {
     saveWish,
     confirmDeleteWish,
     confirmPlan,
+    requestConfirm,
+    goalingWish,
+    setGoalingWish,
+    confirmWishToGoal,
+    negativeConfirm,
+    cancelNegativeConfirm: () => setNegativeConfirm(null),
     isConfirming,
     wins,
     showConfirmSummary,

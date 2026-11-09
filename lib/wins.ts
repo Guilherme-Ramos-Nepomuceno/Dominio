@@ -3,6 +3,7 @@
 // Lógica pura — sem aliases "@/" — para rodar no test runner do Node.
 
 import { formatMoneyWhole } from "./plan-layout.ts"
+import { mapWeekSave, type WeekSave } from "./week.ts"
 import type { Plan, PlanWish } from "./plan.ts"
 
 export type WinKind =
@@ -34,7 +35,7 @@ export interface WinsData {
     dayStatus: Array<{ date: string; status: DayStatus }>
     wins: Win[]
     recovery: { perDayToRecover: number; untilDate: string } | null
-    weekClosed: { closedUnder: boolean; leftover: number } | null
+    weekClosed: { closedUnder: boolean; leftover: number; saved: WeekSave | null } | null
   }
   month: {
     wins: Win[]
@@ -105,7 +106,7 @@ export function mapWins(raw: any): WinsData {
           ? { perDayToRecover: num(week.recovery.perDayToRecover), untilDate: String(week.recovery.untilDate ?? "") }
           : null,
       weekClosed: week.weekClosed
-        ? { closedUnder: !!week.weekClosed.closedUnder, leftover: num(week.weekClosed.leftover) }
+        ? { closedUnder: !!week.weekClosed.closedUnder, leftover: num(week.weekClosed.leftover), saved: mapWeekSave(week.weekClosed.saved) }
         : null,
     },
     month: {

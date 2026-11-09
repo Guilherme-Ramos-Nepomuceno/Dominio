@@ -75,6 +75,7 @@ export function BottomNav({ onQuickAdd, quickAddLabel }: BottomNavProps) {
           <div className="flex flex-1 justify-center">
             <button
               type="button"
+              data-guide="quick-add"
               onClick={onQuickAdd}
               aria-label={quickAddLabel ?? "Registrar"}
               title={quickAddLabel}

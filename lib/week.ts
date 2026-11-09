@@ -73,6 +73,31 @@ export interface WeekData {
   lastWeek: { spent: number; limit: number; hasPlan: boolean } | null
   // Para onde vai a sobra/excesso de cada semana (Configurações).
   carryOver: WeekCarryOver
+  // Sobra desta semana já guardada (conta como gasta no limite).
+  savedThisWeek: WeekSave | null
+}
+
+export type WeekSaveDestination = "GOAL" | "SAVINGS" | "WISH"
+
+export interface WeekSave {
+  amount: number
+  destination: WeekSaveDestination
+  targetName: string | null
+}
+
+export function mapWeekSave(raw: any): WeekSave | null {
+  if (!raw) return null
+  return {
+    amount: num(raw.amount),
+    destination: oneOf(raw.destination, ["GOAL", "SAVINGS", "WISH"] as const, "WISH"),
+    targetName: raw.targetName ? String(raw.targetName) : null,
+  }
+}
+
+// "R$ 46 foram para Viagem" / "R$ 46 foram para os seus desejos".
+export function weekSaveLabel(save: WeekSave, format: (value: number) => string): string {
+  const where = save.destination === "WISH" ? "os seus desejos" : (save.targetName ?? (save.destination === "GOAL" ? "o objetivo" : "a reserva"))
+  return `${format(save.amount)} da sobra foram para ${where}.`
 }
 
 // MONTH: o que sobra ou passa numa semana ajusta as próximas.
@@ -160,6 +185,7 @@ export function mapWeek(w: any): WeekData {
         }
       : null,
     carryOver: oneOf(w?.carryOver, ["MONTH", "WEEK"] as const, "MONTH"),
+    savedThisWeek: mapWeekSave(w?.savedThisWeek),
   }
 }
 
@@ -177,9 +203,16 @@ export function carryOverOverLine(mode: WeekCarryOver): string {
     : "O excesso vai deixar as próximas semanas um pouco menores."
 }
 
-// Semana estourada (passou do limite ou zerou com gasto).
-export function isWeekExceeded(week: { available: number; spentThisWeek: number; limit: number }): boolean {
-  return week.available < 0 || (week.available === 0 && week.spentThisWeek > 0 && week.limit > 0)
+// Semana estourada (passou do limite ou zerou com gasto). Zerar porque a
+// sobra foi guardada não é estourar.
+export function isWeekExceeded(week: {
+  available: number
+  spentThisWeek: number
+  limit: number
+  savedThisWeek?: WeekSave | null
+}): boolean {
+  if (week.available < 0) return true
+  return week.available === 0 && week.spentThisWeek > 0 && week.limit > 0 && !week.savedThisWeek
 }
 
 export type WeekTone = "ok" | "warning" | "over"

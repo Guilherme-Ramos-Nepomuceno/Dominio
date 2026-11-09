@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { PLAN_STATUS_LABEL, type PlanStatus } from "@/lib/plan"
+import { formatMoneyWhole, formatShortfall } from "@/lib/plan-layout"
 import { cn } from "@/lib/utils"
 import { usePlanViewModel } from "../hooks/use-plan-view-model"
 import { PlanHero } from "./plan-hero"
@@ -26,6 +27,7 @@ import { WishFormSheet } from "./wish-form-sheet"
 import { BuyWishSheet } from "./buy-wish-sheet"
 import { ConfirmSummaryDialog } from "./confirm-summary-dialog"
 import { WinsStrip } from "@/components/wins/wins-strip"
+import { PlanTourGuide } from "@/components/guide/plan-tour"
 
 // Status = bolinha + rótulo (nunca só a cor).
 const STATUS_DOT: Record<PlanStatus, string> = {
@@ -123,7 +125,7 @@ export function PlanView() {
             {vm.guide && <GuideLine status={plan.status} text={vm.guide} />}
 
             <div>
-              <PlanHero plan={plan} headline={vm.headline} budget={vm.budget} editable={vm.editable} onSaveBudget={vm.setBudget} />
+              <PlanHero plan={plan} headline={vm.headline} incomeWarning={vm.incomeWarning} budget={vm.budget} editable={vm.editable} onSaveBudget={vm.setBudget} />
               {vm.wins && (
                 <WinsStrip
                   className="mt-6"
@@ -164,6 +166,7 @@ export function PlanView() {
               onEdit={(w) => vm.setEditingWish(w)}
               onBuy={(w) => vm.setBuyingWish(w)}
               onDelete={(w) => vm.setDeletingWish(w)}
+              onToGoal={(w) => vm.setGoalingWish(w)}
             />
 
             <PlanSettings
@@ -181,7 +184,8 @@ export function PlanView() {
               <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-8 md:pr-[5.5rem] xl:pr-0">
                 <button
                   type="button"
-                  onClick={vm.confirmPlan}
+                  data-guide="plan-confirm"
+                  onClick={vm.requestConfirm}
                   disabled={vm.isConfirming || vm.isSaving}
                   className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-primary text-background font-semibold shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
                 >
@@ -194,6 +198,8 @@ export function PlanView() {
         )}
       </div>
 
+      {ready && plan && <PlanTourGuide plan={plan} editable={vm.editable} />}
+
       <WishFormSheet
         wish={vm.editingWish}
         categories={vm.categories}
@@ -203,6 +209,40 @@ export function PlanView() {
       />
       <ConfirmSummaryDialog open={vm.showConfirmSummary} plan={plan} onClose={vm.closeConfirmSummary} />
       <BuyWishSheet wish={vm.buyingWish} cards={vm.cards} onClose={() => vm.setBuyingWish(null)} onBought={vm.reload} />
+
+      <AlertDialog open={vm.negativeConfirm !== null} onOpenChange={(open) => !open && vm.cancelNegativeConfirm()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              O plano não fecha: faltam {vm.negativeConfirm !== null ? formatShortfall(-vm.negativeConfirm) : ""}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              O que você planejou gastar passa do orçamento do mês. Dá para confirmar assim, mas o limite da semana vai contar
+              com dinheiro que não entra. Reduza algum grupo ou ajuste o orçamento para fechar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar o plano</AlertDialogCancel>
+            <AlertDialogAction onClick={vm.confirmPlan}>Confirmar mesmo assim</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!vm.goalingWish} onOpenChange={(open) => !open && vm.setGoalingWish(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transformar “{vm.goalingWish?.name}” em objetivo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sai da lista do mês e vira um objetivo de {vm.goalingWish ? formatMoneyWhole(vm.goalingWish.estimatedAmount) : ""} em
+              Objetivos, para juntar aos poucos em vez de caber num mês só.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={vm.confirmWishToGoal}>Virar objetivo</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!vm.deletingWish} onOpenChange={(open) => !open && vm.setDeletingWish(null)}>
         <AlertDialogContent>

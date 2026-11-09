@@ -54,3 +54,15 @@ export function pushSupport(env: {
 export function subscriptionToJSON(sub: { endpoint: string; keys?: { p256dh?: string; auth?: string } }) {
   return { endpoint: sub.endpoint, keys: { p256dh: sub.keys?.p256dh ?? "", auth: sub.keys?.auth ?? "" } }
 }
+
+// Vale oferecer os avisos aqui? Push disponível no servidor e ainda não
+// ativado neste aparelho (no iPhone fora da tela inicial: instalar o app).
+export function shouldOfferNotify(env: {
+  publicKey: string | null | undefined
+  support: PushSupport
+  subscribed: boolean
+}): boolean {
+  if (!env.publicKey) return false
+  if (env.support === "ios-needs-install") return true
+  return env.support === "supported" && !env.subscribed
+}

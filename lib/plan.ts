@@ -87,6 +87,10 @@ export interface Plan {
   budgetAmount: number | null
   budgetSource: BudgetSource
   suggestedBudget: number
+  // Renda do período: recebida, pendente a receber e pendente atrasada.
+  income: { received: number; pendingAhead: number; pendingLate: number }
+  // Sobras de semana guardadas no período (para os desejos já está na margem).
+  savedFromWeeks: { toWishes: number; toGoals: number }
   weeklyLimitEnabled: boolean
   groups: PlanGroup[]
   uncategorized: { spent: number }
@@ -173,6 +177,12 @@ export function mapPlan(p: any): Plan {
     budgetAmount: numOrNull(p.budgetAmount),
     budgetSource: (p.budgetSource ?? "INCOME") as BudgetSource,
     suggestedBudget: num(p.suggestedBudget),
+    income: {
+      received: num(p.income?.received),
+      pendingAhead: num(p.income?.pendingAhead),
+      pendingLate: num(p.income?.pendingLate),
+    },
+    savedFromWeeks: { toWishes: num(p.savedFromWeeks?.toWishes), toGoals: num(p.savedFromWeeks?.toGoals) },
     weeklyLimitEnabled: !!p.weeklyLimitEnabled,
     groups: (p.groups ?? [])
       .map((g: any) => ({

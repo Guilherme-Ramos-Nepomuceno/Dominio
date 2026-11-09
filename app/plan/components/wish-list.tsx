@@ -14,6 +14,7 @@ import {
   Sparkle,
   Plus,
   Gift,
+  Target,
 } from "@phosphor-icons/react"
 import {
   DropdownMenu,
@@ -44,6 +45,7 @@ interface WishListProps {
   onEdit: (wish: PlanWish) => void
   onBuy: (wish: PlanWish) => void
   onDelete: (wish: PlanWish) => void
+  onToGoal: (wish: PlanWish) => void
 }
 
 function FitLabel({ wish, highlighted }: { wish: PlanWish; highlighted: boolean }) {
@@ -121,6 +123,7 @@ export function WishList({
   onEdit,
   onBuy,
   onDelete,
+  onToGoal,
 }: WishListProps) {
   const [order, setOrder] = useState<string[]>(() => wishes.map((w) => w.id))
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -219,6 +222,7 @@ export function WishList({
           {editable && (
             <button
               type="button"
+              data-guide="plan-add-wish"
               onClick={onAdd}
               className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors"
             >
@@ -326,6 +330,9 @@ export function WishList({
                             <DropdownMenuItem onSelect={() => onEdit(wish)}>
                               <PencilSimple size={14} /> Editar
                             </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => onToGoal(wish)}>
+                              <Target size={14} /> Virar objetivo
+                            </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => onDelete(wish)} className="text-expense focus:text-expense">
                               <Trash size={14} /> Remover
                             </DropdownMenuItem>
@@ -342,6 +349,7 @@ export function WishList({
           {editable && (
             <button
               type="button"
+              data-guide="plan-add-wish"
               onClick={onAdd}
               className="flex items-center gap-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
             >

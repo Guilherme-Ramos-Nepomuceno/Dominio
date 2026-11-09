@@ -44,7 +44,7 @@ test("mapWins: tolera campos ausentes, descarta tipos desconhecidos e corta em 3
   assert.deepEqual(wins.week.wins.map((w) => w.id), ["e", "c", "d"])
   assert.equal(wins.week.wins[1].value, 2)
   assert.equal(wins.week.recovery, null) // 0 por dia não é recuperação
-  assert.deepEqual(wins.week.weekClosed, { closedUnder: true, leftover: 120.5 })
+  assert.deepEqual(wins.week.weekClosed, { closedUnder: true, leftover: 120.5, saved: null })
   assert.deepEqual(wins.month.wins, [])
   assert.equal(wins.month.wishesBoughtThisYear, 0)
   assert.deepEqual(mapWins(null).week.wins, [])

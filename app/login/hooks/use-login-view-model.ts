@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { getCurrentUser, loginUser, registerUser } from "@/lib/auth"
-import { onboardingPendingKey } from "@/lib/onboarding"
+import { loginUser, registerUser, PASSWORD_MIN_LENGTH } from "@/lib/auth"
 
 export function useLoginViewModel() {
     const router = useRouter()
@@ -23,8 +22,8 @@ export function useLoginViewModel() {
             router.push(pendingInvite)
             return
         }
-        // Conta nova: começa pelo onboarding (renda → plano → desejo).
-        router.push(isNewAccount ? "/onboarding" : "/")
+        // Conta nova: começa em Planejar, com o guiado de montar o plano.
+        router.push(isNewAccount ? "/plan" : "/")
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -49,18 +48,13 @@ export function useLoginViewModel() {
                 setLoading(false)
                 return
             }
+            if (password.length < PASSWORD_MIN_LENGTH) {
+                setError(`A senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`)
+                setLoading(false)
+                return
+            }
             const result = await registerUser(name, email, password)
             if (result.success) {
-                // Marca o onboarding como pendente (a Home também redireciona
-                // para lá se a pessoa sair antes de terminar ou pular).
-                const user = getCurrentUser()
-                if (user) {
-                    try {
-                        localStorage.setItem(onboardingPendingKey(user.id), "1")
-                    } catch {
-                        // sem a flag, a Home ainda oferece o onboarding pelo card
-                    }
-                }
                 redirectAfterAuth(true)
             } else {
                 setError(result.message || "Erro ao cadastrar")

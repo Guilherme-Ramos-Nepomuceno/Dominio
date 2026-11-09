@@ -80,3 +80,8 @@ test("weekBarSplit: dentro do limite e o trecho que passou", () => {
   assert.equal(over.overPct, 50)
   assert.deepEqual(weekBarSplit(50, 0), { withinPct: 0, overPct: 100 })
 })
+
+test("homeToday: sobra guardada zera o disponível sem virar estouro", () => {
+  assert.deepEqual(homeToday({ available: 0, perDayRemaining: 0, savedThisWeek: { amount: 46 } }, null), { today: 0, state: "saved", overBy: 0 })
+  assert.equal(homeToday({ available: 0, perDayRemaining: 0, savedThisWeek: null }, null).state, "used")
+})

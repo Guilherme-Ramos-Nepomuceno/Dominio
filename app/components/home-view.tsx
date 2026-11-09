@@ -20,6 +20,10 @@ import { HomeWinLine } from "@/components/home/home-win-line"
 import { HomeUpcoming } from "@/components/home/home-upcoming"
 import { HomeWeekSoFar } from "@/components/home/home-week-so-far"
 import { CoupleSplitLine, CoupleSplitSection } from "@/components/couple/couple-split-section"
+import { TourGuide } from "@/components/guide/tour-guide"
+import { LockedList, Unlockable, useUnlocks } from "@/components/guide/unlockable"
+import { HOME_TOUR, HOME_TOUR_STEPS } from "@/lib/guide"
+import { homeUnlocks } from "@/lib/unlocks"
 
 const MONTH_NAMES = [
     "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -51,6 +55,15 @@ export function HomeView() {
         isPersonal,
         todayISO,
     } = useHomeViewModel()
+
+    // Primeiro contato: a semana até agora e os gastos por dia liberam com o
+    // primeiro gasto (só no mês atual da própria conta; outro mês mostra tudo).
+    const unlocks = useUnlocks(
+        "home",
+        isCurrentMonth && week?.enabled && !isLoading
+            ? homeUnlocks({ spentThisWeek: week.spentThisWeek, expensesThisMonth: balanceData.expense })
+            : null,
+    )
     const showPlanning = viewMode !== "familia"
     const monthName = MONTH_NAMES[Number(selectedMonth.split("-")[1]) - 1] ?? ""
     const isEmptyMonth = balanceData.transactions.length === 0 && balanceData.transfers.length === 0
@@ -110,13 +123,13 @@ export function HomeView() {
                         {/* Conta nova: convite para montar o primeiro plano */}
                         {showOnboardingCard && (
                             <Link
-                                href="/onboarding"
+                                href="/plan"
                                 className="flex items-center gap-3 px-4 py-4 rounded-[20px] bg-primary text-background hover:bg-primary/90 transition-colors"
                             >
                                 <TargetIcon size={24} weight="duotone" className="shrink-0" />
                                 <span className="flex-1 min-w-0">
                                     <span className="block text-sm font-semibold">Comece pelo plano do mês</span>
-                                    <span className="block text-xs opacity-80">Renda, grupos de gasto e um desejo — leva 1 minuto.</span>
+                                    <span className="block text-xs opacity-80">A gente te guia: renda, grupos de gasto e um desejo.</span>
                                 </span>
                                 <CaretRightIcon size={14} weight="bold" className="shrink-0" />
                             </Link>
@@ -142,8 +155,10 @@ export function HomeView() {
                             amplo (o mês), e o que ficou para classificar. Em outro mês, o mês
                             vira a resposta principal da tela. */}
                         <div className="space-y-8">
-                            {showPlanning && isCurrentMonth && week && (
-                                <HomeWeekSoFar week={week} wins={wins} todayISO={todayISO} />
+                            {showPlanning && isCurrentMonth && week && unlocks.isUnlocked("home-week-so-far") && (
+                                <Unlockable isNew={unlocks.isNew("home-week-so-far")} title="Sua semana até agora">
+                                    <HomeWeekSoFar week={week} wins={wins} todayISO={todayISO} />
+                                </Unlockable>
                             )}
 
                             {showPlanning && (
@@ -179,6 +194,8 @@ export function HomeView() {
                         ) : (
                             <>
                                 {/* Nível 3: gastos por dia (tocar num dia filtra a lista abaixo) */}
+                                {unlocks.isUnlocked("home-daily") && (
+                                <Unlockable isNew={unlocks.isNew("home-daily")} title="Gastos por dia">
                                 <IncomeExpenseCards
                                     income={balanceData.income}
                                     expense={balanceData.expense}
@@ -193,6 +210,8 @@ export function HomeView() {
                                         setSelectedDay((prev) => (prev?.dateStr === dateStr ? null : { dateStr, transactions: transactionsForDay }))
                                     }
                                 />
+                                </Unlockable>
+                                )}
 
                                 {/* Nível 4: o detalhe */}
                                 <RecentTransactions
@@ -205,6 +224,9 @@ export function HomeView() {
                             </>
                         )}
 
+                        {/* Primeiro contato: o que ainda vai aparecer na Home (só no mês atual). */}
+                        {showPlanning && isCurrentMonth && <LockedList items={unlocks.locked} />}
+
                         {/* A conta do casal não recebe renda: o saldo dela não diz nada (a divisão acima responde). */}
                         {showPlanning && !isCouple && (
                             <BalanceSummary checkingBalance={balanceData.checkingBalance} totalSavings={balanceData.totalSavings} />
@@ -212,6 +234,12 @@ export function HomeView() {
                     </>
                 )}
             </div>
+            <TourGuide
+                tour={HOME_TOUR}
+                steps={HOME_TOUR_STEPS}
+                doneByData={{ add: balanceData.allTransactions.length > 0 }}
+                enabled={!isLoading && showPlanning && isCurrentMonth && !!week?.enabled}
+            />
         </AppLayout>
     )
 }

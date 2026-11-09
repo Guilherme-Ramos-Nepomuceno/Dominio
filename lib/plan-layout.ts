@@ -175,6 +175,36 @@ export function monthBar(
   }
 }
 
+// Linhas de "Para onde vai": todo grupo do plano (menos Desejos), na ordem,
+// mesmo sem nada planejado — conta nova começa com tudo em R$ 0 e precisa ver
+// os grupos para preenchê-los. Depois, a linha "Sem categoria" se houver.
+export function groupListRows(
+  plan: Pick<Plan, "groups">,
+  bar: Pick<MonthBar, "segments">,
+): MonthBarSegment[] {
+  const byGroup = new Map(bar.segments.filter((s) => s.type === "group" && s.groupId).map((s) => [s.groupId!, s]))
+  const groups = plan.groups.filter((g) => g.kind !== "WISHES").slice().sort((a, b) => a.order - b.order)
+  const rows: MonthBarSegment[] = groups.map(
+    (g) =>
+      byGroup.get(g.id) ?? {
+        key: g.id,
+        type: "group",
+        groupId: g.id,
+        kind: g.kind,
+        label: g.name,
+        color: groupColor(g.kind),
+        amount: 0,
+        spent: positive(g.spent),
+        startPct: 0,
+        widthPct: 0,
+        spentPct: 0,
+        overspent: false,
+      },
+  )
+  const uncategorized = bar.segments.find((s) => s.type === "uncategorized")
+  return uncategorized ? [...rows, uncategorized] : rows
+}
+
 // Resumo em texto da barra (aria-label / leitores de tela).
 export function monthBarSummary(bar: MonthBar): string {
   if (bar.segments.length === 0) return `Orçamento de ${formatMoneyWhole(bar.budget)}, ainda sem nada planejado.`
@@ -351,6 +381,40 @@ export function planGuide(status: PlanStatus): string | null {
 
 export function canConfirmPlan(status: PlanStatus, editable: boolean): boolean {
   return editable && (status === "NONE" || status === "DRAFT")
+}
+
+// Confirmar com a margem livre negativa pede um aviso antes (o plano gasta
+// mais do que o orçamento). Devolve quanto falta, ou null se o plano fecha.
+export function confirmShortfall(plan: Pick<Plan, "freeMargin">): number | null {
+  return plan.freeMargin < -0.004 ? Math.abs(plan.freeMargin) : null
+}
+
+// Renda real abaixo da prevista (PRD, riscos: renda irregular). Compara o que
+// deve entrar no período (recebido + pendente com data por vir) com o
+// orçamento. Só avisa quando há receita registrada — sem nenhuma, não há o que
+// comparar — e acima de uma folga (R$ 50 ou 2% do orçamento).
+export interface IncomeWarning {
+  shortfall: number
+  late: number
+  expected: number
+  text: string
+}
+
+export function incomeWarning(
+  plan: Pick<Plan, "status" | "budgetAmount" | "suggestedBudget" | "income">,
+): IncomeWarning | null {
+  if (plan.status === "CLOSED") return null
+  const { received, pendingAhead, pendingLate } = plan.income
+  if (received + pendingAhead + pendingLate <= 0) return null
+  const budget = plan.budgetAmount ?? plan.suggestedBudget
+  const expected = received + pendingAhead
+  const shortfall = Math.round((budget - expected) * 100) / 100
+  if (shortfall <= Math.max(50, budget * 0.02)) return null
+  const text =
+    pendingLate > 0.004
+      ? `${formatMoneyWhole(pendingLate)} da renda prevista ainda não entrou. Se não vier, o plano fica ${formatShortfall(shortfall)} acima do que você recebe.`
+      : `Pelas receitas registradas, entram ${formatMoneyWhole(expected)} este mês, ${formatShortfall(shortfall)} abaixo do orçamento.`
+  return { shortfall, late: pendingLate, expected, text }
 }
 
 // Planejado de cada categoria no plano (comprometido + variável), para a tela

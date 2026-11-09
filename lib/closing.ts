@@ -12,6 +12,8 @@ export interface ClosingSummary {
   plannedTotal: number
   spentTotal: number
   adherencePct: number
+  // Sobras de semana já guardadas em objetivos/reservas (fora da sobra abaixo).
+  savedFromWeeks: number
   leftover: number
 }
 
@@ -33,6 +35,7 @@ export function mapClosingSummary(s: any): ClosingSummary {
     plannedTotal: num(s?.plannedTotal),
     spentTotal: num(s?.spentTotal),
     adherencePct: num(s?.adherencePct),
+    savedFromWeeks: num(s?.savedFromWeeks),
     leftover: num(s?.leftover),
   }
 }

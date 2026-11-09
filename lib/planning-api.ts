@@ -1,4 +1,5 @@
 // Chamadas do planejamento do mês: grupos de categoria, plano ("a torre") e
+import { mapWeekSave, type WeekSave, type WeekSaveDestination } from "./week"
 // desejos. Tipos e mapeamento em lib/plan.ts.
 
 import { ApiError, fetchApi } from "./api"
@@ -123,6 +124,13 @@ export async function deleteWish(id: string): Promise<void> {
   notifyPlanUpdate()
 }
 
+// Desejo grande demais para o mês vira objetivo (meta = valor estimado).
+export async function wishToGoal(id: string): Promise<void> {
+  assertWritable()
+  await fetchApi(`/wishes/${id}/goal`, { method: "POST" })
+  notifyPlanUpdate()
+}
+
 export async function reorderWishes(ids: string[]): Promise<void> {
   assertWritable()
   await fetchApi("/wishes/reorder", { method: "PATCH", body: JSON.stringify({ ids }) })
@@ -205,6 +213,19 @@ export async function getWeek(year: number, month: number, date?: string): Promi
 export async function getWins(year: number, month: number, date?: string): Promise<WinsData> {
   const query = date ? `?date=${encodeURIComponent(date)}` : ""
   return mapWins(await fetchApi(`/plans/${year}/${month}/wins${query}`))
+}
+
+// Guarda a sobra da semana (último dia) num objetivo, numa reserva ou nos
+// desejos do mês. O valor é calculado pela API.
+export async function saveWeekLeftover(
+  year: number,
+  month: number,
+  body: { destination: WeekSaveDestination; id?: string },
+): Promise<WeekSave> {
+  assertWritable()
+  const raw = await fetchApi(`/plans/${year}/${month}/week/leftover`, { method: "POST", body: JSON.stringify(body) })
+  notifyPlanUpdate()
+  return mapWeekSave(raw)!
 }
 
 export async function getClosingSummary(year: number, month: number): Promise<ClosingData> {

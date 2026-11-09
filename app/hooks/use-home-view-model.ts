@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { getCurrentUser } from "@/lib/auth"
-import { getActiveAccountSelection } from "@/lib/active-account"
-import { onboardingAction, onboardingDoneKey, onboardingPendingKey } from "@/lib/onboarding"
+import { PLAN_TOUR, isTourActive, showsPlanInvite } from "@/lib/guide"
+import { useGuide } from "@/components/guide/guide-provider"
 import { getPlan } from "@/lib/planning-api"
 import { parseMonthKey, toISODate } from "@/lib/period"
 import { useTotalBalance } from "@/hooks/use-transactions"
@@ -43,42 +41,26 @@ export function useHomeViewModel() {
     const { week, isLoading: weekLoading } = useWeek(!isReadOnly && viewMode !== "familia")
     const monthWhen: MonthWhen = selectedMonth === currentMonth ? "current" : selectedMonth < currentMonth ? "past" : "future"
 
-    // Onboarding: cadastro recém-feito volta para ele até concluir/pular;
-    // conta que parece nova (sem plano e sem transações) ganha um convite.
-    const router = useRouter()
-    const [showOnboardingCard, setShowOnboardingCard] = useState(false)
-    const ownLoading = ownBalanceData.isLoading
-    const ownTransactionCount = ownBalanceData.allTransactions.length + ownBalanceData.transfers.length
+    // Conta nova: convite para montar o plano do mês (o guiado acontece na
+    // própria tela Planejar). Some quando o plano começa ou o guiado é pulado.
+    const guide = useGuide()
+    const [planStatus, setPlanStatus] = useState<string | null>(null)
+    const isPersonal = selection.type === "personal"
+    const tourActive = !!guide.state && isTourActive(guide.state, PLAN_TOUR)
     useEffect(() => {
-        const user = getCurrentUser()
-        if (!user || getActiveAccountSelection().type !== "personal") return
-        let pending = false
-        let done = false
-        try {
-            pending = !!localStorage.getItem(onboardingPendingKey(user.id))
-            done = !!localStorage.getItem(onboardingDoneKey(user.id))
-        } catch {
-            return
-        }
-        const signals = { pending, done, isPersonal: true, planStatus: null, transactionCount: null }
-        if (onboardingAction(signals) === "redirect") {
-            router.replace("/onboarding")
-            return
-        }
-        if (done || ownLoading || ownTransactionCount > 0) return
+        if (!isPersonal || !tourActive) return
         let cancelled = false
         const { year, month } = parseMonthKey(currentMonth)
         getPlan(year, month)
             .then((plan) => {
-                if (cancelled) return
-                const action = onboardingAction({ ...signals, planStatus: plan.status, transactionCount: ownTransactionCount })
-                setShowOnboardingCard(action === "card")
+                if (!cancelled) setPlanStatus(plan.status)
             })
             .catch(() => {})
         return () => {
             cancelled = true
         }
-    }, [router, currentMonth, ownLoading, ownTransactionCount])
+    }, [isPersonal, tourActive, currentMonth])
+    const showOnboardingCard = showsPlanInvite({ isPersonal, planStatus, tourActive })
 
     // Mesmos componentes da Home nos dois modos — só troca a fonte dos dados:
     // a própria conta (casal) ou o consolidado dos dois parceiros (família).

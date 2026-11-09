@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { apiPost, createAccount, login } from "./support/accounts"
+import { API_URL, apiPost, createAccount, login } from "./support/accounts"
 import { q, sql } from "./support/db"
 
 // Três transferências entre duas contas minhas já reconhecidas pela Pluggy
@@ -18,15 +18,18 @@ async function seedTransferPairs(request: Parameters<typeof createAccount>[0]) {
     })
   const nubank = await card("Nubank", "Nubank", "1111")
   const inter = await card("Inter", "Inter", "2222")
-  const category = (type: "EXPENSE" | "INCOME") =>
-    apiPost<{ id: string }>(request, account.token, "/categories", {
-      name: "Transferência",
-      type,
-      color: "#3b82f6",
-      excludedFromTotals: true,
-    })
-  const out = await category("EXPENSE")
-  const into = await category("INCOME")
+  // A conta já nasce com as categorias "Transferência" (despesa e receita,
+  // fora dos totais) — as mesmas que o app usa para reconhecer transferência.
+  const categories = (await (
+    await request.get(`${API_URL}/categories`, { headers: { Authorization: `Bearer ${account.token}` } })
+  ).json()) as Array<{ id: string; name: string; type: "EXPENSE" | "INCOME" }>
+  const category = (type: "EXPENSE" | "INCOME") => {
+    const found = categories.find((c) => c.name === "Transferência" && c.type === type)
+    if (!found) throw new Error(`Categoria Transferência (${type}) não veio no cadastro`)
+    return found
+  }
+  const out = category("EXPENSE")
+  const into = category("INCOME")
 
   const tag = account.id
   const pairs = [

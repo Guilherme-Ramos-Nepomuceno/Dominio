@@ -1,6 +1,7 @@
 "use client"
 
-import { Bell, BellSlash, Export, PlusSquare, DeviceMobile } from "@phosphor-icons/react"
+import { Bell, BellSlash } from "@phosphor-icons/react"
+import { IosInstallSteps } from "@/components/pwa/ios-install-steps"
 import { Switch } from "@/components/ui/switch"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -32,20 +33,7 @@ export function NotificationsSection() {
           <p className="text-sm text-muted-foreground">
             No iPhone, as notificações funcionam com o Domínio instalado na tela inicial (iOS 16.4 ou mais novo):
           </p>
-          <ol className="space-y-2 text-sm">
-            <li className="flex items-center gap-2">
-              <Export size={18} className="text-muted-foreground shrink-0" />
-              Toque em <strong>Compartilhar</strong> no Safari.
-            </li>
-            <li className="flex items-center gap-2">
-              <PlusSquare size={18} className="text-muted-foreground shrink-0" />
-              Escolha <strong>Adicionar à Tela de Início</strong>.
-            </li>
-            <li className="flex items-center gap-2">
-              <DeviceMobile size={18} className="text-muted-foreground shrink-0" />
-              Abra o Domínio pelo ícone e volte aqui para ativar.
-            </li>
-          </ol>
+          <IosInstallSteps />
         </div>
       ) : push.support === "unsupported" ? (
         <p className="text-sm text-muted-foreground">Este navegador não suporta notificações push.</p>

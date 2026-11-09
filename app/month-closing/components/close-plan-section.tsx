@@ -244,6 +244,11 @@ export function ClosePlanSection() {
               </Step>
             ) : (
             <Step n={showWishes ? 3 : 2} done={!hasLeftover || !vm.destination || !!vm.destinationId} title="Para onde vai a sobra?">
+              {!!summary && summary.savedFromWeeks >= 1 && (
+                <p className="mb-2 text-sm text-muted-foreground">
+                  {formatCurrency(summary.savedFromWeeks)} já foram guardados nas semanas e não entram de novo aqui.
+                </p>
+              )}
               {!hasLeftover ? (
                 <p className="text-sm text-muted-foreground">Sem sobra neste mês.</p>
               ) : (

@@ -91,7 +91,7 @@ export function usePushNotifications() {
       await subscribePush(subscription.toJSON() as { endpoint: string; keys?: { p256dh?: string; auth?: string } })
       setSubscribed(true)
       trackEvent("push_enabled")
-      toast({ title: "Notificações ativadas", description: "Você vai receber os avisos que escolher abaixo.", variant: "success" })
+      toast({ title: "Notificações ativadas", description: "Você vai receber os avisos da semana neste aparelho.", variant: "success" })
     } catch (error: any) {
       // 503: o servidor ainda não tem as chaves de push — trata como indisponível.
       if (error instanceof ApiError && error.status === 503) {

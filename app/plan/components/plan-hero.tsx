@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react"
 import { ArrowCounterClockwise, Check, PencilSimple, WarningCircle, X } from "@phosphor-icons/react"
 import { formatMoneyInput, parseMoneyInput, type BudgetSource, type Plan } from "@/lib/plan"
-import { budgetCaption, formatMoneyWhole, type PlanHeadline } from "@/lib/plan-layout"
+import Link from "next/link"
+import { budgetCaption, formatMoneyWhole, type IncomeWarning, type PlanHeadline } from "@/lib/plan-layout"
 import { cn } from "@/lib/utils"
 
 interface PlanHeroProps {
   plan: Plan
   headline: PlanHeadline
+  incomeWarning?: IncomeWarning | null
   budget: number
   editable: boolean
   onSaveBudget: (amount: number | null, source: BudgetSource) => Promise<boolean>
@@ -17,11 +19,12 @@ interface PlanHeroProps {
 // A resposta principal da tela: quanto sobra para os desejos (ou, confirmado,
 // a sobra prevista). Abaixo, de onde vem o orçamento — com o lápis para
 // editá-lo ali mesmo (valor próprio ou voltar à renda prevista).
-export function PlanHero({ plan, headline, budget, editable, onSaveBudget }: PlanHeroProps) {
+export function PlanHero({ plan, headline, incomeWarning, budget, editable, onSaveBudget }: PlanHeroProps) {
   const [isEditing, setIsEditing] = useState(false)
 
   return (
     <section aria-labelledby="plan-hero-label">
+      <div data-guide="plan-headline" className="inline-block">
       <p id="plan-hero-label" className="text-sm text-muted-foreground">
         {headline.label}
       </p>
@@ -33,6 +36,7 @@ export function PlanHero({ plan, headline, budget, editable, onSaveBudget }: Pla
       >
         {formatMoneyWhole(headline.value)}
       </p>
+      </div>
       {headline.shortfallText && (
         <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-expense">
           <WarningCircle size={16} weight="fill" className="shrink-0" />
@@ -43,7 +47,7 @@ export function PlanHero({ plan, headline, budget, editable, onSaveBudget }: Pla
       {isEditing ? (
         <BudgetForm plan={plan} budget={budget} onClose={() => setIsEditing(false)} onSave={onSaveBudget} />
       ) : (
-        <div className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+        <div data-guide="plan-budget" className="mt-2 flex w-fit items-center gap-1 text-sm text-muted-foreground">
           <span className="tabular-nums">{budgetCaption(plan)}</span>
           {editable && (
             <button
@@ -55,6 +59,30 @@ export function PlanHero({ plan, headline, budget, editable, onSaveBudget }: Pla
               <PencilSimple size={14} weight="bold" />
             </button>
           )}
+        </div>
+      )}
+
+      {incomeWarning && (
+        <div role="status" className="mt-3 rounded-xl border border-border px-4 py-3 text-sm">
+          <p className="flex items-start gap-1.5 text-foreground">
+            <WarningCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
+            <span>{incomeWarning.text}</span>
+          </p>
+          <p className="mt-1.5 pl-[22px] text-muted-foreground">
+            {incomeWarning.late > 0 ? (
+              <>
+                Já recebeu?{" "}
+                <Link href="/pending" className="font-medium text-foreground underline underline-offset-2">
+                  Marque nas pendentes
+                </Link>
+                {editable ? ". Se não vem, ajuste o orçamento no lápis acima." : "."}
+              </>
+            ) : editable ? (
+              "Ajuste o orçamento no lápis acima ou registre a receita que falta."
+            ) : (
+              "Registre a receita que falta para o plano bater."
+            )}
+          </p>
         </div>
       )}
     </section>

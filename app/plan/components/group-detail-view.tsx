@@ -1,5 +1,6 @@
 "use client"
 
+import { GroupTourGuide } from "@/components/guide/plan-tour"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import * as PhosphorIcons from "@phosphor-icons/react"
@@ -34,6 +35,7 @@ function CategoryIcon({ icon, color }: { icon: string | null; color: string }) {
 
 // Variável planejado da categoria (aqui sim com centavos: é onde se edita).
 function PlannedInput({
+  guide,
   category,
   editable,
   onSave,
@@ -41,6 +43,7 @@ function PlannedInput({
   category: PlanCategory
   editable: boolean
   onSave: (value: number) => void
+  guide?: string
 }) {
   const [draft, setDraft] = useState(formatMoneyInput(category.plannedVariable))
   const [focused, setFocused] = useState(false)
@@ -60,7 +63,7 @@ function PlannedInput({
   }
 
   return (
-    <div className="relative w-32 shrink-0">
+    <div data-guide={guide} className="relative w-32 shrink-0">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">R$</span>
       <input
         inputMode="decimal"
@@ -84,11 +87,13 @@ function CategoryRow({
   color,
   editable,
   onSavePlanned,
+  guide,
 }: {
   category: PlanCategory
   color: string
   editable: boolean
   onSavePlanned: (value: number) => void
+  guide?: string
 }) {
   const [showCommitted, setShowCommitted] = useState(false)
   const planned = category.committed + category.plannedVariable
@@ -165,7 +170,7 @@ function CategoryRow({
             <p className="text-sm text-muted-foreground">Variável</p>
             <p className="text-[11px] text-muted-foreground/80 tabular-nums">{hints.join(" · ")}</p>
           </div>
-          <PlannedInput category={category} editable={editable} onSave={onSavePlanned} />
+          <PlannedInput category={category} editable={editable} onSave={onSavePlanned} guide={guide} />
         </div>
       </div>
     </li>
@@ -294,7 +299,7 @@ export function GroupDetailView() {
   return (
     <AppLayout showMonthFilter>
       <div className="max-w-2xl mx-auto pb-4">
-        <BackLink fallback="/plan" />
+        <BackLink fallback="/plan" guide="group-back" />
 
         {vm.isLoading ? (
           <div className="mt-6 space-y-4" aria-busy>
@@ -350,9 +355,10 @@ export function GroupDetailView() {
                   <p className="py-6 text-sm text-muted-foreground">Nenhuma categoria neste grupo.</p>
                 ) : (
                   <ul className="divide-y divide-border">
-                    {group.categories.map((category) => (
+                    {group.categories.map((category, i) => (
                       <CategoryRow
                         key={category.categoryId}
+                        guide={i === 0 ? "group-first-input" : undefined}
                         category={category}
                         color={vm.color}
                         editable={vm.editable}
@@ -396,6 +402,7 @@ export function GroupDetailView() {
           </div>
         )}
       </div>
+      {vm.plan && group && <GroupTourGuide plan={vm.plan} kind={group.kind} editable={vm.editable} />}
     </AppLayout>
   )
 }

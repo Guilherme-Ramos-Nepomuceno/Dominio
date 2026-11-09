@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { SessionBootstrap } from "@/components/session/session-bootstrap"
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register"
 import { RulePromptListener } from "@/components/rules/rule-prompt-listener"
+import { GuideProvider } from "@/components/guide/guide-provider"
 import "./globals.css"
 
 const fontSans = Plus_Jakarta_Sans({
@@ -53,7 +54,9 @@ export default function RootLayout({
       <body className={`${fontSans.className} ${fontSans.variable} antialiased`}>
         <AuthGuard>
           <AccountProvider>
-            <SelectedMonthProvider>{children}</SelectedMonthProvider>
+            <GuideProvider>
+              <SelectedMonthProvider>{children}</SelectedMonthProvider>
+            </GuideProvider>
             <SessionBootstrap />
             <RulePromptListener />
           </AccountProvider>

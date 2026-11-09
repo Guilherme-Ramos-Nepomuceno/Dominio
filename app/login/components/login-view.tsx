@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { Wallet, ArrowRight, WarningCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import { PASSWORD_HINT } from "@/lib/auth"
 import { useLoginViewModel } from "../hooks/use-login-view-model"
 
 const fieldClass =
@@ -122,8 +123,14 @@ export function LoginView() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className={fieldClass}
+                            aria-describedby={isLogin ? undefined : "password-hint"}
                             required
                         />
+                        {!isLogin && (
+                            <span id="password-hint" className="block text-xs text-muted-foreground">
+                                {PASSWORD_HINT}
+                            </span>
+                        )}
                     </label>
 
                     {error && (

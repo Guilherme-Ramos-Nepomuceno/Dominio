@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch"
 import { useSettingsViewModel } from "../hooks/use-settings-view-model"
 import { CoupleSplitSetting } from "./couple-split-setting"
 import { NotificationsSection } from "./notifications-section"
+import { GuideSection } from "./guide-section"
 
 // Para onde vai a sobra (ou o excesso) de uma semana — muda o limite das próximas.
 const CARRY_OVER_OPTIONS = [
@@ -431,6 +432,8 @@ export function SettingsView() {
                 </Section>
 
                 <NotificationsSection />
+
+                <GuideSection />
 
                 {/* Conta: sair e, por último, a ação irreversível */}
                 <Section id="settings-account" title="Conta">

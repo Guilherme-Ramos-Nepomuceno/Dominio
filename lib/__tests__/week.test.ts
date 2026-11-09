@@ -13,6 +13,8 @@ import {
   paceBadge,
   isWeekExceeded,
   carryOverSummary,
+  mapWeekSave,
+  weekSaveLabel,
 } from "../week.ts"
 import {
   mapClosingData,
@@ -128,7 +130,7 @@ test("closingTiming: mês em andamento até o último dia do período", () => {
 const brlNoCents = (s: string) => s.replace(/R\$ /g, `R$${String.fromCharCode(160)}`)
 
 test("closingResult: sobra, mês em andamento, acima do orçamento e sem plano", () => {
-  const summary = { budgetAmount: 7200, plannedTotal: 4800, spentTotal: 4205, adherencePct: 87.6, leftover: 2995 }
+  const summary = { budgetAmount: 7200, plannedTotal: 4800, spentTotal: 4205, adherencePct: 87.6, savedFromWeeks: 0, leftover: 2995 }
   const ended = closingResult(summary, "outubro", { inProgress: false, hasPlan: true })
   assert.equal(ended.label, "Outubro terminou com")
   assert.equal(ended.suffix, "de sobra")
@@ -183,6 +185,9 @@ test("semana estourada: selo vermelho, ideal do dia é não gastar", () => {
   assert.equal(isWeekExceeded({ available: 0, spentThisWeek: 618.33, limit: 618.33 }), true)
   assert.equal(isWeekExceeded({ available: 0, spentThisWeek: 0, limit: 0 }), false)
   assert.equal(isWeekExceeded({ available: 10, spentThisWeek: 600, limit: 610 }), false)
+  // Zerou porque a sobra foi guardada: não é estouro.
+  const saved = { amount: 46, destination: "WISH" as const, targetName: null }
+  assert.equal(isWeekExceeded({ available: 0, spentThisWeek: 618.33, limit: 618.33, savedThisWeek: saved }), false)
   assert.equal(paceBadge("OVER", true).label, "Limite estourado")
   assert.equal(paceBadge("OVER").label, "Acima do ritmo")
   const fmt = (v: number) => `R$ ${v}`
@@ -196,4 +201,13 @@ test("carryOver: padrão MONTH e frase de cada modo", () => {
   assert.equal(mapWeek({ enabled: true, carryOver: "WEEK" }).carryOver, "WEEK")
   assert.match(carryOverSummary("WEEK"), /mesmo limite/)
   assert.match(carryOverSummary("MONTH"), /próximas/)
+})
+
+test("sobra guardada: mapeia da API e descreve o destino", () => {
+  const fmt = (v: number) => `R$ ${Math.round(v)}`
+  assert.equal(mapWeekSave(null), null)
+  const goal = mapWeekSave({ amount: "46.09", destination: "GOAL", targetName: "Viagem" })!
+  assert.deepEqual(goal, { amount: 46.09, destination: "GOAL", targetName: "Viagem" })
+  assert.equal(weekSaveLabel(goal, fmt), "R$ 46 da sobra foram para Viagem.")
+  assert.equal(weekSaveLabel({ amount: 30, destination: "WISH", targetName: null }, fmt), "R$ 30 da sobra foram para os seus desejos.")
 })

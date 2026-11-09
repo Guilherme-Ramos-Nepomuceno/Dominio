@@ -1,5 +1,6 @@
-import { OnboardingView } from "./components/onboarding-view"
+import { redirect } from "next/navigation"
 
+// O onboarding agora é o guiado na própria tela Planejar.
 export default function OnboardingPage() {
-  return <OnboardingView />
+  redirect("/plan")
 }

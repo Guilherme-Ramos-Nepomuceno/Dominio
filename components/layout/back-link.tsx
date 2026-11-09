@@ -37,12 +37,13 @@ export function useNavTrail() {
 
 // "← Voltar": volta para a tela de onde a pessoa veio; aberta direto (link,
 // recarregou), vai para a tela-mãe (`fallback`).
-export function BackLink({ fallback, className }: { fallback: string; className?: string }) {
+export function BackLink({ fallback, className, guide }: { fallback: string; className?: string; guide?: string }) {
   const router = useRouter()
   const pathname = usePathname()
   return (
     <button
       type="button"
+      data-guide={guide}
       onClick={() => {
         const trail = readTrail()
         const cameFromApp = trail.length >= 2 && trail[trail.length - 1] === pathname

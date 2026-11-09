@@ -49,7 +49,7 @@ export function WeekHero({ week, isLoading, isCouple, recovery = null }: WeekHer
   // Uma cor só: o valor de hoje fica sempre neutro; o vermelho aparece apenas
   // na linha que diz quanto a semana passou do limite.
   return (
-    <section aria-labelledby="home-week-label">
+    <section aria-labelledby="home-week-label" data-guide="home-today">
       <Link href="/week" onClick={() => trackEvent("home_week_opened")} className="group block">
         <p id="home-week-label" className="text-sm text-muted-foreground">
           {isCouple ? "Casal · " : ""}Para gastar hoje
@@ -63,6 +63,8 @@ export function WeekHero({ week, isLoading, isCouple, recovery = null }: WeekHer
             <span className="font-medium text-expense">Passou {formatCurrency(overBy)} do limite da semana</span>
           ) : state === "used" ? (
             <span className="font-medium text-foreground">O limite da semana acabou</span>
+          ) : state === "saved" ? (
+            <span className="font-medium text-positive-ink">Sobra da semana guardada</span>
           ) : (
             <>
               <span className="font-semibold text-foreground">{formatCurrency(week.available)}</span>
@@ -71,7 +73,9 @@ export function WeekHero({ week, isLoading, isCouple, recovery = null }: WeekHer
           )}
         </p>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          {state === "exceeded" || state === "used"
+          {state === "saved"
+            ? "A semana fechou no azul. Amanhã começa um limite novo."
+            : state === "exceeded" || state === "used"
             ? `Segure os gastos até ${until}.`
             : state === "recover"
               ? "Segurando nesse valor por dia, a semana fecha no limite."

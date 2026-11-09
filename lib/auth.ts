@@ -16,6 +16,10 @@ const AUTH_KEYS = {
 
 // --- Auth Actions ---
 
+// Regra de senha do cadastro — a mesma da API (auth.validator.ts).
+export const PASSWORD_MIN_LENGTH = 6
+export const PASSWORD_HINT = `Use pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`
+
 export async function registerUser(name: string, email: string, password: string): Promise<{ success: boolean; message?: string }> {
     try {
         const response = await fetchApi('/auth/register', {
@@ -32,7 +36,12 @@ export async function registerUser(name: string, email: string, password: string
         return { success: false, message: "Não foi possível criar sua conta. Tente novamente." };
     } catch (e: any) {
         if (e instanceof ApiError) {
-            const message = e.status === 409 ? "Este e-mail já está cadastrado." : "Não foi possível criar sua conta. Tente novamente."
+            const message =
+                e.status === 409
+                    ? "Este e-mail já está cadastrado."
+                    : (e.status === 400 || e.status === 422) && e.message
+                        ? e.message
+                        : "Não foi possível criar sua conta. Tente novamente."
             return { success: false, message };
         }
         return { success: false, message: CONNECTION_ERROR_MESSAGE };

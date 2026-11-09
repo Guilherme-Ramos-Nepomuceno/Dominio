@@ -5,6 +5,7 @@ import { CaretRight, Check, Equals, TrendUp } from "@phosphor-icons/react"
 import type { Plan } from "@/lib/plan"
 import {
   formatMoneyWhole,
+  groupListRows,
   monthBar,
   monthBarSummary,
   planHeadline,
@@ -40,7 +41,7 @@ export function PlanGroupList({ plan, bar, groupHref, className, groupStatus, vs
   const diffById = new Map((vsLastMonth ?? []).map((g) => [g.groupId, g.plannedDiff]))
   // Desejos ficam fora: a barra do mês já mostra a parte deles e a seção de
   // desejos logo abaixo é o lugar de mexer neles.
-  const rows = bar.segments.filter((s) => s.type !== "free" && s.kind !== "WISHES")
+  const rows = groupListRows(plan, bar)
 
   return (
     <section className={cn("space-y-1", className)} aria-labelledby="plan-groups-title">
@@ -75,13 +76,19 @@ export function PlanGroupList({ plan, bar, groupHref, className, groupStatus, vs
           const hint = s.groupId ? vsLastMonthHint(diffById.get(s.groupId), plan.month) : null
           const StatusIcon = status ? STATUS_ICON[status.tone] : null
           return (
-            <li key={s.key}>
+            <li key={s.key} data-guide={s.kind ? `plan-group-${s.kind}` : undefined}>
               <Link href={href} className="group flex items-center gap-3 py-3.5">
                 <ColorDot color={s.color} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="truncate text-sm font-medium text-foreground">{s.label}</span>
-                    <span className="text-sm font-semibold tabular-nums text-foreground">{formatMoneyWhole(planned)}</span>
+                    {planned > 0.004 || spent > 0 ? (
+                      <span className="text-sm font-semibold tabular-nums text-foreground">{formatMoneyWhole(planned)}</span>
+                    ) : (
+                      <span className="text-sm font-medium text-foreground underline decoration-foreground/30 underline-offset-4 group-hover:decoration-foreground">
+                        Definir valor
+                      </span>
+                    )}
                   </div>
                   <div className="mt-2 flex items-center gap-3">
                     <SpentBar spent={spent} planned={planned} color={s.color ?? "var(--plan-uncategorized)"} className="flex-1" />

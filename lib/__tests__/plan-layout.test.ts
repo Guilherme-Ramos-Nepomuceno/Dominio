@@ -4,6 +4,9 @@ import { mapPlan, withBudget } from "../plan.ts"
 import {
   budgetCaption,
   canConfirmPlan,
+  confirmShortfall,
+  groupListRows,
+  incomeWarning,
   formatMoneyWhole,
   formatShortfall,
   groupColor,
@@ -279,6 +282,13 @@ test("guia do topo e botão de confirmar", () => {
   assert.equal(canConfirmPlan("CONFIRMED", true), false)
 })
 
+test("confirmar com margem negativa: devolve quanto falta; fechando, nada", () => {
+  assert.equal(confirmShortfall({ freeMargin: -120.5 }), 120.5)
+  assert.equal(confirmShortfall({ freeMargin: 0 }), null)
+  assert.equal(confirmShortfall({ freeMargin: -0.001 }), null)
+  assert.equal(confirmShortfall({ freeMargin: 300 }), null)
+})
+
 test("plannedByCategory: comprometido + variável por categoria; sem plano, vazio", () => {
   const plan = mapPlan(rawPlan)
   const byCategory = plannedByCategory(plan)
@@ -310,4 +320,32 @@ test("cor do ícone: grupo do plano, entrada em verde, sem grupo em cinza", asyn
   assert.equal(transactionIconColor(groups, "moradia", "expense"), "var(--plan-essentials)")
   assert.equal(transactionIconColor(groups, "salario", "income"), "var(--income)")
   assert.equal(transactionIconColor(groups, null, "expense"), "var(--plan-uncategorized)")
+})
+
+test("renda abaixo da prevista: atrasada, abaixo do orçamento manual ou nada", () => {
+  const base = { status: "CONFIRMED" as const, budgetAmount: null, suggestedBudget: 6000 }
+  // Renda prevista (orçamento = soma das receitas): salário de 1.000 atrasado.
+  const late = incomeWarning({ ...base, income: { received: 5000, pendingAhead: 0, pendingLate: 1000 } })
+  assert.equal(late?.shortfall, 1000)
+  assert.match(late!.text, /ainda não entrou/)
+  // Orçamento manual de 6.000, mas só 4.500 registrados para o mês.
+  const manual = incomeWarning({ ...base, budgetAmount: 6000, income: { received: 3000, pendingAhead: 1500, pendingLate: 0 } })
+  assert.equal(manual?.expected, 4500)
+  assert.match(manual!.text, /abaixo do orçamento/)
+  // Dentro da folga (2% de 6.000 = 120), sem receita registrada ou mês fechado: nada.
+  assert.equal(incomeWarning({ ...base, income: { received: 5900, pendingAhead: 0, pendingLate: 0 } }), null)
+  assert.equal(incomeWarning({ ...base, budgetAmount: 6000, income: { received: 0, pendingAhead: 0, pendingLate: 0 } }), null)
+  assert.equal(incomeWarning({ ...base, status: "CLOSED", income: { received: 0, pendingAhead: 0, pendingLate: 6000 } }), null)
+})
+
+test("Para onde vai: conta nova mostra os grupos mesmo em R$ 0, sem Desejos", () => {
+  const groups = [
+    { id: "g1", name: "Essenciais", kind: "ESSENTIALS", order: 0, planned: 0, spent: 0 },
+    { id: "g2", name: "Estilo de vida", kind: "LIFESTYLE", order: 1, planned: 300, spent: 0 },
+    { id: "g3", name: "Desejos", kind: "WISHES", order: 2, planned: 0, spent: 0 },
+    { id: "g4", name: "Futuro", kind: "FUTURE", order: 3, planned: 0, spent: 0 },
+  ] as any
+  const plan = { groups, uncategorized: { spent: 0 }, wishesPlanned: 0, budgetAmount: 5000, suggestedBudget: 0 }
+  const rows = groupListRows(plan, monthBar(plan as any))
+  assert.deepEqual(rows.map((r) => [r.label, r.amount]), [["Essenciais", 0], ["Estilo de vida", 300], ["Futuro", 0]])
 })

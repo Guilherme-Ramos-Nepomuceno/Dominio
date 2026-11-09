@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils"
 import { useInboxViewModel } from "../hooks/use-inbox-view-model"
 import { InboxCategorySelect } from "./inbox-category-select"
 import { AcceptSuggestionsSheet } from "./accept-suggestions-sheet"
+import { TourGuide } from "@/components/guide/tour-guide"
+import { INBOX_TOUR, INBOX_TOUR_STEPS } from "@/lib/guide"
 
 const CONFIDENCE_LABEL: Record<string, string> = {
   HIGH: "alta confiança",
@@ -22,6 +24,9 @@ const CONFIDENCE_LABEL: Record<string, string> = {
 
 export function InboxView() {
   const vm = useInboxViewModel()
+  // A dica do "Aceitar" aponta para o primeiro grupo que tem sugestão válida.
+  const guideGroup = vm.groups.find((g) => isSuggestionValid(g, vm.categories))
+  const guideGroupKey = guideGroup ? inboxGroupKey(guideGroup) : null
 
   const subtitle = vm.isLoading
     ? "Carregando..."
@@ -140,6 +145,7 @@ export function InboxView() {
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
+                              data-guide={key === guideGroupKey ? "inbox-accept" : undefined}
                               onClick={() => vm.categorizeGroup(group, suggestedCategory.id)}
                               disabled={locked}
                               title={confidence ? `Sugestão com ${confidence}` : "Sugestão"}
@@ -188,6 +194,8 @@ export function InboxView() {
           onClose={vm.closeReview}
         />
       )}
+      {/* Dica que entra na hora certa: só com algo para classificar. */}
+      <TourGuide tour={INBOX_TOUR} steps={INBOX_TOUR_STEPS} enabled={!vm.isReadOnly && guideGroupKey !== null} />
     </AppLayout>
   )
 }

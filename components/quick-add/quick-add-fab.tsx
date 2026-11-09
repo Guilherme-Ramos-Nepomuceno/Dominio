@@ -27,6 +27,7 @@ export function QuickAddFab({ vm, primaryAction }: QuickAddFabProps) {
       {!HIDDEN_ON.includes(pathname) && (
         <button
           type="button"
+          data-guide="quick-add"
           onClick={primaryAction?.onPress ?? vm.openSheet}
           aria-label={primaryAction?.label ?? "Registro rápido"}
           title={primaryAction?.label}

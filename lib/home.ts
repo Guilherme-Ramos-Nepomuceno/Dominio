@@ -91,7 +91,7 @@ export function upcomingOutflows<T extends { date: string; type: string }>(
 
 // --- Herói da Home: quanto dá para gastar hoje ---
 
-export type HomeTodayState = "ok" | "recover" | "used" | "exceeded"
+export type HomeTodayState = "ok" | "recover" | "used" | "exceeded" | "saved"
 
 export interface HomeToday {
   // Valor de hoje: o por dia da semana; acima do ritmo, o de recuperação;
@@ -103,10 +103,12 @@ export interface HomeToday {
 }
 
 export function homeToday(
-  week: { available: number; perDayRemaining: number },
+  week: { available: number; perDayRemaining: number; savedThisWeek?: { amount: number } | null },
   recovery: { perDayToRecover: number } | null,
 ): HomeToday {
   if (week.available < 0) return { today: 0, state: "exceeded", overBy: -week.available }
+  // A sobra da semana foi guardada: o disponível zerou por escolha.
+  if (week.available === 0 && week.savedThisWeek) return { today: 0, state: "saved", overBy: 0 }
   if (week.available === 0) return { today: 0, state: "used", overBy: 0 }
   if (recovery && recovery.perDayToRecover > 0) {
     return { today: Math.min(Math.floor(recovery.perDayToRecover), week.available), state: "recover", overBy: 0 }

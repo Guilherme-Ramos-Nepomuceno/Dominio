@@ -25,6 +25,16 @@ export type EventName =
   | "plan_confirmed_summary_viewed"
   | "home_week_opened"
   | "home_plan_opened"
+  | "onboarding_finished"
+  | "onboarding_skipped"
+  | "plan_confirmed_negative_margin"
+  | "wish_to_goal"
+  | "week_leftover_saved"
+  | "guide_skipped"
+  | "guide_finished"
+  | "guide_step_shown"
+  | "feature_unlocked"
+  | "guide_replayed"
 
 export type EventProperties = Record<string, string | number | boolean | null>
 
