@@ -12,6 +12,7 @@ import { RecentTransactions } from "./recent-transactions"
 import { RecentTransfers } from "./recent-transfers"
 import { CasalFamiliaToggle } from "./casal-familia-toggle"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SkeletonHero } from "@/components/ui/loading-skeletons"
 import { useHomeViewModel } from "../hooks/use-home-view-model"
 import { WeekHero } from "@/components/home/week-hero"
 import { HomeMonthSection } from "@/components/home/home-month-section"
@@ -78,14 +79,31 @@ export function HomeView() {
                 {isCoupleAccount && <CasalFamiliaToggle viewMode={viewMode} onChange={setViewMode} />}
 
                 {isLoading ? (
-                    <div className="space-y-6">
-                        <Skeleton className="h-28 rounded-[20px]" />
-                        <Skeleton className="h-24 rounded-[20px]" />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Skeleton className="h-32 rounded-2xl" />
-                            <Skeleton className="h-32 rounded-2xl" />
+                    // Mesma ordem da tela: herói "Para gastar hoje", a semana até
+                    // aqui (título + valor, barra fina e faixa de dias) e o mês.
+                    <div className="space-y-10" aria-busy>
+                        <SkeletonHero />
+                        <div className="space-y-8">
+                            <div>
+                                <div className="flex items-baseline justify-between gap-3">
+                                    <Skeleton className="h-3 w-32 rounded-full" />
+                                    <Skeleton className="h-4 w-28 rounded-full" />
+                                </div>
+                                <Skeleton className="mt-3 h-1.5 w-full rounded-full" />
+                                <div className="mt-4 grid grid-cols-7 gap-2">
+                                    {Array.from({ length: 7 }).map((_, i) => (
+                                        <Skeleton key={i} className="h-10 rounded-lg" />
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex items-baseline justify-between gap-3">
+                                    <Skeleton className="h-3 w-24 rounded-full" />
+                                    <Skeleton className="h-4 w-28 rounded-full" />
+                                </div>
+                                <Skeleton className="mt-3 h-6 w-full rounded-[6px]" />
+                            </div>
                         </div>
-                        <Skeleton className="h-48 rounded-2xl" />
                     </div>
                 ) : (
                     <>

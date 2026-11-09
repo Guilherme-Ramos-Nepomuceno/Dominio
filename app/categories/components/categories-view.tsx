@@ -13,7 +13,7 @@ import { CategoryItem } from "./category-item"
 import { AddCategoryDialog } from "./add-category-dialog"
 import { EditCategoryDialog } from "./edit-category-dialog"
 import { CategoryHistoryDialog } from "./category-history-dialog"
-import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SkeletonSection } from "@/components/ui/loading-skeletons"
 import { cn } from "@/lib/utils"
 import type { Category } from "@/lib/types"
 import { useCategoriesViewModel } from "../hooks/use-categories-view-model"
@@ -124,7 +124,10 @@ export function CategoriesView() {
                 </div>
 
                 {loading ? (
-                    <SkeletonRowList count={5} />
+                    <>
+                        <SkeletonSection count={4} />
+                        <SkeletonSection count={3} />
+                    </>
                 ) : (
                     <>
                         {(filter === "all" || filter === "expense") &&

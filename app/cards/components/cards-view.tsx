@@ -4,7 +4,7 @@ import Link from "next/link"
 import { ArrowsLeftRight } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SkeletonSection, SkeletonSummary } from "@/components/ui/loading-skeletons"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { formatCurrency } from "@/lib/date-utils"
 import { AccountRow, CreditCardRow, type CardActions } from "./card-item"
@@ -63,7 +63,11 @@ export function CardsView() {
                 <PageHeader back="/all-menus" title="Cartões e contas" subtitle="Onde está o seu dinheiro" />
 
                 {loading ? (
-                    <SkeletonRowList count={4} />
+                    <>
+                        <SkeletonSummary />
+                        <SkeletonSection count={2} />
+                        <SkeletonSection count={3} />
+                    </>
                 ) : (
                     <>
                         {/* Resumo */}

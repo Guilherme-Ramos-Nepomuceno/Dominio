@@ -9,7 +9,7 @@ import { groupPending, pendingDueLabel, pendingSummary } from "@/lib/pending"
 import { transactionIconColor } from "@/lib/plan-layout"
 import { useCategoryGroups } from "@/hooks/use-category-groups"
 import { PageHeader } from "@/components/ui/page-header"
-import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SkeletonSection, SkeletonSummary } from "@/components/ui/loading-skeletons"
 import { CardChips, Chip, ChipRow, DateChips, FieldLabel, localISODate } from "@/components/transaction-inputs/transaction-inputs"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { cn } from "@/lib/utils"
@@ -71,7 +71,10 @@ export function PendingView() {
                 <PageHeader back="/" title="Contas a pagar" subtitle="O que ainda vai sair e entrar" />
 
                 {!vm.isLoaded ? (
-                    <SkeletonRowList count={5} />
+                    <>
+                        <SkeletonSummary />
+                        <SkeletonSection count={5} />
+                    </>
                 ) : vm.visibleTransactions.length === 0 ? (
                     <div className="py-12 text-center space-y-2">
                         <CalendarCheck size={36} weight="duotone" className="mx-auto text-income" />

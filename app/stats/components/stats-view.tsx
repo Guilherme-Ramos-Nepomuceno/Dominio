@@ -15,7 +15,7 @@ import { CasalFamiliaToggle } from "@/app/components/casal-familia-toggle"
 import { FamilyTotalsView } from "@/app/components/family-totals-view"
 import { updateTransaction } from "@/lib/storage"
 import { useAccount } from "@/components/account/account-context"
-import { SkeletonRowList } from "@/components/ui/loading-skeletons"
+import { SkeletonSection } from "@/components/ui/loading-skeletons"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { useCategoryGroups } from "@/hooks/use-category-groups"
 import { transactionIconColor } from "@/lib/plan-layout"
@@ -236,7 +236,10 @@ export function StatsView() {
 
             <div className="space-y-6">
                 {loading ? (
-                    <SkeletonRowList count={5} />
+                    <>
+                        <SkeletonSection count={3} />
+                        <SkeletonSection count={2} />
+                    </>
                 ) : sortedDates.length > 0 ? (
                     sortedDates.map((date) => {
                         const isToday = date === todayKey
