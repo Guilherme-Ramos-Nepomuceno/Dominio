@@ -20,6 +20,7 @@ import { formatCurrency } from "@/lib/date-utils"
 import { formatAmountRange, ruleHitsLabel } from "@/lib/rules"
 import { useRulesViewModel } from "../hooks/use-rules-view-model"
 import { RuleFormSheet } from "./rule-form-sheet"
+import { GenericTermsSection } from "./generic-terms-section"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { useCategoryGroups } from "@/hooks/use-category-groups"
 import { transactionIconColor } from "@/lib/plan-layout"
@@ -158,6 +159,8 @@ export function RulesView() {
                 </ul>
               )}
             </section>
+
+            <GenericTermsSection isReadOnly={vm.isReadOnly} />
           </>
         )}
       </div>

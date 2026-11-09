@@ -363,6 +363,8 @@ export interface InboxTransaction {
 }
 
 export interface InboxGroup {
+  // Identificador do grupo vindo da API (tipo + nome); ausente em API antiga.
+  key?: string
   merchantKey: string | null
   label: string
   count: number
@@ -386,6 +388,7 @@ export async function getInbox(): Promise<InboxData> {
   return {
     total: Number(raw?.total ?? 0),
     groups: (raw?.groups || []).map((g: any) => ({
+      ...(typeof g.key === "string" && g.key && { key: g.key }),
       merchantKey: g.merchantKey ?? null,
       label: g.label,
       count: Number(g.count ?? 0),

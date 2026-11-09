@@ -4,6 +4,7 @@
 import type { Category, TransactionType } from "./types"
 
 export interface InboxGroupLike {
+  key?: string
   merchantKey: string | null
   label: string
   suggestion: { categoryId: string } | null
@@ -14,7 +15,9 @@ export interface InboxGroupLike {
 // (o mesmo estabelecimento pode ter um grupo de despesa e outro de receita,
 // ex: estorno) e, sem merchantKey, cada lançamento vira seu próprio grupo —
 // então a chave é tipo + merchantKey, ou o id do (único) lançamento.
-export function inboxGroupKey(group: Pick<InboxGroupLike, "merchantKey" | "label" | "transactions">): string {
+export function inboxGroupKey(group: Pick<InboxGroupLike, "key" | "merchantKey" | "label" | "transactions">): string {
+  // A API já manda a chave do grupo (ela junta pelo nome sem termos genéricos).
+  if (group.key) return group.key
   const first = group.transactions[0]
   const type = first?.type ?? "unknown"
   if (group.merchantKey) return `${type}:${group.merchantKey}`

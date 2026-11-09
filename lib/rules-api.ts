@@ -97,3 +97,26 @@ export async function setPluggyCategoryMapping(pluggyCategory: string, categoryI
   })
   return mapPluggyCategoryMap(raw)
 }
+
+// Termos genéricos da conta (pix, ted, recebido, banco...): não juntam
+// lançamentos em "A classificar" nem viram regra sozinhos.
+export interface GenericTerms {
+  terms: string[]
+  isDefault: boolean
+  defaults: string[]
+}
+
+function mapGenericTerms(raw: any): GenericTerms {
+  const list = (v: any) => (Array.isArray(v) ? v.map(String) : [])
+  return { terms: list(raw?.terms), isDefault: !!raw?.isDefault, defaults: list(raw?.defaults) }
+}
+
+export async function getGenericTerms(): Promise<GenericTerms> {
+  return mapGenericTerms(await fetchApi("/category-rules/generic-terms"))
+}
+
+// null = volta para a lista padrão.
+export async function setGenericTerms(terms: string[] | null): Promise<GenericTerms> {
+  assertWritable()
+  return mapGenericTerms(await fetchApi("/category-rules/generic-terms", { method: "PUT", body: JSON.stringify({ terms }) }))
+}
