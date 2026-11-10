@@ -9,7 +9,7 @@ import type { PeriodType, Card, Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { getTransactions, getCards, getCategories } from "@/lib/storage"
-import { effectiveTransactionType, findCategory } from "@/lib/category-utils"
+import { asSpending, effectiveTransactionType, findCategory } from "@/lib/category-utils"
 
 type ExpenseView = "all" | "debit" | "credit"
 
@@ -78,6 +78,8 @@ export function IncomeExpenseCards({
   const [allHistory, setAllHistory] = useState<Transaction[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  // Estorno entra como despesa negativa (desconta da saída) e não como entrada.
+  const totalsSource = useMemo(() => weekChartSource.map((t) => asSpending(categories, t)), [weekChartSource, categories])
 
   useEffect(() => {
     const load = async () => {
@@ -97,7 +99,7 @@ export function IncomeExpenseCards({
   const { processedExpenseTransactions, pendingCreditValue } = useMemo(() => {
     const endOfToday = new Date()
     endOfToday.setHours(23, 59, 59, 999)
-    const paid = weekChartSource.filter(t => t.type === 'expense')
+    const paid = totalsSource.filter(t => t.type === 'expense')
     const paidIds = new Set(paid.map(t => t.id))
     const pending = allHistory.filter(t =>
         !paidIds.has(t.id) &&
@@ -123,7 +125,7 @@ export function IncomeExpenseCards({
             .filter(t => isCredit(t) && t.status !== 'paid' && dates.has(new Date(t.date).toLocaleDateString('sv-SE')))
             .reduce((sum, t) => sum + t.amount, 0),
     }
-  }, [weekChartSource, expenseView, allHistory, cards, categories])
+  }, [totalsSource, expenseView, allHistory, cards, categories])
 
 
   // 2. Geração dos Gráficos
@@ -182,10 +184,10 @@ export function IncomeExpenseCards({
     }
 
     return {
-        incomeChartData: processTransactions(weekChartSource, "income"),
+        incomeChartData: processTransactions(totalsSource, "income"),
         expenseChartData: processTransactions(processedExpenseTransactions, "expense")
     }
-  }, [weekChartSource, processedExpenseTransactions, selectedMonth, isMonthView, currentMonth, monthStartDay])
+  }, [totalsSource, processedExpenseTransactions, selectedMonth, isMonthView, currentMonth, monthStartDay])
 
   // O número grande precisa bater com o que as barras mostram — o gráfico
   // sempre usa "hoje - 6 dias" (ou o mês civil atual/anterior), independente

@@ -64,20 +64,30 @@ function CardMenu({ card, onDelete, onEdit, onMerge, onImport }: CardActions & {
   )
 }
 
-// Cartão de crédito: fatura em aberto à direita e o limite usado numa barra fina.
-// Tocar abre as faturas do cartão.
+// "2026-11-16" → "16/11" (data pura do banco, sem passar por Date/fuso).
+function dayMonth(isoDate: string) {
+  const [, month, day] = isoDate.split("-")
+  return `${day}/${month}`
+}
+
+// Cartão de crédito: o que está devido à direita e o limite usado numa barra
+// fina. Vinculado ao banco, tudo (devido, limite, disponível, datas) é o que o
+// banco informa. Tocar abre as faturas do cartão.
 export function CreditCardRow({ card, invoice, actions }: { card: Card; invoice: number; actions: CardActions }) {
   const BankIcon = getBankIcon(card.bankName)
-  const limit = card.limit ?? 0
-  const used = limit > 0 ? Math.min(1, invoice / limit) : 0
-  const free = limit - invoice
+  const bank = card.bank?.credit ?? null
+  const limit = bank?.limit ?? card.limit ?? 0
+  const used = limit > 0 ? Math.min(1, Math.max(0, invoice / limit)) : 0
+  const free = bank?.available ?? limit - invoice
   const final = digits(card)
-  const dates = [card.closingDate && `fecha ${card.closingDate}`, card.dueDate && `vence ${card.dueDate}`].filter(Boolean).join(" · ")
+  const due = bank?.dueDate ? `vence ${dayMonth(bank.dueDate)}` : card.dueDate && `vence ${card.dueDate}`
+  const dates = [card.closingDate && `fecha ${card.closingDate}`, due].filter(Boolean).join(" · ")
+  const title = limit > 0 ? `Limite de ${formatCurrency(limit)}${bank ? " · informado pelo banco" : ""}` : undefined
 
   return (
     <li className="flex items-start gap-3 py-4">
       <BankIcon size={22} weight="fill" color={card.color} className="mt-0.5 shrink-0" aria-hidden />
-      <Link href={`/invoices?card=${card.id}`} className="flex-1 min-w-0 space-y-2 group" title={limit > 0 ? `Limite de ${formatCurrency(limit)}` : undefined}>
+      <Link href={`/invoices?card=${card.id}`} className="flex-1 min-w-0 space-y-2 group" title={title}>
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-medium text-foreground truncate">
             {card.name}
@@ -100,7 +110,7 @@ export function CreditCardRow({ card, invoice, actions }: { card: Card; invoice:
           <span>
             {limit > 0 ? (
               <>
-                <span className={cn(free < 0 && "text-expense")}>{formatCurrency(free)}</span> livres
+                <span className={cn(free < 0 && "text-expense")}>{formatCurrency(free)}</span> {bank ? "disponíveis" : "livres"}
               </>
             ) : (
               "Sem limite cadastrado"

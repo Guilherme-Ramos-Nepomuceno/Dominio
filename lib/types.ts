@@ -22,6 +22,9 @@ export interface Category {
   // totais por essa flag em vez de comparar nome (só categorias de sistema,
   // via ensureSystemCategory, marcam isso).
   excludedFromTotals?: boolean
+  // Categoria de sistema "Estorno" (uma por conta). Receita na conta, mas nos
+  // totais desconta do gasto da categoria da compra (ver asSpending).
+  isRefund?: boolean
 }
 
 export interface Transaction {
@@ -43,6 +46,7 @@ export interface Transaction {
   isCasal?: boolean // Marca uma despesa pessoal como do casal (aparece agregada na conta do casal)
   userId?: string // dono do lançamento (útil na conta do casal, que junta os dois)
   paidByUserId?: string | null // quem deu baixa pela conta do casal (null = o dono)
+  refundCategoryId?: string | null // Estorno: de qual categoria de despesa ele desconta
   invoiceId?: string // Fatura (do cartão de crédito) em que essa despesa efetivamente entra
   // Import de extrato: descrição crua do banco (preservada mesmo se `description`
   // for editada) e id único do banco (FITID) — nulos em transações manuais.
@@ -82,6 +86,33 @@ export interface Invoice {
   month: number // 1-12
   closingDate: string // ISO
   dueDate: string // ISO
+  // Fatura vinda do banco (Pluggy): total, quitação e a conta registrado /
+  // aguardando revisão / não registrado. Nulo = fatura sem vínculo com banco.
+  bank?: InvoiceBank | null
+}
+
+export interface InvoiceBank {
+  total: number
+  paidAmount: number
+  minimumPayment: number | null
+  paid: boolean
+  syncedAt: string | null
+  registered: number
+  awaitingReview: number
+  unregistered: number
+}
+
+// Retrato do banco pra um cartão/conta vinculado à Pluggy.
+export interface CardBank {
+  account: { balance: number; syncedAt: string | null } | null
+  credit: {
+    used: number // limite em uso (o que está devido no cartão)
+    limit: number | null
+    available: number | null
+    minimumPayment: number | null
+    dueDate: string | null // AAAA-MM-DD
+    syncedAt: string | null
+  } | null
 }
 
 export interface CardTransaction extends Transaction {
@@ -128,6 +159,7 @@ export interface Card {
   spentAmount?: number // Calculado pelo backend (cartões de crédito, mês atual)
   calculatedBalance?: number // Calculado pelo backend (contas de débito)
   investmentTotal?: number // Calculado pelo backend (soma das Reservas vinculadas)
+  bank?: CardBank | null // Vinculado à Pluggy: saldo/limite/fatura do banco
 }
 
 export interface MonthData {

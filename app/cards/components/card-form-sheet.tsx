@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import type { BankName, Card, CardKind } from "@/lib/types"
 import { bankColors, bankLogos, getBankIcon } from "@/lib/bank-icons"
-import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
+import { formatCurrency, formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
 import { Chip, ChipRow, FieldLabel } from "@/components/transaction-inputs/transaction-inputs"
 import { FormSheet, SheetPrimaryButton, UnderlineInput } from "@/components/ui/form-sheet"
 
@@ -43,6 +43,9 @@ export function CardFormSheet({
   const [hasDebit, setHasDebit] = useState(initial?.hasDebit ?? false)
   const [limit, setLimit] = useState(initial?.limit ? formatCurrencyInput(Math.round(initial.limit * 100).toString()) : "")
   const [dueDate, setDueDate] = useState(initial?.dueDate ? String(initial.dueDate) : "10")
+  // Crédito vinculado ao banco: limite e datas são sempre os do banco (o
+  // backend ignora edição desses campos) — mostra só pra leitura.
+  const fromBank = !!initial?.bank?.credit
   const [closingDate, setClosingDate] = useState(initial?.closingDate ? String(initial.closingDate) : "3")
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -81,9 +84,13 @@ export function CardFormSheet({
         hasDebit,
         kind,
         color: bankColors[bankName],
-        limit: hasCredit ? (limit ? parseCurrencyInput(limit) : undefined) : undefined,
-        dueDate: hasCredit ? Number.parseInt(dueDate) : undefined,
-        closingDate: hasCredit ? Number.parseInt(closingDate) : undefined,
+        ...(fromBank
+          ? {}
+          : {
+              limit: hasCredit ? (limit ? parseCurrencyInput(limit) : undefined) : undefined,
+              dueDate: hasCredit ? Number.parseInt(dueDate) : undefined,
+              closingDate: hasCredit ? Number.parseInt(closingDate) : undefined,
+            }),
       })
       onClose()
     } catch (err: any) {
@@ -179,7 +186,19 @@ export function CardFormSheet({
         </div>
       )}
 
-      {hasCredit && (
+      {hasCredit && fromBank && (
+        <div className="space-y-2">
+          <FieldLabel>Limite e fatura</FieldLabel>
+          <p className="text-sm text-foreground">
+            {initial?.bank?.credit?.limit != null ? `Limite de ${formatCurrency(initial.bank.credit.limit)}` : "Limite não informado"}
+            {initial?.closingDate ? ` · fecha dia ${initial.closingDate}` : ""}
+            {initial?.dueDate ? ` · vence dia ${initial.dueDate}` : ""}
+          </p>
+          <p className="text-xs text-muted-foreground">Vem do banco e se atualiza sozinho a cada sincronização.</p>
+        </div>
+      )}
+
+      {hasCredit && !fromBank && (
         <div className="space-y-6">
           <label className="block space-y-2">
             <FieldLabel hint="Opcional">Limite</FieldLabel>

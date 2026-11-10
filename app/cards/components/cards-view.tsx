@@ -48,9 +48,11 @@ export function CardsView() {
     } = useCardsViewModel()
     const { isReadOnly } = useAccount()
 
-    // Cartão combinado aparece nas duas listas: a fatura em crédito, o saldo em contas.
+    // Cartão combinado aparece nas duas listas: a fatura em crédito, o saldo em
+    // contas. Exceção: crédito vinculado ao banco sem conta corrente vinculada —
+    // o "saldo" ali seria só a soma dos registros, sem saldo real por trás.
     const creditCards = processedCards.filter((c) => c.hasCredit)
-    const accounts = processedCards.filter((c) => c.hasDebit).sort((a, b) => (b.calculatedBalance ?? 0) - (a.calculatedBalance ?? 0))
+    const accounts = processedCards.filter((c) => c.hasDebit && !(c.bank?.credit && !c.bank?.account)).sort((a, b) => (b.calculatedBalance ?? 0) - (a.calculatedBalance ?? 0))
     const totalBalance = accounts.reduce((sum, c) => sum + (c.calculatedBalance ?? 0), 0)
     const totalInvoices = creditCards.reduce((sum, c) => sum + c.spentAmount, 0)
     const actionsFor: CardActions = isReadOnly
@@ -79,7 +81,7 @@ export function CardsView() {
                                 </div>
                                 {creditCards.length > 0 && (
                                     <div>
-                                        <p className="text-xs text-muted-foreground">Em faturas</p>
+                                        <p className="text-xs text-muted-foreground">Nos cartões</p>
                                         <p className="text-2xl font-semibold tabular-nums text-foreground">{formatCurrency(totalInvoices)}</p>
                                     </div>
                                 )}

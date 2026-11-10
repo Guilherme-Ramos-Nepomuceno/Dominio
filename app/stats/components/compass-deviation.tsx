@@ -9,7 +9,7 @@ import { isInternalTransfer } from "@/hooks/use-transactions"
 import { useCategoryGroups } from "@/hooks/use-category-groups"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { addMonths, getPlanPeriod, parseMonthKey } from "@/lib/period"
-import { categoryKeyOf, effectiveTransactionType, findCategory, UNCATEGORIZED_KEY, UNCATEGORIZED_LABEL } from "@/lib/category-utils"
+import { asSpending, categoryKeyOf, findCategory, spendingType, UNCATEGORIZED_KEY, UNCATEGORIZED_LABEL } from "@/lib/category-utils"
 import { transactionIconColor } from "@/lib/plan-layout"
 import { formatMoneyNoCents } from "@/lib/closing"
 import { compassDeviation, compassHeadline, type CompassRange } from "@/lib/compass"
@@ -73,11 +73,13 @@ export function CompassDeviation({ onSelectCategory }: { onSelectCategory: (key:
       return { start: p.start, end: endOfDay(p.end) }
     })
 
+    // Estorno desconta da categoria da compra (asSpending) antes de comparar.
     const expenses = data.transactions
+      .map((t) => asSpending(data.categories, t))
       .filter(
         (t) =>
           t.status !== "cancelled" &&
-          effectiveTransactionType(data.categories, t) === "expense" &&
+          spendingType(data.categories, t) === "expense" &&
           !isInternalTransfer(data.categories, t) &&
           (!t.categoryId || !!findCategory(data.categories, t.categoryId)),
       )

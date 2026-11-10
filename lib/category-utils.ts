@@ -30,6 +30,29 @@ export function effectiveTransactionType(
   return findCategory(categories, t.categoryId)?.type
 }
 
+// Estorno (categoria de sistema `isRefund`): dinheiro voltando de uma compra.
+export function isRefundTransaction(categories: Category[], t: Pick<Transaction, "categoryId">): boolean {
+  return !!findCategory(categories, t.categoryId)?.isRefund
+}
+
+// Visão "pra somar" de um lançamento — mesma regra do backend
+// (utils/expense-classification asSpending): estorno vira despesa NEGATIVA na
+// categoria da compra estornada (ou no próprio Estorno, sem compra achada).
+// Aplicar só em quem soma totais, nunca em lista exibida.
+export function asSpending<T extends Pick<Transaction, "categoryId" | "type" | "amount"> & { refundCategoryId?: string | null }>(
+  categories: Category[],
+  t: T,
+): T {
+  if (!isRefundTransaction(categories, t)) return t
+  return { ...t, type: "expense", amount: -t.amount, categoryId: t.refundCategoryId || t.categoryId, refundCategoryId: null }
+}
+
+// Tipo efetivo já considerando estorno (estorno conta como despesa negativa).
+export function spendingType(categories: Category[], t: Pick<Transaction, "categoryId" | "type">): TransactionType | undefined {
+  if (isRefundTransaction(categories, t)) return "expense"
+  return effectiveTransactionType(categories, t)
+}
+
 // Chave de agrupamento por categoria (id real ou a chave "Sem categoria").
 export function categoryKeyOf(t: Pick<Transaction, "categoryId">): string {
   return t.categoryId || UNCATEGORIZED_KEY
@@ -46,9 +69,15 @@ export function categoryColor(category: Category | undefined | null): string {
 // Rótulo de categoria de uma transação: "Sem categoria" só quando de fato não
 // tem categoria — se tem id mas a lista de categorias ainda não carregou (ou a
 // categoria sumiu), fica vazio em vez de piscar "Sem categoria".
-export function transactionCategoryLabel(categories: Category[], t: Pick<Transaction, "categoryId">): string {
+export function transactionCategoryLabel(categories: Category[], t: Pick<Transaction, "categoryId"> & { refundCategoryId?: string | null }): string {
   if (!t.categoryId) return UNCATEGORIZED_LABEL
-  return findCategory(categories, t.categoryId)?.name ?? ""
+  const category = findCategory(categories, t.categoryId)
+  // "Estorno · Lazer": de onde o estorno desconta.
+  if (category?.isRefund && t.refundCategoryId) {
+    const target = findCategory(categories, t.refundCategoryId)
+    if (target) return `${category.name} · ${target.name}`
+  }
+  return category?.name ?? ""
 }
 
 export function transactionCountLabel(count: number): string {

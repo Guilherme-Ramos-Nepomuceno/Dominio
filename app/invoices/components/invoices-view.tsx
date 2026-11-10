@@ -1,6 +1,8 @@
 "use client"
 
+import type React from "react"
 import { useState } from "react"
+import Link from "next/link"
 import { CreditCardIcon, CheckCircle, PencilSimple, ArrowLeft, ArrowRight, Info, X } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
@@ -12,16 +14,25 @@ import { getBankIcon } from "@/lib/bank-icons"
 import { cn } from "@/lib/utils"
 import { AppLayout } from "@/components/layout/app-layout"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
-import type { Invoice } from "@/lib/types"
+import type { Invoice, InvoiceBank } from "@/lib/types"
 import { useInvoicesViewModel } from "../hooks/use-invoices-view-model"
 import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
 
+// Fechamento/vencimento são gravados como meia-noite no fuso do servidor
+// (em produção, UTC: "2026-11-12T00:00:00Z"). Lido no fuso do Brasil isso
+// viraria o dia 11 — então data "à meia-noite" de qualquer servidor (UTC até
+// UTC-4) vale pelo dia em UTC; o resto (data editada à mão) pelo fuso local.
+const invoiceDate = (iso: string) => {
+    const d = new Date(iso)
+    return d.getUTCHours() <= 4 && d.getUTCMinutes() === 0 ? new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) : d
+}
+
 // YYYY-MM-DD (fuso local) a partir de um ISO — pra usar em <input type="date">.
-const toDateInputValue = (iso: string) => new Date(iso).toLocaleDateString("sv-SE")
+const toDateInputValue = (iso: string) => invoiceDate(iso).toLocaleDateString("sv-SE")
 
 // "10 nov"
 const dayMonth = (iso: string) =>
-    new Date(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "").replace(" de ", " ")
+    invoiceDate(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "").replace(" de ", " ")
 
 // Edita o fechamento/vencimento desta fatura específica (não o padrão do
 // cartão) — remonta (via `key` no local de uso) sempre que a fatura selecionada
@@ -94,6 +105,45 @@ function InvoiceDatesEditor({ invoice, onSave }: { invoice: Invoice; onSave: (up
     )
 }
 
+// De onde vem o total do banco: o que você registrou, o que ainda está na fila
+// de revisão e o que o app não tem (antes do início da importação, ignorado).
+function BankBreakdown({ bank }: { bank: InvoiceBank }) {
+    const rows: Array<{ key: string; label: React.ReactNode; value: number; hint?: string }> = [
+        { key: "registered", label: "Registrado", value: bank.registered },
+    ]
+    if (Math.abs(bank.awaitingReview) >= 0.01) {
+        rows.push({
+            key: "review",
+            label: (
+                <Link href="/bank-sync" className="underline underline-offset-2 hover:text-foreground">
+                    Aguardando revisão
+                </Link>
+            ),
+            value: bank.awaitingReview,
+        })
+    }
+    if (bank.unregistered >= 0.01) {
+        rows.push({ key: "missing", label: "Não registrado", value: bank.unregistered, hint: "Compras de antes do início da importação ou que você deixou de fora." })
+    } else if (bank.unregistered <= -0.01) {
+        rows.push({ key: "extra", label: "Registrado a mais que o banco", value: -bank.unregistered, hint: "Algum lançamento nesta fatura não está no banco — vale conferir." })
+    }
+    if (rows.length === 1) return null
+
+    return (
+        <dl className="space-y-1.5 text-sm">
+            {rows.map((row) => (
+                <div key={row.key} className="space-y-0.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                        <dt className="text-muted-foreground">{row.label}</dt>
+                        <dd className="tabular-nums font-medium text-foreground">{formatCurrency(row.value)}</dd>
+                    </div>
+                    {row.hint && <p className="text-xs text-muted-foreground">{row.hint}</p>}
+                </div>
+            ))}
+        </dl>
+    )
+}
+
 // Página corrida, no desenho do Planejar: cartões em pílulas, herói solto
 // (quanto falta pagar) com uma ação só, e as compras numa lista com divisórias.
 export function InvoicesView() {
@@ -121,8 +171,19 @@ export function InvoicesView() {
     const [showPartial, setShowPartial] = useState(false)
 
     const inv = selectedInvoice
-    const isPaid = !!inv && inv.total > 0 && inv.totalPending === 0
+    // Cartão vinculado ao banco: total, quitação e datas são as do banco — o
+    // app não paga nem move compra de fatura (o próximo sync desfaria).
+    const fromBank = !!inv?.card.bank?.credit
+    const bank = inv?.invoice?.bank ?? null
+    const bankRemaining = bank ? Math.max(0, bank.total - bank.paidAmount) : 0
+    const isPaid = bank ? bank.paid : !!inv && inv.total > 0 && inv.totalPending === 0
     const paidSoFar = inv ? inv.total - inv.totalPending : 0
+    const heroAmount = bank
+        ? bank.paid ? bank.total : bankRemaining
+        : fromBank ? (inv?.total ?? 0) : isPaid ? (inv?.total ?? 0) : (inv?.totalPending ?? 0)
+    const heroLabel = bank
+        ? bank.paid ? "Fatura paga" : "Falta pagar"
+        : fromBank ? "Fatura aberta" : isPaid ? "Fatura paga" : inv?.total === 0 ? "Fatura" : "Falta pagar"
 
     return (
         <AppLayout showMonthFilter>
@@ -184,7 +245,11 @@ export function InvoicesView() {
                                         <BankIcon size={16} color={selected ? undefined : ci.card.color} weight="fill" aria-hidden />
                                         <span className="font-medium">{ci.card.name}</span>
                                         <span className={cn("tabular-nums", selected ? "text-background/70" : "text-muted-foreground")}>
-                                            {formatCurrency(ci.totalPending > 0 ? ci.totalPending : ci.total)}
+                                            {formatCurrency(
+                                                ci.invoice?.bank
+                                                    ? ci.invoice.bank.paid ? ci.invoice.bank.total : Math.max(0, ci.invoice.bank.total - ci.invoice.bank.paidAmount)
+                                                    : ci.totalPending > 0 ? ci.totalPending : ci.total,
+                                            )}
                                         </span>
                                     </button>
                                 )
@@ -198,14 +263,37 @@ export function InvoicesView() {
                             <section aria-labelledby="invoice-hero-label" className="space-y-4">
                                 <div>
                                     <p id="invoice-hero-label" className="text-sm text-muted-foreground">
-                                        {isPaid ? "Fatura paga" : inv.total === 0 ? "Fatura" : "Falta pagar"} · {inv.card.name}
+                                        {heroLabel} · {inv.card.name}
                                         {inv.card.lastDigits && <span className="tabular-nums"> •••• {inv.card.lastDigits}</span>}
                                     </p>
                                     <p className="mt-1 text-5xl font-semibold tracking-tight leading-none tabular-nums text-foreground">
-                                        {formatCurrency(isPaid ? inv.total : inv.totalPending)}
+                                        {formatCurrency(heroAmount)}
                                     </p>
                                     <div className="mt-3 space-y-1">
-                                        {isPaid ? (
+                                        {bank ? (
+                                            <>
+                                                {bank.paid ? (
+                                                    <p className="flex items-center gap-1.5 text-sm font-medium text-positive-ink">
+                                                        <CheckCircle size={16} weight="fill" aria-hidden />
+                                                        Paga, segundo o banco
+                                                    </p>
+                                                ) : bank.paidAmount > 0 ? (
+                                                    <p className="text-sm text-muted-foreground tabular-nums">
+                                                        <span className="font-semibold text-foreground">{formatCurrency(bank.paidAmount)}</span> já pago de {formatCurrency(bank.total)}
+                                                    </p>
+                                                ) : null}
+                                                {inv.invoice && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Fecha {dayMonth(inv.invoice.closingDate)} · vence {dayMonth(inv.invoice.dueDate)}
+                                                        {!bank.paid && bank.minimumPayment ? ` · mínimo ${formatCurrency(bank.minimumPayment)}` : ""}
+                                                    </p>
+                                                )}
+                                            </>
+                                        ) : fromBank ? (
+                                            <p className="text-xs text-muted-foreground">
+                                                Registrado até agora. O total sai quando o banco fechar a fatura.
+                                            </p>
+                                        ) : isPaid ? (
                                             <p className="flex items-center gap-1.5 text-sm font-medium text-positive-ink">
                                                 <CheckCircle size={16} weight="fill" aria-hidden />
                                                 Tudo pago nesta fatura
@@ -216,7 +304,15 @@ export function InvoicesView() {
                                                 {formatCurrency(inv.total)}
                                             </p>
                                         ) : null}
-                                        {inv.invoice ? (
+                                        {fromBank ? (
+                                            // Datas do banco não se editam; com fatura do banco elas já
+                                            // aparecem acima, junto do mínimo.
+                                            !bank && inv.invoice && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Fecha {dayMonth(inv.invoice.closingDate)} · vence {dayMonth(inv.invoice.dueDate)}
+                                                </p>
+                                            )
+                                        ) : inv.invoice ? (
                                             <InvoiceDatesEditor key={inv.invoice.id} invoice={inv.invoice} onSave={handleUpdateInvoiceDates} />
                                         ) : (
                                             inv.card.dueDate && <p className="text-xs text-muted-foreground">Vence dia {inv.card.dueDate}</p>
@@ -224,7 +320,9 @@ export function InvoicesView() {
                                     </div>
                                 </div>
 
-                                {inv.totalPending > 0 && (
+                                {bank && <BankBreakdown bank={bank} />}
+
+                                {!fromBank && inv.totalPending > 0 && (
                                     <div className="space-y-3">
                                         <button
                                             type="button"
@@ -321,6 +419,7 @@ export function InvoicesView() {
                                                             </span>
                                                         ) : (
                                                             <span className="flex items-center gap-0.5 text-muted-foreground">
+                                                                {!fromBank && <>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleMoveTransaction(transaction.id, "previous")}
@@ -341,6 +440,7 @@ export function InvoicesView() {
                                                                 >
                                                                     <ArrowRight size={13} weight="bold" />
                                                                 </button>
+                                                                </>}
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleCancelTransaction(transaction.id)}

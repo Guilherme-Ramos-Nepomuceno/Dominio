@@ -28,6 +28,8 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
   const [categoryId, setCategoryId] = useState("")
+  // Estorno: de qual categoria de despesa ele desconta ("" = no próprio Estorno).
+  const [refundCategoryId, setRefundCategoryId] = useState("")
   const [date, setDate] = useState("")
   const [isCasal, setIsCasal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("")
@@ -40,6 +42,7 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
     setDescription(transaction.description)
     setAmount(formatCurrencyInput(Math.round(transaction.amount * 100).toString()))
     setCategoryId(transaction.categoryId ?? "")
+    setRefundCategoryId(transaction.refundCategoryId ?? "")
     setDate(transaction.date.split("T")[0])
     setIsCasal(!!transaction.isCasal)
     setPaymentMethod(transaction.paymentMethod ?? "")
@@ -48,6 +51,9 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
   if (!transaction) return null
 
   const filteredCategories = categories.filter((c) => c.type === transaction.type)
+  const isRefund = !!categories.find((c) => c.id === categoryId)?.isRefund
+  // Destino do estorno: categorias de despesa de verdade (fora transferência).
+  const refundTargets = categories.filter((c) => c.type === "expense" && !c.excludedFromTotals && !c.isRefund)
   const selectedCard = cards.find((c) => c.id === transaction.cardId)
   const isComboCard = !!selectedCard?.hasCredit && !!selectedCard?.hasDebit
   // Fatura de credito so existe se o cartao tem credito e, num combinado,
@@ -82,6 +88,7 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
         amount: numAmount,
         // "Sem categoria" envia null — a transação volta para "A classificar".
         categoryId: categoryId || null,
+        ...(isRefund ? { refundCategoryId: refundCategoryId || null } : {}),
         date: dateObj.toISOString(),
         isCasal: transaction.type === "expense" ? isCasal : undefined,
         paymentMethod: isComboCard ? (paymentMethod as PaymentMethod) : undefined,
@@ -186,6 +193,26 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
         </ChipRow>
         {!categoryId && <p className="text-xs text-muted-foreground">Sem categoria, o lançamento volta para A classificar.</p>}
       </div>
+
+      {/* Estorno: de onde desconta */}
+      {isRefund && (
+        <div className="space-y-3">
+          <FieldLabel>Desconta de</FieldLabel>
+          <ChipRow wrap>
+            {refundTargets.map((category) => (
+              <CategoryChip key={category.id} category={category} selected={refundCategoryId === category.id} onClick={() => setRefundCategoryId(category.id)} />
+            ))}
+            <Chip selected={!refundCategoryId} onClick={() => setRefundCategoryId("")}>
+              Nenhuma
+            </Chip>
+          </ChipRow>
+          <p className="text-xs text-muted-foreground">
+            {refundCategoryId
+              ? "O estorno reduz o gasto dessa categoria no mês em que caiu, em vez de contar como receita."
+              : "Sem categoria, o estorno reduz o gasto total do mês e aparece como Estorno."}
+          </p>
+        </div>
+      )}
 
       {/* Data */}
       {date && (
