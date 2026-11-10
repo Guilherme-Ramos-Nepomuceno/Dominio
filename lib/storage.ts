@@ -106,6 +106,7 @@ function mapCategoryFromApi(c: any): Category {
     type: String(c.type).toLowerCase() as Category["type"],
     icon: c.icon ?? undefined,
     excludedFromTotals: !!c.excludedFromTotals,
+    isRefund: !!c.isRefund,
   }
 }
 
@@ -216,6 +217,7 @@ function mapCardFromApi(c: any): Card {
     spentAmount: c.spentAmount != null ? Number(c.spentAmount) : undefined,
     calculatedBalance: c.calculatedBalance != null ? Number(c.calculatedBalance) : undefined,
     investmentTotal: c.investmentTotal != null ? Number(c.investmentTotal) : undefined,
+    bank: c.bank ?? null,
   }
 }
 
@@ -305,6 +307,7 @@ function mapTransactionFromApi(t: any): Transaction {
     userId: t.userId ?? undefined,
     paidByUserId: t.paidByUserId ?? null,
     invoiceId: t.invoiceId ?? undefined,
+    refundCategoryId: t.refundCategoryId ?? null,
     originalDescription: t.originalDescription ?? undefined,
     externalId: t.externalId ?? undefined,
     merchantKey: t.merchantKey ?? null,
@@ -329,6 +332,7 @@ function mapTransactionToApi(t: Partial<Transaction>) {
   // POST e, no PUT, remove a categoria de uma transação existente. String
   // vazia é tratada como null (o validador exige id não vazio).
   if (t.categoryId !== undefined) body.categoryId = t.categoryId || null
+  if (t.refundCategoryId !== undefined) body.refundCategoryId = t.refundCategoryId || null
   if (t.cardId !== undefined) body.cardId = t.cardId
   if (t.paymentMethod !== undefined) body.paymentMethod = t.paymentMethod.toUpperCase()
   if (t.isCasal !== undefined) body.isCasal = t.isCasal
@@ -931,6 +935,7 @@ function mapInvoiceFromApi(i: any): Invoice {
     month: i.month,
     closingDate: i.closingDate,
     dueDate: i.dueDate,
+    bank: i.bank ?? null,
   }
 }
 

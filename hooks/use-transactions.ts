@@ -5,7 +5,7 @@ import type { Transaction, Category, MonthData } from "@/lib/types"
 import { getTransactions, getCategories, getSavingsGoals, getPendingTransactions, getCards } from "@/lib/storage"
 import { isInPlanMonth } from "@/lib/period"
 import { useSelectedMonth } from "@/lib/selected-month-context"
-import { effectiveTransactionType, findCategory } from "@/lib/category-utils"
+import { asSpending, effectiveTransactionType, findCategory, spendingType } from "@/lib/category-utils"
 
 // Transferências entre contas (e retiradas de reserva) usam a categoria de sistema
 // "Transferência" nos dois lados do lançamento. Retiradas de reserva usam a mesma
@@ -69,13 +69,15 @@ export function useMonthData(month: string): MonthData {
   }, [])
 
   const paidTransactions = transactions.filter((t) => t.status !== "pending" && t.status !== "cancelled")
+  // Estorno desconta da despesa em vez de contar como receita (asSpending).
+  const forTotals = paidTransactions.map((t) => asSpending(categories, t))
 
-  const income = paidTransactions
-    .filter((t) => effectiveTransactionType(categories, t) === "income")
+  const income = forTotals
+    .filter((t) => spendingType(categories, t) === "income")
     .reduce((sum, t) => sum + t.amount, 0)
 
-  const expense = paidTransactions
-    .filter((t) => effectiveTransactionType(categories, t) === "expense")
+  const expense = forTotals
+    .filter((t) => spendingType(categories, t) === "expense")
     .reduce((sum, t) => sum + t.amount, 0)
 
   const balance = income - expense
@@ -143,13 +145,16 @@ export function computeTotalBalanceFrom(
   const paidTransactions = monthTransactions
     .filter((t) => t.status !== "pending" && t.status !== "cancelled")
     .filter((t) => !isExcludedTransfer(t))
+  // Estorno: no saldo acima é dinheiro entrando; aqui, desconta da despesa do
+  // mês (na categoria da compra) em vez de contar como receita.
+  const forTotals = paidTransactions.map((t) => asSpending(categories, t))
 
-  const income = paidTransactions
-    .filter((t) => effectiveTransactionType(categories, t) === "income")
+  const income = forTotals
+    .filter((t) => spendingType(categories, t) === "income")
     .reduce((sum, t) => sum + t.amount, 0)
 
-  const expense = paidTransactions
-    .filter((t) => effectiveTransactionType(categories, t) === "expense")
+  const expense = forTotals
+    .filter((t) => spendingType(categories, t) === "expense")
     .reduce((sum, t) => sum + t.amount, 0)
 
   return {

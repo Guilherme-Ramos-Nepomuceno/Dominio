@@ -110,6 +110,9 @@ export function useCardsViewModel() {
                         (!card.hasDebit || t.invoiceId || t.paymentMethod === "credit"),
                 )
                 spentAmount = pendingTransactions.reduce((sum, t) => sum + t.amount, 0)
+                // Vinculado ao banco: o que está devido é o que o banco diz, não a
+                // soma dos registros (que não tem o que veio antes da importação).
+                if (card.bank?.credit) spentAmount = card.bank.credit.used
             }
             if (card.hasDebit) {
                 calculatedBalance = card.calculatedBalance ?? 0
