@@ -5,6 +5,7 @@ import {
   getPluggyConnection,
   savePluggyCredentials,
   addPluggyItem,
+  createPluggyConnectToken,
   updatePluggyItemSyncFrom,
   listPluggyAccounts,
   mapPluggyAccount,
@@ -17,6 +18,7 @@ import {
   addCategory,
   ensureSystemCategory,
   type PluggyConnectionStatus,
+  type PluggyItemStatus,
   type PluggyAccount,
   type PluggyPendingTransaction,
 } from "@/lib/storage"
@@ -24,6 +26,7 @@ import type { Category, Card, PaymentMethod, TransactionType } from "@/lib/types
 import { useToast } from "@/hooks/use-toast"
 import { pluggySyncMessage } from "@/lib/pluggy-sync-message"
 import { DEFAULT_CATEGORY_COLOR } from "@/app/categories/components/add-category-dialog"
+import { openPluggyConnect } from "@/lib/pluggy-connect"
 
 export function useBankSyncViewModel() {
   const { toast } = useToast()
@@ -36,6 +39,7 @@ export function useBankSyncViewModel() {
 
   const [isSavingCredentials, setIsSavingCredentials] = useState(false)
   const [isAddingItem, setIsAddingItem] = useState(false)
+  const [isConnectingBank, setIsConnectingBank] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
 
@@ -86,30 +90,58 @@ export function useBankSyncViewModel() {
     return created
   }
 
-  const saveCredentials = async (clientId: string, clientSecret: string) => {
+  const addItem = async (pluggyItemId: string, syncFromDate?: string): Promise<PluggyItemStatus | undefined> => {
+    setIsAddingItem(true)
+    try {
+      const item = await addPluggyItem(pluggyItemId, syncFromDate)
+      toast({ title: "Banco conectado", description: "Agora ligue as contas desse banco aos seus cartões.", variant: "success" })
+      await loadAll()
+      return item
+    } catch (error: any) {
+      toast({ title: "Não foi possível adicionar", description: error.message || "Confira o itemId.", variant: "destructive" })
+      return undefined
+    } finally {
+      setIsAddingItem(false)
+    }
+  }
+
+  // Abre o widget da Pluggy (só MeuPluggy) com um token gerado pelas
+  // credenciais da pessoa. No fim, o itemId volta sozinho — nada de copiar do
+  // dashboard. Um widget por banco: cada banco do MeuPluggy é autorizado à parte.
+  const connectBank = async (syncFromDate?: string, onConnected?: (item: PluggyItemStatus) => void) => {
+    setIsConnectingBank(true)
+    try {
+      const connectToken = await createPluggyConnectToken()
+      await openPluggyConnect({
+        connectToken,
+        onSuccess: async (pluggyItemId) => {
+          const item = await addItem(pluggyItemId, syncFromDate)
+          if (item) onConnected?.(item)
+        },
+        // O próprio widget mostra o erro e deixa tentar de novo.
+        onError: (message) => console.warn("[pluggy-connect]", message),
+      })
+    } catch (error: any) {
+      toast({ title: "Não foi possível abrir a conexão", description: error.message || "Tente de novo em instantes.", variant: "destructive" })
+    } finally {
+      setIsConnectingBank(false)
+    }
+  }
+
+  const saveCredentials = async (clientId: string, clientSecret: string, onConnected?: (item: PluggyItemStatus) => void) => {
     setIsSavingCredentials(true)
+    let saved = false
     try {
       await savePluggyCredentials(clientId, clientSecret)
-      toast({ title: "Credenciais salvas", description: "Agora adicione o(s) item(ns) que você autorizou no dashboard da Pluggy.", variant: "success" })
+      saved = true
       await loadAll()
     } catch (error: any) {
       toast({ title: "Não foi possível salvar", description: error.message || "Confira o clientId/clientSecret.", variant: "destructive" })
     } finally {
       setIsSavingCredentials(false)
     }
-  }
-
-  const addItem = async (pluggyItemId: string, syncFromDate?: string) => {
-    setIsAddingItem(true)
-    try {
-      await addPluggyItem(pluggyItemId, syncFromDate)
-      toast({ title: "Item conectado", description: "Agora mapeie as contas desse item pra um cartão.", variant: "success" })
-      await loadAll()
-    } catch (error: any) {
-      toast({ title: "Não foi possível adicionar", description: error.message || "Confira o itemId.", variant: "destructive" })
-    } finally {
-      setIsAddingItem(false)
-    }
+    // Credencial certa: segue direto pro banco, sem a pessoa procurar o botão.
+    if (saved) await connectBank(undefined, onConnected)
   }
 
   const updateSyncFromDate = async (itemId: string, syncFromDate: string | null, discardExistingBefore?: boolean) => {
@@ -251,12 +283,14 @@ export function useBankSyncViewModel() {
     isLoaded,
     isSavingCredentials,
     isAddingItem,
+    isConnectingBank,
     isSyncing,
     isConfirming,
     accountsByItem,
     loadingAccountsItemId,
     saveCredentials,
     addItem,
+    connectBank,
     updateSyncFromDate,
     loadAccountsForItem,
     mapAccount,

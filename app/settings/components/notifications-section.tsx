@@ -12,6 +12,7 @@ const PREFS: Array<{ key: keyof NotificationPrefs; label: string; description: s
   { key: "weekStart", label: "Começo da semana", description: "Quanto você tem para gastar na semana que começa." },
   { key: "weekly80", label: "80% do limite da semana", description: "Aviso quando a semana chegar a 80% do limite." },
   { key: "monthPlan", label: "Plano do mês", description: "Lembrete para planejar e fechar o mês." },
+  { key: "bankTransactions", label: "Lançamentos do banco", description: "Quando o banco trouxer lançamentos novos para revisar (no máximo um aviso por dia)." },
 ]
 
 // Configurações > Notificações: ativar push neste aparelho e escolher os avisos.

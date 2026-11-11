@@ -33,3 +33,4 @@ ADRs não são editados: uma decisão nova substitui a antiga num ADR novo, com 
 | [022](022-logica-pura-testavel-e-mvvm.md) | Lógica pura testável e MVVM | Dominio |
 | [023](../../../dominio-api/docs/adr/023-backend-como-fonte-dos-dados-padrao.md) | Backend como única fonte dos dados padrão | dominio-api |
 | [024](../../../dominio-api/docs/adr/024-migrations-somente-aditivas.md) | Migrations somente aditivas | dominio-api |
+| [025](../../../dominio-api/docs/adr/025-conexao-pluggy-pelo-widget-e-webhook.md) | Conexão da Pluggy pelo widget e aviso por webhook | dominio-api |

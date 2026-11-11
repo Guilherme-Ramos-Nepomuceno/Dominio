@@ -117,7 +117,7 @@ test("push: chave VAPID, iOS e suporte", () => {
   assert.equal(pushSupport({ ...base, ios: true }), "ios-needs-install")
   assert.equal(pushSupport({ ...base, ios: true, standalone: true }), "supported")
   assert.equal(pushSupport({ ...base, hasPushManager: false }), "unsupported")
-  assert.deepEqual(mapNotificationPrefs({ weekly80: false }), { weekStart: true, weekly80: false, monthPlan: true })
+  assert.deepEqual(mapNotificationPrefs({ weekly80: false }), { weekStart: true, weekly80: false, monthPlan: true, bankTransactions: true })
 })
 
 test("closingTiming: mês em andamento até o último dia do período", () => {

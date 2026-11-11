@@ -526,6 +526,9 @@ export interface PluggyItemStatus {
 export interface PluggyConnectionStatus {
   connected: boolean
   items: PluggyItemStatus[]
+  // Webhook registrado na Pluggy: o app sincroniza e avisa sozinho quando o
+  // banco atualiza (ver ADR-025).
+  webhookActive: boolean
 }
 
 export interface PluggyAccount {
@@ -593,6 +596,7 @@ export async function getPluggyConnection(): Promise<PluggyConnectionStatus> {
   const raw = await fetchApi("/pluggy/connection")
   return {
     connected: raw.connected,
+    webhookActive: !!raw.webhookActive,
     items: (raw.items || []).map((item: any) => ({
       ...item,
       accountMappings: (item.accountMappings || []).map((m: any) => ({
@@ -606,6 +610,14 @@ export async function getPluggyConnection(): Promise<PluggyConnectionStatus> {
 export async function savePluggyCredentials(clientId: string, clientSecret: string): Promise<void> {
   assertWritable()
   await fetchApi("/pluggy/connection", { method: "POST", body: JSON.stringify({ clientId, clientSecret }) })
+}
+
+// Token de 30 min para abrir o widget Pluggy Connect — gerado no backend com
+// as credenciais da própria pessoa.
+export async function createPluggyConnectToken(): Promise<string> {
+  assertWritable()
+  const { accessToken } = await fetchApi("/pluggy/connect-token", { method: "POST" })
+  return accessToken
 }
 
 export async function addPluggyItem(pluggyItemId: string, syncFromDate?: string): Promise<PluggyItemStatus> {
