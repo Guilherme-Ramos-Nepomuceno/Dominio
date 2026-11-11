@@ -11,9 +11,9 @@ const WEB_DIR = process.cwd()
 const API_DIR = process.env.DOMINIO_API_DIR ?? path.resolve(WEB_DIR, "../dominio-api")
 const API_URL = "http://localhost:3334"
 
-function run(label, command, cwd) {
+function run(label, command, cwd, env) {
   console.log(`\n▶ ${label}`)
-  const result = spawnSync(command, { cwd, shell: true, stdio: "inherit" })
+  const result = spawnSync(command, { cwd, shell: true, stdio: "inherit", env: env ? { ...process.env, ...env } : process.env })
   return result.status === 0
 }
 
@@ -21,7 +21,7 @@ function up() {
   const db =
     run("Banco de teste do zero", "npm run test:db:down && npm run test:db:up", API_DIR) &&
     run("Migrations", "npm run test:db:migrate", API_DIR) &&
-    run("Build do front", "npm run build", WEB_DIR)
+    run("Build do front", "npm run build", WEB_DIR, { NEXT_PUBLIC_API_URL: API_URL })
   if (!db) process.exit(1)
 
   const children = [

@@ -182,7 +182,7 @@ export interface AppSettings {
   // Sincronização direta: o que chega da Pluggy entra sem revisão.
   pluggyDirectSync?: boolean
   // Quais notificações push a pessoa quer receber (ver lib/push.ts).
-  notificationPrefs?: { weekStart: boolean; weekly80: boolean; monthPlan: boolean }
+  notificationPrefs?: { weekStart: boolean; weekly80: boolean; monthPlan: boolean; bankTransactions: boolean }
 }
 
 export interface CategoryGoal {

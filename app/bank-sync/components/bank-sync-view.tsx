@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils"
 import { useBankSyncViewModel } from "../hooks/use-bank-sync-view-model"
 import { PluggyCategoryMapSection } from "./pluggy-category-map-section"
 import { AppSelect } from "@/components/ui/app-select"
+import { checkPluggyCredentials, normalizePluggyCredential } from "@/lib/pluggy-credentials"
+import type { PluggyItemStatus } from "@/lib/storage"
 
 // ReviewRow "genérico" não carrega id/itemId (só existem na Pluggy, não no
 // import de OFX que também usa esse mesmo componente) — estende localmente
@@ -72,6 +74,8 @@ export function BankSyncView() {
   const [syncFromDraft, setSyncFromDraft] = useState<Record<string, string>>({})
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [showAddItem, setShowAddItem] = useState(false)
+  // Colar o itemId à mão: alternativa ao widget (ex: widget bloqueado).
+  const [showManualItemId, setShowManualItemId] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
   const [addCardForAccount, setAddCardForAccount] = useState<{ itemId: string; pluggyAccountId: string } | null>(null)
   const [mappingDraft, setMappingDraft] = useState<Record<string, { cardId: string; paymentMethod: PaymentMethod | "" }>>({})
@@ -580,33 +584,64 @@ export function BankSyncView() {
   const uncategorizedInSelected = visibleBankRows.filter((r) => r.include && isConfirmable(r) && !isDone(r)).length
   const hasBothSides = !!selectedBank && selectedBank.debit.total > 0 && selectedBank.credit.total > 0
 
+  // Banco recém-conectado pelo widget: já abre ele, no passo de ligar as contas.
+  const openConnectedItem = (item: PluggyItemStatus) => {
+    setShowAddItem(false)
+    setExpandedItemId(item.id)
+    vm.loadAccountsForItem(item.id)
+  }
+
+  const credentialsCheck = checkPluggyCredentials(clientId, clientSecret)
+  const isBusyConnecting = vm.isSavingCredentials || vm.isConnectingBank
   const credentialsForm = (
     <div className="space-y-3">
       <div className="grid sm:grid-cols-2 gap-3">
-        <input
-          type="text"
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          placeholder="clientId"
-          aria-label="clientId da Pluggy"
-          className={fieldClass}
-        />
-        <input
-          type="password"
-          value={clientSecret}
-          onChange={(e) => setClientSecret(e.target.value)}
-          placeholder="clientSecret"
-          aria-label="clientSecret da Pluggy"
-          className={fieldClass}
-        />
+        <div className="space-y-1">
+          <input
+            type="text"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            placeholder="clientId"
+            aria-label="clientId da Pluggy"
+            aria-invalid={!!credentialsCheck.clientIdError}
+            aria-describedby={credentialsCheck.clientIdError ? "pluggy-client-id-error" : undefined}
+            autoComplete="off"
+            spellCheck={false}
+            className={cn(fieldClass, credentialsCheck.clientIdError && "border-destructive")}
+          />
+          {credentialsCheck.clientIdError && (
+            <p id="pluggy-client-id-error" className="text-xs text-destructive">
+              {credentialsCheck.clientIdError}
+            </p>
+          )}
+        </div>
+        <div className="space-y-1">
+          <input
+            type="password"
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+            placeholder="clientSecret"
+            aria-label="clientSecret da Pluggy"
+            aria-invalid={!!credentialsCheck.clientSecretError}
+            aria-describedby={credentialsCheck.clientSecretError ? "pluggy-client-secret-error" : undefined}
+            autoComplete="off"
+            spellCheck={false}
+            className={cn(fieldClass, credentialsCheck.clientSecretError && "border-destructive")}
+          />
+          {credentialsCheck.clientSecretError && (
+            <p id="pluggy-client-secret-error" className="text-xs text-destructive">
+              {credentialsCheck.clientSecretError}
+            </p>
+          )}
+        </div>
       </div>
       <button
         type="button"
-        disabled={!clientId.trim() || !clientSecret.trim() || vm.isSavingCredentials}
-        onClick={() => vm.saveCredentials(clientId.trim(), clientSecret.trim())}
+        disabled={!credentialsCheck.ready || isBusyConnecting}
+        onClick={() => vm.saveCredentials(normalizePluggyCredential(clientId), normalizePluggyCredential(clientSecret), openConnectedItem)}
         className="flex h-11 w-full items-center justify-center rounded-full bg-primary text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
       >
-        {vm.isSavingCredentials ? "Salvando..." : "Conectar"}
+        {vm.isSavingCredentials ? "Conferindo..." : vm.isConnectingBank ? "Abrindo a Pluggy..." : "Conectar banco"}
       </button>
     </div>
   )
@@ -701,16 +736,20 @@ export function BankSyncView() {
                 <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer" className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4">
                   meu.pluggy.ai
                 </a>{" "}
-                e conecte seu banco lá.
+                e conecte seus bancos lá.
               </>,
               <>
-                Pegue o clientId e o clientSecret em{" "}
+                Entre em{" "}
                 <a href="https://dashboard.pluggy.ai" target="_blank" rel="noreferrer" className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4">
                   dashboard.pluggy.ai
-                </a>
-                .
+                </a>{" "}
+                com a mesma conta, abra <span className="font-medium text-foreground">Applications</span>, entre na sua aplicação e copie o{" "}
+                <span className="font-medium text-foreground">clientId</span> e o <span className="font-medium text-foreground">clientSecret</span>.
               </>,
-              <>Cole os dois aqui embaixo.</>,
+              <>
+                Cole os dois aqui e toque em <span className="font-medium text-foreground">Conectar banco</span>. A janela da Pluggy abre: entre com o MeuPluggy e
+                escolha o banco. O resto o app faz sozinho.
+              </>,
             ].map((step, i) => (
               <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground tabular-nums">{i + 1}</span>
@@ -719,7 +758,9 @@ export function BankSyncView() {
             ))}
           </ol>
           {credentialsForm}
-          <p className="text-xs text-muted-foreground">Cada pessoa usa a própria conta da Pluggy — para uso pessoal não custa nada.</p>
+          <p className="text-xs text-muted-foreground">
+            Cada pessoa usa a própria conta da Pluggy — para uso pessoal não custa nada. Com mais de um banco no MeuPluggy, conecte um de cada vez.
+          </p>
         </div>
       ) : (
         // Página corrida, no desenho do Planejar: herói solto (o que falta
@@ -755,6 +796,16 @@ export function BankSyncView() {
               >
                 <ArrowsClockwise size={16} weight="bold" className={cn(vm.isSyncing && "animate-spin")} />
                 {vm.isSyncing ? "Sincronizando..." : "Sincronizar agora"}
+              </button>
+            ) : items.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => vm.connectBank(undefined, openConnectedItem)}
+                disabled={vm.isConnectingBank || vm.isAddingItem}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                <Plus size={16} weight="bold" />
+                {vm.isConnectingBank ? "Abrindo a Pluggy..." : "Conectar banco"}
               </button>
             ) : (
               <p className="text-sm text-muted-foreground">Ligue as contas do banco aos seus cartões (em Bancos conectados) para sincronizar.</p>
@@ -1039,36 +1090,63 @@ export function BankSyncView() {
 
               <li className="py-3.5">
                 {showAddItem ? (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newItemId}
-                        onChange={(e) => setNewItemId(e.target.value)}
-                        placeholder="itemId do dashboard.pluggy.ai"
-                        aria-label="itemId da Pluggy"
-                        autoFocus
-                        className={cn(fieldClass, "flex-1 min-w-0")}
-                      />
-                      <button
-                        type="button"
-                        disabled={!newItemId.trim() || vm.isAddingItem}
-                        onClick={() => {
-                          vm.addItem(newItemId.trim(), newItemSyncFrom ? `${newItemSyncFrom}-01` : undefined)
-                          setNewItemId("")
-                          setNewItemSyncFrom("")
-                          setShowAddItem(false)
-                        }}
-                        className="shrink-0 rounded-full bg-primary px-4 text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
-                      >
-                        Adicionar
-                      </button>
-                    </div>
+                  <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-muted-foreground">Sincronizar a partir de (opcional)</span>
                       <MonthYearPicker value={newItemSyncFrom} onChange={setNewItemSyncFrom} className="w-44 py-1 text-xs" />
                     </div>
                     <p className="text-[11px] text-muted-foreground">Em branco, a primeira sincronização traz todo o histórico disponível (até 12 meses).</p>
+                    <button
+                      type="button"
+                      disabled={vm.isConnectingBank || vm.isAddingItem}
+                      onClick={() => {
+                        const syncFrom = newItemSyncFrom ? `${newItemSyncFrom}-01` : undefined
+                        vm.connectBank(syncFrom, (item) => {
+                          setNewItemSyncFrom("")
+                          openConnectedItem(item)
+                        })
+                      }}
+                      className="flex h-11 w-full items-center justify-center rounded-full bg-primary text-sm font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {vm.isConnectingBank ? "Abrindo a Pluggy..." : "Conectar pelo MeuPluggy"}
+                    </button>
+
+                    {showManualItemId ? (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newItemId}
+                          onChange={(e) => setNewItemId(e.target.value)}
+                          placeholder="itemId do dashboard.pluggy.ai"
+                          aria-label="itemId da Pluggy"
+                          autoFocus
+                          className={cn(fieldClass, "flex-1 min-w-0")}
+                        />
+                        <button
+                          type="button"
+                          disabled={!newItemId.trim() || vm.isAddingItem}
+                          onClick={async () => {
+                            const item = await vm.addItem(newItemId.trim(), newItemSyncFrom ? `${newItemSyncFrom}-01` : undefined)
+                            if (!item) return
+                            setNewItemId("")
+                            setNewItemSyncFrom("")
+                            setShowManualItemId(false)
+                            openConnectedItem(item)
+                          }}
+                          className="shrink-0 rounded-full border border-border px-4 text-sm font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                        >
+                          Adicionar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowManualItemId(true)}
+                        className="text-xs font-medium text-muted-foreground underline decoration-muted-foreground/30 underline-offset-4 hover:text-foreground"
+                      >
+                        Tenho o itemId do dashboard
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -1101,6 +1179,11 @@ export function BankSyncView() {
                 {showCredentials ? "Fechar" : "Trocar"}
               </button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              {vm.connection?.webhookActive
+                ? "Avisos automáticos ligados: quando o banco atualiza (cerca de uma vez por dia), o app sincroniza sozinho e avisa se tiver algo para revisar."
+                : "O app sincroniza quando você abre. Os avisos automáticos ligam sozinhos na próxima sincronização."}
+            </p>
             {showCredentials && credentialsForm}
           </section>
         </div>
