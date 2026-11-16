@@ -10,12 +10,16 @@ export const MEU_PLUGGY_CONNECTOR_ID = 200
 
 export interface OpenPluggyConnectOptions {
   connectToken: string
+  // Id do item NA PLUGGY: abre o widget em modo de atualização, só pra
+  // autorizar aquele banco de novo (o token também precisa ter sido gerado
+  // com esse item).
+  updatePluggyItemId?: string
   onSuccess: (pluggyItemId: string) => void | Promise<void>
   onError: (message: string) => void
   onClose?: () => void
 }
 
-export async function openPluggyConnect({ connectToken, onSuccess, onError, onClose }: OpenPluggyConnectOptions): Promise<void> {
+export async function openPluggyConnect({ connectToken, updatePluggyItemId, onSuccess, onError, onClose }: OpenPluggyConnectOptions): Promise<void> {
   const { PluggyConnect } = await import("pluggy-connect-sdk")
   const isDark = document.documentElement.classList.contains("dark")
 
@@ -33,6 +37,7 @@ export async function openPluggyConnect({ connectToken, onSuccess, onError, onCl
     connectToken,
     connectorIds: [MEU_PLUGGY_CONNECTOR_ID],
     selectedConnectorId: MEU_PLUGGY_CONNECTOR_ID,
+    ...(updatePluggyItemId ? { updateItem: updatePluggyItemId } : {}),
     language: "pt",
     theme: isDark ? "dark" : "light",
     onSuccess: async ({ item }) => {

@@ -6,6 +6,10 @@ import {
   savePluggyCredentials,
   addPluggyItem,
   createPluggyConnectToken,
+  removePluggyItem,
+  getPluggyInvestments,
+  linkPluggyInvestment,
+  getSavingsGoals,
   updatePluggyItemSyncFrom,
   listPluggyAccounts,
   mapPluggyAccount,
@@ -21,8 +25,9 @@ import {
   type PluggyItemStatus,
   type PluggyAccount,
   type PluggyPendingTransaction,
+  type PluggyInvestment,
 } from "@/lib/storage"
-import type { Category, Card, PaymentMethod, TransactionType } from "@/lib/types"
+import type { Category, Card, PaymentMethod, TransactionType, SavingsGoal } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { pluggySyncMessage } from "@/lib/pluggy-sync-message"
 import { DEFAULT_CATEGORY_COLOR } from "@/app/categories/components/add-category-dialog"
@@ -35,7 +40,12 @@ export function useBankSyncViewModel() {
   const [categories, setCategories] = useState<Category[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [pendingRows, setPendingRows] = useState<PluggyPendingTransaction[]>([])
+  const [investments, setInvestments] = useState<PluggyInvestment[]>([])
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
+  const [reconnectingItemId, setReconnectingItemId] = useState<string | null>(null)
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null)
+  const [linkingInvestmentId, setLinkingInvestmentId] = useState<string | null>(null)
 
   const [isSavingCredentials, setIsSavingCredentials] = useState(false)
   const [isAddingItem, setIsAddingItem] = useState(false)
@@ -60,16 +70,22 @@ export function useBankSyncViewModel() {
         ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
         ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
       ])
-      const [conn, cats, allCards, pending] = await Promise.all([
+      const [conn, cats, allCards, pending, invs, goals] = await Promise.all([
         getPluggyConnection(),
         getCategories(),
         getCards(),
         getPluggyPending(),
+        // Investimentos e reservas são extras da tela: se falharem, o resto
+        // (conexão e revisão) continua funcionando.
+        getPluggyInvestments().catch(() => [] as PluggyInvestment[]),
+        getSavingsGoals().catch(() => [] as SavingsGoal[]),
       ])
       setConnection(conn)
       setCategories(cats)
       setCards(allCards)
       setPendingRows(pending)
+      setInvestments(invs)
+      setSavingsGoals(goals)
       setIsLoaded(true)
     }
     loadingRef.current = run().finally(() => {
@@ -125,6 +141,67 @@ export function useBankSyncViewModel() {
       toast({ title: "Não foi possível abrir a conexão", description: error.message || "Tente de novo em instantes.", variant: "destructive" })
     } finally {
       setIsConnectingBank(false)
+    }
+  }
+
+  // Conexão caiu ou a autorização venceu: abre o widget direto naquele banco.
+  // No fim, sincroniza — o sync confere a saúde do item de novo.
+  const reconnectBank = async (item: PluggyItemStatus) => {
+    setReconnectingItemId(item.id)
+    try {
+      const connectToken = await createPluggyConnectToken(item.id)
+      await openPluggyConnect({
+        connectToken,
+        updatePluggyItemId: item.pluggyItemId,
+        onSuccess: async () => {
+          toast({ title: "Banco reconectado", description: "Buscando o que chegou enquanto estava parado.", variant: "success" })
+          await sync()
+        },
+        onError: (message) => console.warn("[pluggy-connect]", message),
+      })
+    } catch (error: any) {
+      toast({ title: "Não foi possível reconectar", description: error.message || "Tente de novo em instantes.", variant: "destructive" })
+    } finally {
+      setReconnectingItemId(null)
+    }
+  }
+
+  const removeBank = async (itemId: string): Promise<boolean> => {
+    setRemovingItemId(itemId)
+    try {
+      await removePluggyItem(itemId)
+      setAccountsByItem((prev) => {
+        const next = { ...prev }
+        delete next[itemId]
+        return next
+      })
+      toast({ title: "Banco desconectado", description: "O app parou de ler os dados desse banco.", variant: "success" })
+      await loadAll()
+      return true
+    } catch (error: any) {
+      toast({ title: "Não foi possível desconectar", description: error.message, variant: "destructive" })
+      return false
+    } finally {
+      setRemovingItemId(null)
+    }
+  }
+
+  const linkInvestment = async (investmentId: string, savingsGoalId: string | null) => {
+    setLinkingInvestmentId(investmentId)
+    setInvestments((prev) => prev.map((i) => (i.id === investmentId ? { ...i, savingsGoalId } : i)))
+    try {
+      await linkPluggyInvestment(investmentId, savingsGoalId)
+      toast({
+        title: savingsGoalId ? "Investimento ligado à reserva" : "Investimento desligado",
+        description: savingsGoalId ? "O saldo da reserva agora vem do banco." : "A reserva volta a ser editada à mão.",
+        variant: "success",
+      })
+      await loadAll()
+    } catch (error: any) {
+      toast({ title: "Não foi possível salvar", description: error.message, variant: "destructive" })
+      await loadAll()
+    } finally {
+      setLinkingInvestmentId(null)
     }
   }
 
@@ -282,6 +359,14 @@ export function useBankSyncViewModel() {
     categories,
     cards,
     pendingRows,
+    investments,
+    savingsGoals,
+    reconnectingItemId,
+    removingItemId,
+    linkingInvestmentId,
+    reconnectBank,
+    removeBank,
+    linkInvestment,
     isLoaded,
     isSavingCredentials,
     isAddingItem,

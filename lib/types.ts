@@ -139,6 +139,9 @@ export interface SavingsGoal {
   icon: string
   cardId?: string // Added cardId to track which card the savings are from
   isCasal?: boolean // Reserva compartilhada: entra inteira (com todo o histórico) na conta do casal
+  // Investimentos do banco ligados a ela: com algum, o saldo vem do banco
+  // (atualizado a cada sincronização) e não é editado à mão.
+  bankInvestmentNames?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -197,7 +200,7 @@ export interface AppSettings {
   // Sincronização direta: o que chega da Pluggy entra sem revisão.
   pluggyDirectSync?: boolean
   // Quais notificações push a pessoa quer receber (ver lib/push.ts).
-  notificationPrefs?: { weekStart: boolean; weekly80: boolean; monthPlan: boolean; bankTransactions: boolean }
+  notificationPrefs?: { weekStart: boolean; weekly80: boolean; monthPlan: boolean; bankTransactions: boolean; bankConnection: boolean }
 }
 
 export interface CategoryGoal {

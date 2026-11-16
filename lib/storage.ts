@@ -513,10 +513,22 @@ export interface PluggyAccountMapping {
   paymentMethod?: PaymentMethod
 }
 
+// Saúde da conexão com o banco (ver dominio-api utils/pluggy-item-health.ts).
+// OK: tudo certo · ATTENTION: o banco não atualiza há dias · RECONNECT: a
+// pessoa precisa autorizar de novo · DELETED: removido no MeuPluggy ·
+// UNKNOWN: ainda não conferido.
+export type PluggyItemHealth = "OK" | "ATTENTION" | "RECONNECT" | "DELETED" | "UNKNOWN"
+
 export interface PluggyItemStatus {
   id: string
   pluggyItemId: string
   lastSyncedAt: string | null
+  health?: PluggyItemHealth
+  healthReason?: string | null
+  consentExpiresAt?: string | null
+  // Dias até a autorização no banco vencer (negativo = venceu).
+  consentDaysLeft?: number | null
+  bankUpdatedAt?: string | null
   // Corte pra primeira sincronização desse item — só tem efeito enquanto
   // `lastSyncedAt` ainda for null (senão o banco já sabe de onde continuar).
   syncFromDate: string | null
@@ -529,6 +541,27 @@ export interface PluggyConnectionStatus {
   // Webhook registrado na Pluggy: o app sincroniza e avisa sozinho quando o
   // banco atualiza (ver ADR-025).
   webhookActive: boolean
+}
+
+// Investimento visto no banco (Open Finance). `balance` é o valor bruto atual.
+export interface PluggyInvestment {
+  id: string
+  itemId: string
+  name: string
+  type: string
+  subtype: string | null
+  issuer: string | null
+  balance: number
+  amountOriginal: number | null
+  profit: number | null
+  // ACTIVE | PENDING | TOTAL_WITHDRAWAL (resgatado)
+  status: string | null
+  rate: number | null
+  rateType: string | null
+  fixedAnnualRate: number | null
+  dueDate: string | null
+  bankUpdatedAt: string | null
+  savingsGoalId: string | null
 }
 
 export interface PluggyAccount {
@@ -615,11 +648,40 @@ export async function savePluggyCredentials(clientId: string, clientSecret: stri
 }
 
 // Token de 30 min para abrir o widget Pluggy Connect — gerado no backend com
-// as credenciais da própria pessoa.
-export async function createPluggyConnectToken(): Promise<string> {
+// as credenciais da própria pessoa. Com `itemId`, abre direto naquele banco
+// pra autorizar de novo (reconexão).
+export async function createPluggyConnectToken(itemId?: string): Promise<string> {
   assertWritable()
-  const { accessToken } = await fetchApi("/pluggy/connect-token", { method: "POST" })
+  const { accessToken } = await fetchApi("/pluggy/connect-token", {
+    method: "POST",
+    body: JSON.stringify(itemId ? { itemId } : {}),
+  })
   return accessToken
+}
+
+// Desconecta o banco de verdade: a Pluggy para de ler os dados e somem daqui
+// as contas ligadas, a revisão pendente e os investimentos desse banco.
+// Transações já confirmadas ficam.
+export async function removePluggyItem(itemId: string): Promise<void> {
+  assertWritable()
+  await fetchApi(`/pluggy/items/${itemId}`, { method: "DELETE" })
+}
+
+export async function getPluggyInvestments(): Promise<PluggyInvestment[]> {
+  const raw = await fetchApi("/pluggy/investments")
+  return (raw || []).map((i: any) => ({
+    ...i,
+    balance: Number(i.balance),
+    amountOriginal: i.amountOriginal === null ? null : Number(i.amountOriginal),
+    profit: i.profit === null ? null : Number(i.profit),
+  }))
+}
+
+// `null` desliga: a reserva volta a ser editada à mão, com o último saldo.
+export async function linkPluggyInvestment(investmentId: string, savingsGoalId: string | null): Promise<void> {
+  assertWritable()
+  await fetchApi(`/pluggy/investments/${investmentId}`, { method: "PATCH", body: JSON.stringify({ savingsGoalId }) })
+  notifyStorageUpdate()
 }
 
 export async function addPluggyItem(pluggyItemId: string, syncFromDate?: string): Promise<PluggyItemStatus> {
@@ -1117,6 +1179,7 @@ function mapSavingsFromApi(s: any): SavingsGoal {
     icon: s.icon ?? "PiggyBank",
     cardId: s.cardId ?? undefined,
     isCasal: !!s.isCasal,
+    bankInvestmentNames: Array.isArray(s.pluggyInvestments) && s.pluggyInvestments.length > 0 ? s.pluggyInvestments.map((i: any) => String(i.name)) : undefined,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   }
@@ -1176,6 +1239,9 @@ export async function applySavingsGoalDelta(
   const goals = await getSavingsGoals()
   const goal = goals.find((g) => g.id === goalId)
   if (!goal) return
+  // Reserva ligada a investimento do banco: o saldo é o do banco e chega no
+  // próximo sync (a API recusa saldo digitado). A transação já ficou registrada.
+  if (goal.bankInvestmentNames?.length) return
 
   const newAmount = direction === "add" ? goal.currentAmount + amount : Math.max(0, goal.currentAmount - amount)
 

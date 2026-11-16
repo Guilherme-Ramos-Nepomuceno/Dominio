@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bank, Plus, ArrowsClockwise, Check, CheckCircle, CaretLeft, CaretRight, CaretDown, ArrowRight, Question, ArrowsLeftRight, Wallet, CreditCard } from "@phosphor-icons/react"
+import { Bank, Plus, ArrowsClockwise, Check, CheckCircle, CaretLeft, CaretRight, CaretDown, ArrowRight, Question, ArrowsLeftRight, Wallet, CreditCard, WarningCircle } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -28,6 +28,18 @@ import { PluggyCategoryMapSection } from "./pluggy-category-map-section"
 import { AppSelect } from "@/components/ui/app-select"
 import { checkPluggyCredentials, normalizePluggyCredential } from "@/lib/pluggy-credentials"
 import type { PluggyItemStatus } from "@/lib/storage"
+import { healthLine, canReconnect, needsAction, healthDetails } from "@/lib/pluggy-health"
+import { BankInvestmentsSection } from "./bank-investments-section"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // ReviewRow "genérico" não carrega id/itemId (só existem na Pluggy, não no
 // import de OFX que também usa esse mesmo componente) — estende localmente
@@ -74,6 +86,8 @@ export function BankSyncView() {
   const [newItemSyncFrom, setNewItemSyncFrom] = useState("")
   const [syncFromDraft, setSyncFromDraft] = useState<Record<string, string>>({})
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
+  // Banco que a pessoa pediu pra desconectar (confirmação aberta).
+  const [itemToRemove, setItemToRemove] = useState<{ id: string; label: string } | null>(null)
   const [showAddItem, setShowAddItem] = useState(false)
   // Colar o itemId à mão: alternativa ao widget (ex: widget bloqueado).
   const [showManualItemId, setShowManualItemId] = useState(false)
@@ -571,6 +585,9 @@ export function BankSyncView() {
   const connected = !!vm.connection?.connected
   const items = vm.connection?.items ?? []
   const hasMappedAccounts = items.some((i) => i.accountMappings.length > 0)
+  // Banco com conta ligada que parou de sincronizar: aparece no topo, senão a
+  // pessoa só descobre lá embaixo (ou acha que não gastou nada).
+  const brokenItems = items.filter((i) => i.accountMappings.length > 0 && needsAction(i))
   const pendingTotal = banks.reduce((sum, b) => sum + b.total, 0)
   const toReview = pendingTotal + transferPairs.length
   const lastSyncedAt = items
@@ -820,6 +837,30 @@ export function BankSyncView() {
             )}
           </section>
 
+          {brokenItems.length > 0 && (
+            <div role="status" className="flex items-start gap-3 rounded-xl border border-border p-4">
+              <WarningCircle size={20} weight="fill" className="mt-0.5 shrink-0 text-attention-ink" aria-hidden />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  {brokenItems.length === 1 ? "Um banco parou de sincronizar" : `${brokenItems.length} bancos pararam de sincronizar`}
+                </p>
+                <p className="text-xs text-muted-foreground">Enquanto isso, os lançamentos novos dele não chegam aqui. Abra o banco em Bancos conectados para reconectar.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const first = brokenItems[0]
+                  setExpandedItemId(first.id)
+                  vm.loadAccountsForItem(first.id)
+                  document.getElementById("sync-items-title")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }}
+                className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                Ver
+              </button>
+            </div>
+          )}
+
           {/* 2. Transferências identificadas — pares de contas já mapeadas,
               prontos pra confirmar de uma vez, sem entrar em cada banco. */}
           {transferPairs.length > 0 && (
@@ -969,6 +1010,8 @@ export function BankSyncView() {
                 const itemBankName = mappedCards[0]?.bankName
                 const ItemBankIcon = itemBankName ? getBankIcon(itemBankName) : Bank
                 const isOpen = expandedItemId === item.id
+                const status = healthLine(item)
+                const itemLabel = mappedCardNames.length > 0 ? mappedCardNames.join(" + ") : "Banco sem conta ligada"
 
                 return (
                   <li key={item.id} className="py-3.5">
@@ -983,9 +1026,13 @@ export function BankSyncView() {
                     >
                       <ItemBankIcon size={22} weight="duotone" className="shrink-0" style={{ color: itemBankName ? bankColors[itemBankName] : undefined }} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-foreground">
-                          {mappedCardNames.length > 0 ? mappedCardNames.join(" + ") : "Banco sem conta ligada"}
-                        </span>
+                        <span className="block truncate text-sm font-medium text-foreground">{itemLabel}</span>
+                        {status && (
+                          <span className="flex items-center gap-1 text-xs font-medium text-attention-ink">
+                            <WarningCircle size={12} weight="fill" className="shrink-0" aria-hidden />
+                            <span className="truncate">{status.text}</span>
+                          </span>
+                        )}
                         <span className="block truncate text-xs text-muted-foreground">
                           {item.accountMappings.length === 0
                             ? "Toque para ligar as contas aos seus cartões"
@@ -999,6 +1046,35 @@ export function BankSyncView() {
 
                     {isOpen && (
                       <div className="mt-3 space-y-4 border-l-2 border-border pl-4">
+                        {/* Saúde da conexão: quando atualizou, até quando vale e o que fazer */}
+                        <div className="space-y-2">
+                          {healthDetails(item).map((line) => (
+                            <p key={line} className="text-xs text-muted-foreground">
+                              {line}
+                            </p>
+                          ))}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {canReconnect(item) && (
+                              <button
+                                type="button"
+                                disabled={vm.reconnectingItemId === item.id}
+                                onClick={() => vm.reconnectBank(item)}
+                                className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-background hover:bg-primary/90 transition-colors disabled:opacity-50"
+                              >
+                                {vm.reconnectingItemId === item.id ? "Abrindo a Pluggy..." : item.health === "OK" ? "Renovar autorização" : "Reconectar"}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={vm.removingItemId === item.id}
+                              onClick={() => setItemToRemove({ id: item.id, label: itemLabel })}
+                              className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                            >
+                              {vm.removingItemId === item.id ? "Desconectando..." : "Desconectar banco"}
+                            </button>
+                          </div>
+                        </div>
+
                         <p className="break-all text-[11px] text-muted-foreground">Item {item.pluggyItemId}</p>
 
                         {/* Contas do banco → cartões do app */}
@@ -1170,6 +1246,13 @@ export function BankSyncView() {
             </ul>
           </section>
 
+          <BankInvestmentsSection
+            investments={vm.investments}
+            savingsGoals={vm.savingsGoals}
+            linkingInvestmentId={vm.linkingInvestmentId}
+            onLink={vm.linkInvestment}
+          />
+
           {/* 5. Mapa categoria do banco → categoria da conta */}
           <PluggyCategoryMapSection />
 
@@ -1196,6 +1279,32 @@ export function BankSyncView() {
           </section>
         </div>
       )}
+
+      <AlertDialog open={!!itemToRemove} onOpenChange={(open) => !open && setItemToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desconectar {itemToRemove?.label ?? "banco"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A Pluggy para de ler os dados desse banco. Somem daqui as contas ligadas, os lançamentos ainda não revisados e os investimentos dele. O que você já confirmou continua no app.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!itemToRemove) return
+                const { id } = itemToRemove
+                setItemToRemove(null)
+                const removed = await vm.removeBank(id)
+                if (removed && expandedItemId === id) setExpandedItemId(null)
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Desconectar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {addCardForAccount && (
         <AddCardDialog

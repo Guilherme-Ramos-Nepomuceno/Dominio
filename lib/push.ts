@@ -7,9 +7,11 @@ export interface NotificationPrefs {
   monthPlan: boolean
   // Lançamentos novos do banco (Pluggy) esperando revisão.
   bankTransactions: boolean
+  // Conexão com o banco caiu ou a autorização está perto de vencer.
+  bankConnection: boolean
 }
 
-export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = { weekStart: true, weekly80: true, monthPlan: true, bankTransactions: true }
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = { weekStart: true, weekly80: true, monthPlan: true, bankTransactions: true, bankConnection: true }
 
 export function mapNotificationPrefs(raw: any): NotificationPrefs {
   return {
@@ -17,6 +19,7 @@ export function mapNotificationPrefs(raw: any): NotificationPrefs {
     weekly80: raw?.weekly80 ?? DEFAULT_NOTIFICATION_PREFS.weekly80,
     monthPlan: raw?.monthPlan ?? DEFAULT_NOTIFICATION_PREFS.monthPlan,
     bankTransactions: raw?.bankTransactions ?? DEFAULT_NOTIFICATION_PREFS.bankTransactions,
+    bankConnection: raw?.bankConnection ?? DEFAULT_NOTIFICATION_PREFS.bankConnection,
   }
 }
 

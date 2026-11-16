@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowsDownUp, CheckCircle, Heart, Pencil, Trash } from "@phosphor-icons/react"
+import { ArrowsDownUp, Bank, CheckCircle, Heart, Pencil, Trash } from "@phosphor-icons/react"
 import { formatCurrency } from "@/lib/date-utils"
 import { formatMoneyWhole } from "@/lib/plan-layout"
 import { getSavingsIcon } from "@/lib/savings-icons"
@@ -20,6 +20,8 @@ export function SavingsGoalCard({ goal, onDelete, onEdit }: SavingsGoalCardProps
   const pct = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0
   const reached = goal.targetAmount > 0 && goal.currentAmount >= goal.targetAmount
   const Icon = getSavingsIcon(goal.icon)
+  // Ligada a investimento do banco: o saldo acompanha o banco a cada sync.
+  const bankNames: string[] = goal.bankInvestmentNames ?? []
 
   return (
     <li className="py-4">
@@ -82,6 +84,13 @@ export function SavingsGoalCard({ goal, onDelete, onEdit }: SavingsGoalCardProps
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
+
+      {bankNames.length > 0 && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Bank size={12} weight="bold" className="shrink-0" aria-hidden />
+          <span className="truncate">Saldo do banco · {bankNames.join(", ")}</span>
+        </p>
+      )}
 
       {/* Guardar/retirar passa pelo fluxo normal de Nova Transação (categoria
           Investimento), que atualiza o saldo desta reserva automaticamente. */}

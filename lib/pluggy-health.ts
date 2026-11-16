@@ -1,0 +1,107 @@
+// Como a tela de banco mostra a saúde de cada conexão e os investimentos que
+// vêm do banco. Funções puras (testáveis com node:test). A regra de "está
+// saudável ou não" é do backend (dominio-api utils/pluggy-item-health.ts);
+// aqui é só texto e decisão de quais botões aparecem.
+
+export type ItemHealthState = "OK" | "ATTENTION" | "RECONNECT" | "DELETED" | "UNKNOWN"
+
+export interface ItemHealthInfo {
+  health?: ItemHealthState
+  healthReason?: string | null
+  consentExpiresAt?: string | null
+  consentDaysLeft?: number | null
+  bankUpdatedAt?: string | null
+}
+
+// A partir daqui já vale renovar a autorização (o push sai com 30 e com 7 dias).
+export const CONSENT_RENEW_DAYS = 30
+
+export interface HealthLine {
+  tone: "attention" | "muted"
+  text: string
+}
+
+function dayMonthYear(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Sao_Paulo" })
+}
+
+// Linha de status embaixo do nome do banco. null = nada a dizer.
+export function healthLine(item: ItemHealthInfo): HealthLine | null {
+  if (item.health === "RECONNECT" || item.health === "DELETED" || item.health === "ATTENTION") {
+    return { tone: "attention", text: item.healthReason || "A conexão com o banco parou" }
+  }
+  const days = item.consentDaysLeft
+  if (item.health === "OK" && typeof days === "number" && days > 0 && days <= CONSENT_RENEW_DAYS) {
+    return { tone: "attention", text: `A autorização vence em ${days} dia${days === 1 ? "" : "s"}` }
+  }
+  return null
+}
+
+// Reconectar (widget em modo de atualização) resolve autorização vencida ou
+// caída. Item apagado no MeuPluggy não tem o que reconectar: só remover.
+export function canReconnect(item: ItemHealthInfo): boolean {
+  if (item.health === "RECONNECT" || item.health === "ATTENTION") return true
+  const days = item.consentDaysLeft
+  return item.health === "OK" && typeof days === "number" && days <= CONSENT_RENEW_DAYS
+}
+
+export function needsAction(item: ItemHealthInfo): boolean {
+  return item.health === "RECONNECT" || item.health === "DELETED" || item.health === "ATTENTION"
+}
+
+// Detalhes no painel aberto do banco: quando atualizou e até quando vale.
+export function healthDetails(item: ItemHealthInfo): string[] {
+  const lines: string[] = []
+  if (item.bankUpdatedAt) lines.push(`Banco atualizado em ${dayMonthYear(item.bankUpdatedAt)}`)
+  if (item.consentExpiresAt && item.health !== "DELETED") {
+    const days = item.consentDaysLeft
+    const suffix = typeof days === "number" && days > 0 ? ` (${days} dia${days === 1 ? "" : "s"})` : ""
+    lines.push(`Autorização válida até ${dayMonthYear(item.consentExpiresAt)}${suffix}`)
+  }
+  return lines
+}
+
+// ---- Investimentos ----
+
+export interface InvestmentLike {
+  name: string
+  subtype: string | null
+  balance: number
+  status: string | null
+  rate: number | null
+  rateType: string | null
+  fixedAnnualRate: number | null
+  dueDate: string | null
+}
+
+// Resgatado (ou zerado) não interessa na lista principal.
+export function isActiveInvestment(inv: Pick<InvestmentLike, "status" | "balance">): boolean {
+  return inv.status !== "TOTAL_WITHDRAWAL" && inv.balance > 0
+}
+
+function percent(value: number): string {
+  return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`
+}
+
+// "90% do CDI", "IPCA + 5,5%", "12% a.a." — o que o banco mandou, em português.
+export function rateLabel(inv: Pick<InvestmentLike, "rate" | "rateType" | "fixedAnnualRate">): string | null {
+  const fixed = inv.fixedAnnualRate && inv.fixedAnnualRate > 0 ? inv.fixedAnnualRate : null
+  if (inv.rateType && inv.rateType !== "PRE_FIXADO" && inv.rate) {
+    if (inv.rateType === "IPCA" || inv.rateType === "IGPM" || inv.rateType === "INPC") {
+      return fixed ? `${inv.rateType} + ${percent(fixed)}` : inv.rateType
+    }
+    return `${percent(inv.rate)} do ${inv.rateType}`
+  }
+  if (fixed) return `${percent(fixed)} a.a.`
+  return null
+}
+
+// "LCI · 90% do CDI · vence 05/2031"
+export function investmentSubtitle(inv: InvestmentLike): string {
+  const parts = [inv.subtype, rateLabel(inv)]
+  if (inv.dueDate) {
+    const d = new Date(inv.dueDate)
+    parts.push(`vence ${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`)
+  }
+  return parts.filter(Boolean).join(" · ")
+}
