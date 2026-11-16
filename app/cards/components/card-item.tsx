@@ -5,6 +5,7 @@ import { ArrowsLeftRight, CaretRight, DotsThreeVertical, PencilSimple, PiggyBank
 import type { Card, SavingsGoal } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 import { formatCurrency } from "@/lib/date-utils"
+import { amountToPay, cardInvoiceHref, limitUsage, openInvoiceLabel } from "@/lib/card-invoice"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -64,30 +65,26 @@ function CardMenu({ card, onDelete, onEdit, onMerge, onImport }: CardActions & {
   )
 }
 
-// "2026-11-16" → "16/11" (data pura do banco, sem passar por Date/fuso).
-function dayMonth(isoDate: string) {
-  const [, month, day] = isoDate.split("-")
-  return `${day}/${month}`
-}
-
-// Cartão de crédito: o que está devido à direita e o limite usado numa barra
-// fina. Vinculado ao banco, tudo (devido, limite, disponível, datas) é o que o
-// banco informa. Tocar abre as faturas do cartão.
-export function CreditCardRow({ card, invoice, actions }: { card: Card; invoice: number; actions: CardActions }) {
+// Cartão de crédito: à direita, quanto vai pagar na fatura aberta (a que
+// recebe as compras de hoje); a barra fina é o limite em uso. Vinculado ao
+// banco, limite e disponível são os do banco e a fatura só soma o que veio
+// de lá. Tocar abre essa fatura aberta.
+export function CreditCardRow({ card, actions }: { card: Card; actions: CardActions }) {
   const BankIcon = getBankIcon(card.bankName)
   const bank = card.bank?.credit ?? null
-  const limit = bank?.limit ?? card.limit ?? 0
-  const used = limit > 0 ? Math.min(1, Math.max(0, invoice / limit)) : 0
-  const free = bank?.available ?? limit - invoice
+  const invoice = amountToPay(card)
+  const { limit, used, free } = limitUsage(card)
   const final = digits(card)
-  const due = bank?.dueDate ? `vence ${dayMonth(bank.dueDate)}` : card.dueDate && `vence ${card.dueDate}`
-  const dates = [card.closingDate && `fecha ${card.closingDate}`, due].filter(Boolean).join(" · ")
+  const open = card.openInvoice ?? null
+  const dates = open
+    ? openInvoiceLabel(open)
+    : [card.closingDate && `fecha ${card.closingDate}`, card.dueDate && `vence ${card.dueDate}`].filter(Boolean).join(" · ")
   const title = limit > 0 ? `Limite de ${formatCurrency(limit)}${bank ? " · informado pelo banco" : ""}` : undefined
 
   return (
     <li className="flex items-start gap-3 py-4">
       <BankIcon size={22} weight="fill" color={card.color} className="mt-0.5 shrink-0" aria-hidden />
-      <Link href={`/invoices?card=${card.id}`} className="flex-1 min-w-0 space-y-2 group" title={title}>
+      <Link href={cardInvoiceHref(card)} className="flex-1 min-w-0 space-y-2 group" title={title}>
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-medium text-foreground truncate">
             {card.name}
@@ -106,18 +103,28 @@ export function CreditCardRow({ card, invoice, actions }: { card: Card; invoice:
             />
           </div>
         )}
-        <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
-          <span>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          {dates && <span>{dates}</span>}
+          <span className="ml-auto">
             {limit > 0 ? (
               <>
-                <span className={cn(free < 0 && "text-expense")}>{formatCurrency(free)}</span> {bank ? "disponíveis" : "livres"}
+                <span className={cn(free < 0 && "text-expense")}>{formatCurrency(free)}</span> de limite livre
               </>
             ) : (
               "Sem limite cadastrado"
             )}
           </span>
-          {dates && <span className="shrink-0">{dates}</span>}
         </div>
+        {open && (open.awaitingReview >= 0.01 || open.manualExcluded >= 0.01) && (
+          <p className="text-xs text-muted-foreground">
+            {[
+              open.awaitingReview >= 0.01 && `inclui ${formatCurrency(open.awaitingReview)} aguardando revisão`,
+              open.manualExcluded >= 0.01 && `${formatCurrency(open.manualExcluded)} lançado à mão fica fora`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        )}
       </Link>
       <CardMenu card={card} {...actions} />
     </li>

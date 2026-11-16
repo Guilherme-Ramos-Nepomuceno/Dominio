@@ -180,7 +180,7 @@ export function InvoicesView() {
     const paidSoFar = inv ? inv.total - inv.totalPending : 0
     const heroAmount = bank
         ? bank.paid ? bank.total : bankRemaining
-        : fromBank ? (inv?.total ?? 0) : isPaid ? (inv?.total ?? 0) : (inv?.totalPending ?? 0)
+        : fromBank ? (inv?.total ?? 0) + (inv?.awaitingReview ?? 0) : isPaid ? (inv?.total ?? 0) : (inv?.totalPending ?? 0)
     const heroLabel = bank
         ? bank.paid ? "Fatura paga" : "Falta pagar"
         : fromBank ? "Fatura aberta" : isPaid ? "Fatura paga" : inv?.total === 0 ? "Fatura" : "Falta pagar"
@@ -248,6 +248,7 @@ export function InvoicesView() {
                                             {formatCurrency(
                                                 ci.invoice?.bank
                                                     ? ci.invoice.bank.paid ? ci.invoice.bank.total : Math.max(0, ci.invoice.bank.total - ci.invoice.bank.paidAmount)
+                                                    : ci.card.bank?.credit ? ci.total + ci.awaitingReview
                                                     : ci.totalPending > 0 ? ci.totalPending : ci.total,
                                             )}
                                         </span>
@@ -290,9 +291,15 @@ export function InvoicesView() {
                                                 )}
                                             </>
                                         ) : fromBank ? (
-                                            <p className="text-xs text-muted-foreground">
-                                                Registrado até agora. O total sai quando o banco fechar a fatura.
-                                            </p>
+                                            <div className="space-y-0.5 text-xs text-muted-foreground">
+                                                <p>Lançado até agora. O total sai quando o banco fechar a fatura.</p>
+                                                {inv.awaitingReview >= 0.01 && (
+                                                    <p>
+                                                        Inclui {formatCurrency(inv.awaitingReview)}{" "}
+                                                        <Link href="/bank-sync" className="underline underline-offset-2 hover:text-foreground">aguardando revisão</Link>.
+                                                    </p>
+                                                )}
+                                            </div>
                                         ) : isPaid ? (
                                             <p className="flex items-center gap-1.5 text-sm font-medium text-positive-ink">
                                                 <CheckCircle size={16} weight="fill" aria-hidden />
@@ -399,7 +406,7 @@ export function InvoicesView() {
                                             ].filter(Boolean)
 
                                             return (
-                                                <li key={transaction.id} className={cn("flex items-start gap-3 py-3.5", paid && "opacity-60")}>
+                                                <li key={transaction.id} className={cn("flex items-start gap-3 py-3.5", (paid || transaction.outOfTotal) && "opacity-60")}>
                                                     {/* @ts-ignore - Dynamic icon component */}
                                                     <CategoryIcon size={22} weight="duotone" className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
                                                     <div className="flex-1 min-w-0">
@@ -409,6 +416,9 @@ export function InvoicesView() {
                                                         </p>
                                                         {purchase && (
                                                             <p className="text-[11px] text-muted-foreground">Comprou em {formatDate(purchase.date)}</p>
+                                                        )}
+                                                        {transaction.outOfTotal && (
+                                                            <p className="text-[11px] text-muted-foreground">Lançado à mão · fora do total (a fatura vem do banco)</p>
                                                         )}
                                                     </div>
                                                     <div className="flex shrink-0 flex-col items-end gap-1">

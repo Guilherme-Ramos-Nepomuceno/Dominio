@@ -7,7 +7,11 @@ import {
     markTransactionAsPaid,
     cancelTransaction,
     cancelRecurringTransaction,
-    getCards
+    getCards,
+    getPendingPaymentMatches,
+    settlePendingWithPayment,
+    dismissPendingPaymentMatch,
+    type PendingPaymentMatch,
 } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
@@ -21,6 +25,9 @@ export function usePendingViewModel() {
     const [categories, setCategories] = useState<Category[]>([])
     const [cards, setCards] = useState<Card[]>([])
     const [isLoaded, setIsLoaded] = useState(false)
+    // "Parece que você já pagou": pendência → lançamento do banco que a pagou.
+    const [paymentMatches, setPaymentMatches] = useState<Map<string, PendingPaymentMatch["transaction"]>>(new Map())
+    const [busyMatchId, setBusyMatchId] = useState<string | null>(null)
 
     const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null)
     const [selectedCard, setSelectedCard] = useState<string>("")
@@ -39,14 +46,16 @@ export function usePendingViewModel() {
     const [paidBy, setPaidBy] = useState<string>("")
 
     const loadData = useCallback(async () => {
-        const [allPending, allCategories, allCards] = await Promise.all([
+        const [allPending, allCategories, allCards, matches] = await Promise.all([
             getPendingTransactions(),
             getCategories(),
             getCards(),
+            getPendingPaymentMatches(),
         ])
         setPendingTransactions(allPending)
         setCategories(allCategories)
         setCards(allCards)
+        setPaymentMatches(new Map(matches.map((m) => [m.pendingId, m.transaction])))
         setIsLoaded(true)
     }, [])
 
@@ -150,6 +159,33 @@ export function usePendingViewModel() {
         }
     }
 
+    // "É esse": baixa na pendência com a data/conta do banco, sem duplicar.
+    const settleWithMatch = async (pendingId: string) => {
+        const match = paymentMatches.get(pendingId)
+        if (!match || busyMatchId) return
+        setBusyMatchId(pendingId)
+        try {
+            await settlePendingWithPayment(pendingId, match.id)
+            toast({ title: "Baixa feita", description: `Ligada a "${match.description}" do banco, sem contar duas vezes.`, variant: "success" })
+            await loadData()
+        } catch (error: any) {
+            toast({ title: "Não foi possível dar baixa", description: error?.message, variant: "destructive" })
+        } finally {
+            setBusyMatchId(null)
+        }
+    }
+
+    const dismissMatch = async (pendingId: string) => {
+        const match = paymentMatches.get(pendingId)
+        if (!match) return
+        setPaymentMatches((prev) => {
+            const next = new Map(prev)
+            next.delete(pendingId)
+            return next
+        })
+        await dismissPendingPaymentMatch(pendingId, match.id).catch(() => {})
+    }
+
     const confirmCancel = async () => {
         if (transactionToCancel) {
             await cancelTransaction(transactionToCancel)
@@ -190,6 +226,10 @@ export function usePendingViewModel() {
         cards,
         isLoaded,
         visibleTransactions,
+        paymentMatches,
+        busyMatchId,
+        settleWithMatch,
+        dismissMatch,
         selectedTransaction,
         setSelectedTransaction,
         selectedCard,

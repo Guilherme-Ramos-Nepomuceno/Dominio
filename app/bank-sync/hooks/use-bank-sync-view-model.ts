@@ -261,6 +261,8 @@ export function useBankSyncViewModel() {
       const parts = [
         result.createdCount > 0 ? `${result.createdCount} nova${result.createdCount === 1 ? "" : "s"}` : "",
         result.linkedCount > 0 ? `${result.linkedCount} vinculada${result.linkedCount === 1 ? "" : "s"} a lançamento já existente` : "",
+        // Pagamento de fatura ou de conta das pendências: baixa no que já existia.
+        result.settledCount > 0 ? `${result.settledCount} baixa${result.settledCount === 1 ? "" : "s"} em conta${result.settledCount === 1 ? "" : "s"} já registrada${result.settledCount === 1 ? "" : "s"}` : "",
       ].filter(Boolean)
       toast({ title: "Confirmado!", description: `${parts.join(", ") || "Nada a importar"}.`, variant: "success" })
     }

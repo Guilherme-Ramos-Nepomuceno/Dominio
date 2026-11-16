@@ -20,6 +20,7 @@ Para evitar poluição visual com repetições infinitas de transações recorre
 
 - **Baixar (Mark as Paid)**: Abre opções para definir `confirmDate` (data real do pagamento) e selecionar `cardId` (conta de origem/destino).
 - **Cancelar**: Remove a transação do planejamento.
+- **Já pago pelo banco**: ao abrir, busca lançamentos do banco que parecem ser o pagamento de cada conta (mesma conta + valor + data até 5 dias do vencimento; ver ADR-027). "É esse, dar baixa" baixa a conta com os dados do banco e junta os dois, sem duplicar; "Não é" não sugere de novo.
 
 ## Regras de Negócio
 

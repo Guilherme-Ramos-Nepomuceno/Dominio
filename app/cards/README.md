@@ -22,7 +22,7 @@ Este módulo utiliza o padrão **MVVM**:
 ## Regras de Negócio
 
 1. **Cálculo de Saldo**:
-   - **Crédito**: Soma das transações do tipo `expense` na fatura atual.
+   - **Crédito**: o valor de cada cartão é a **fatura aberta** (`card.openInvoice`, a que recebe as compras de hoje), e o topo soma todas em "A pagar nos cartões". Cartão ligado ao banco só conta o que veio do banco (mais a fila de revisão); lançamento manual fica fora do total. O toque abre essa fatura (`/invoices?card=…&month=AAAA-MM`). A barra é o limite em uso informado pelo banco. Ver ADR-027.
    - **Débito**: Saldo da conta (`accountBalance`) calculado via movimentações.
 2. **Exclusão**:
    - Só é permitida após confirmação em modal (`AlertDialog`).

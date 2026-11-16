@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice } from "@/lib/storage"
 import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { Card, Transaction, Category, Invoice } from "@/lib/types"
 import { effectiveTransactionType } from "@/lib/category-utils"
+import { countsInInvoice, openInvoiceMonthKey } from "@/lib/card-invoice"
 
 export function useInvoicesViewModel() {
     const [cards, setCards] = useState<Card[]>([])
@@ -47,6 +48,23 @@ export function useInvoicesViewModel() {
             setSelectedCardId(cards.some((c) => c.id === fromUrl) ? fromUrl : cards[0].id)
         }
     }, [cards, selectedCardId])
+
+    // Vindo de Cartões (?month=AAAA-MM): abre na fatura aberta do cartão, que
+    // pode ser a do mês seguinte (cartão que já fechou este mês). O mês
+    // escolhido vale pro app todo, então ao sair volta o que estava — a não
+    // ser que a pessoa tenha trocado o mês aqui de propósito.
+    const monthRef = useRef(selectedMonth)
+    monthRef.current = selectedMonth
+    useEffect(() => {
+        const month = new URLSearchParams(window.location.search).get("month")
+        if (!month || !/^\d{4}-\d{2}$/.test(month) || month === monthRef.current) return
+        const previous = monthRef.current
+        setSelectedMonth(month)
+        return () => {
+            if (monthRef.current === month) setSelectedMonth(previous)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     useEffect(() => {
         if (cards.length === 0) return
@@ -101,17 +119,27 @@ export function useInvoicesViewModel() {
                 return getInvoiceMonth(t.date, card.closingDate) === selectedMonth
             })
 
-            const totalInvoice = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
-            const pendingTransactions = monthTransactions.filter(t => t.status === "pending")
+            // Cartão ligado ao banco: lançamento manual aparece, mas fica fora
+            // do total (a fonte da fatura é o banco — somar contaria duas vezes).
+            const counted = monthTransactions.filter((t) => countsInInvoice(card, t))
+            const totalInvoice = counted.reduce((sum, t) => sum + t.amount, 0)
+            const pendingTransactions = counted.filter(t => t.status === "pending")
             const totalPending = pendingTransactions.reduce((sum, t) => sum + t.amount, 0)
+            const manualExcluded = monthTransactions.length - counted.length
+            // Fatura aberta: o que ainda está na revisão do banco também vai ser cobrado.
+            const awaitingReview = card.openInvoice && openInvoiceMonthKey(card.openInvoice) === selectedMonth ? card.openInvoice.awaitingReview : 0
 
             return {
                 card,
                 invoice: realInvoice,
-                transactions: monthTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+                transactions: monthTransactions
+                    .map((t) => (countsInInvoice(card, t) ? t : { ...t, outOfTotal: true }))
+                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
                 pendingTransactions,
                 total: totalInvoice,
-                totalPending: totalPending
+                totalPending: totalPending,
+                manualExcluded,
+                awaitingReview,
             }
         })
     }, [cards, transactions, categories, selectedMonth, invoicesByCard])

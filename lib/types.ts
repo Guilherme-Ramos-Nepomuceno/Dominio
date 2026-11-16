@@ -160,6 +160,21 @@ export interface Card {
   calculatedBalance?: number // Calculado pelo backend (contas de débito)
   investmentTotal?: number // Calculado pelo backend (soma das Reservas vinculadas)
   bank?: CardBank | null // Vinculado à Pluggy: saldo/limite/fatura do banco
+  // Cartão de crédito: a fatura aberta (a que recebe as compras de hoje) — o
+  // que vai pagar no próximo vencimento. Ligado ao banco, só conta o que veio
+  // do banco; lançamento manual fica em `manualExcluded`.
+  openInvoice?: OpenInvoice | null
+}
+
+export interface OpenInvoice {
+  year: number
+  month: number
+  closingDate: string // AAAA-MM-DD
+  dueDate: string // AAAA-MM-DD
+  total: number
+  registered: number
+  awaitingReview: number
+  manualExcluded: number
 }
 
 export interface MonthData {

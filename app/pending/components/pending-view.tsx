@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CalendarCheck, Check, Heart, PencilSimple, Prohibit, SkipForward } from "@phosphor-icons/react"
+import { Bank, CalendarCheck, Check, Heart, PencilSimple, Prohibit, SkipForward } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
 import { formatCurrency } from "@/lib/date-utils"
@@ -31,6 +31,9 @@ import { useAccount } from "@/components/account/account-context"
 
 type Filter = "all" | "expense" | "income"
 
+// "2026-11-09T12:00:00.000Z" → "09/11"
+const formatShortDate = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+
 const FILTERS: Array<{ id: Filter; label: string }> = [
     { id: "all", label: "Tudo" },
     { id: "expense", label: "A pagar" },
@@ -54,6 +57,7 @@ export function PendingView() {
         [vm.visibleTransactions, vm.categories],
     )
     const summary = useMemo(() => pendingSummary(typed, todayISO), [typed, todayISO])
+    const visibleMatches = typed.filter((t) => vm.paymentMatches.has(t.id)).length
     const sections = useMemo(
         () => groupPending(typed.filter((t) => filter === "all" || t.type === filter), todayISO),
         [typed, filter, todayISO],
@@ -103,6 +107,14 @@ export function PendingView() {
                                     {summary.overdueAmount > 0 && ` · ${formatCurrency(summary.overdueAmount)}`}
                                 </p>
                             )}
+                            {!isReadOnly && visibleMatches > 0 && (
+                                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <Bank size={13} weight="duotone" className="text-primary" aria-hidden />
+                                    {visibleMatches === 1
+                                        ? "1 conta parece já ter sido paga pelo banco. Confira abaixo."
+                                        : `${visibleMatches} contas parecem já ter sido pagas pelo banco. Confira abaixo.`}
+                                </p>
+                            )}
                         </section>
 
                         {/* Filtro */}
@@ -149,6 +161,7 @@ export function PendingView() {
                                         const isRecurring = !!transaction.recurrence && transaction.recurrence !== "none"
                                         const open = vm.selectedTransaction === transaction.id
                                         const overdue = section.bucket === "overdue"
+                                        const match = vm.paymentMatches.get(transaction.id)
                                         const meta = [
                                             transactionCategoryLabel(vm.categories, transaction),
                                             isInstallment ? `${currentInst}/${totalInst}` : isRecurring ? "mensal" : null,
@@ -188,6 +201,37 @@ export function PendingView() {
                                                         </p>
                                                     </div>
                                                 </button>
+
+                                                {match && !isReadOnly && !open && (
+                                                    <div className="mb-3 ml-8.5 rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2.5">
+                                                        <p className="flex items-start gap-1.5 text-xs text-foreground">
+                                                            <Bank size={14} weight="duotone" className="mt-px shrink-0 text-primary" aria-hidden />
+                                                            <span>
+                                                                Parece que já {isExpense ? "foi pago" : "entrou"}:{" "}
+                                                                <span className="font-medium">{match.description}</span>, {formatCurrency(match.amount)} em{" "}
+                                                                {formatShortDate(match.date)}
+                                                                {match.cardName && ` · ${match.cardName}`}
+                                                            </span>
+                                                        </p>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => vm.settleWithMatch(transaction.id)}
+                                                                disabled={vm.busyMatchId === transaction.id}
+                                                                className="flex-1 rounded-lg bg-foreground py-2 text-xs font-semibold text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                                                            >
+                                                                {vm.busyMatchId === transaction.id ? "Dando baixa..." : "É esse, dar baixa"}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => vm.dismissMatch(transaction.id)}
+                                                                className="flex-1 rounded-lg border border-border py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                                                            >
+                                                                Não é
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 {open && !isReadOnly && (
                                                     <div className="space-y-5 pb-5 pl-[34px] animate-in fade-in slide-in-from-top-1 motion-reduce:animate-none">

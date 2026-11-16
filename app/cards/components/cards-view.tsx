@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { SkeletonSection, SkeletonSummary } from "@/components/ui/loading-skeletons"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { formatCurrency } from "@/lib/date-utils"
+import { totalToPay } from "@/lib/card-invoice"
 import { AccountRow, CreditCardRow, type CardActions } from "./card-item"
 import { AddCardDialog } from "./add-card-dialog"
 import { EditCardDialog } from "./edit-card-dialog"
@@ -54,7 +55,8 @@ export function CardsView() {
     const creditCards = processedCards.filter((c) => c.hasCredit)
     const accounts = processedCards.filter((c) => c.hasDebit && !(c.bank?.credit && !c.bank?.account)).sort((a, b) => (b.calculatedBalance ?? 0) - (a.calculatedBalance ?? 0))
     const totalBalance = accounts.reduce((sum, c) => sum + (c.calculatedBalance ?? 0), 0)
-    const totalInvoices = creditCards.reduce((sum, c) => sum + c.spentAmount, 0)
+    // A pagar = soma das faturas abertas (o que vence a seguir em cada cartão).
+    const totalInvoices = totalToPay(creditCards)
     const actionsFor: CardActions = isReadOnly
         ? {}
         : { onDelete: (id) => setCardToDelete(id), onEdit: setEditingCard, onMerge: setMergingCard, onImport: setImportingCard }
@@ -81,8 +83,9 @@ export function CardsView() {
                                 </div>
                                 {creditCards.length > 0 && (
                                     <div>
-                                        <p className="text-xs text-muted-foreground">Nos cartões</p>
+                                        <p className="text-xs text-muted-foreground">A pagar nos cartões</p>
                                         <p className="text-2xl font-semibold tabular-nums text-foreground">{formatCurrency(totalInvoices)}</p>
+                                        <p className="text-[11px] text-muted-foreground">nas faturas abertas</p>
                                     </div>
                                 )}
                             </div>
@@ -100,7 +103,7 @@ export function CardsView() {
                                 </div>
                                 <ul className="mt-1 divide-y divide-border">
                                     {creditCards.map((card) => (
-                                        <CreditCardRow key={card.id} card={card} invoice={card.spentAmount} actions={actionsFor} />
+                                        <CreditCardRow key={card.id} card={card} actions={actionsFor} />
                                     ))}
                                 </ul>
                             </section>

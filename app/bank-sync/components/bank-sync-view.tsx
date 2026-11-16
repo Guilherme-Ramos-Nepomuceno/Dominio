@@ -44,6 +44,7 @@ type PluggyReviewRow = ReviewRow & {
   matchedManualTransactionId?: string
   matchedManualTransactionDescription?: string
   matchedManualTransactionDate?: string
+  matchedManualTransactionStatus?: "PENDING" | "PAID"
   duplicateDecision?: "yes" | "no"
 }
 
@@ -395,6 +396,9 @@ export function BankSyncView() {
       ? new Date(r.matchedManualTransactionDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
       : undefined
     const reset = () => vm.updatePendingRow(r.externalId, { duplicateDecision: null })
+    // Conta das pendências (ex: "Produto caixa" paga como "PREV CAIXA"): Sim dá
+    // baixa nela em vez de lançar outro gasto.
+    const isBill = r.matchedManualTransactionStatus === "PENDING"
 
     if (r.duplicateDecision === "yes") {
       return (
@@ -402,7 +406,7 @@ export function BankSyncView() {
           <p className="text-xs text-primary flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
               <CheckCircle size={14} weight="fill" />
-              Vai vincular a "{existingDescription}"{existingDate && ` (${existingDate})`}, sem duplicar
+              {isBill ? "Vai dar baixa em" : "Vai vincular a"} "{existingDescription}"{existingDate && ` (${existingDate})`}, sem duplicar
             </span>
             <button type="button" onClick={reset} className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0">
               Trocar
@@ -429,7 +433,11 @@ export function BankSyncView() {
       <div className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 space-y-2">
         <p className="text-xs text-foreground flex items-start gap-1.5">
           <Question size={14} weight="bold" className="text-primary shrink-0 mt-0.5" />
-          Essa parece ser a transferência "{existingDescription}"{existingDate && ` (${existingDate})`} que você já lançou na mão. Vincular em vez de duplicar?
+          {isBill ? (
+            <>Esse parece ser o pagamento de "{existingDescription}"{existingDate && ` (vence ${existingDate})`}, das suas contas a pagar. Dar baixa nela em vez de lançar de novo?</>
+          ) : (
+            <>Essa parece ser a transferência "{existingDescription}"{existingDate && ` (${existingDate})`} que você já lançou na mão. Vincular em vez de duplicar?</>
+          )}
         </p>
         <div className="grid grid-cols-2 gap-2">
           <button
@@ -437,7 +445,7 @@ export function BankSyncView() {
             onClick={() => vm.updatePendingRow(r.externalId, { duplicateDecision: "yes" })}
             className="py-1.5 rounded-lg bg-primary text-background text-xs font-semibold hover:bg-primary/90 transition-colors"
           >
-            Sim, vincular
+            {isBill ? "Sim, dar baixa" : "Sim, vincular"}
           </button>
           <button
             type="button"

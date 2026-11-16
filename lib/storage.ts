@@ -579,6 +579,8 @@ export interface PluggyPendingTransaction {
   matchedManualTransactionId?: string
   matchedManualTransactionDescription?: string
   matchedManualTransactionDate?: string
+  // PENDING: a existente é uma conta das pendências; Sim dá baixa nela.
+  matchedManualTransactionStatus?: "PENDING" | "PAID"
   duplicateDecision?: "yes" | "no"
 }
 
@@ -921,6 +923,42 @@ export async function getPendingTransactions(): Promise<Transaction[]> {
   return transactions
     .filter((t) => t.status === "pending")
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+}
+
+// "Parece que você já pagou": pendências que têm, no banco, um lançamento que
+// é o pagamento delas (mesma conta + valor + data perto do vencimento).
+export interface PendingPaymentMatch {
+  pendingId: string
+  transaction: {
+    id: string
+    description: string
+    originalDescription: string | null
+    amount: number
+    date: string
+    cardId: string | null
+    cardName: string | null
+  }
+}
+
+export async function getPendingPaymentMatches(): Promise<PendingPaymentMatch[]> {
+  try {
+    return (await fetchApi("/transactions/pending/payment-matches")) ?? []
+  } catch {
+    // Sugestão é extra: sem ela a tela de pendentes funciona igual.
+    return []
+  }
+}
+
+// "É esse": dá baixa na pendência com os dados do banco e junta os dois.
+export async function settlePendingWithPayment(pendingId: string, transactionId: string): Promise<void> {
+  assertWritable()
+  await fetchApi(`/transactions/${pendingId}/settle-with-payment`, { method: "POST", body: JSON.stringify({ transactionId }) })
+  notifyStorageUpdate()
+}
+
+export async function dismissPendingPaymentMatch(pendingId: string, transactionId: string): Promise<void> {
+  assertWritable()
+  await fetchApi(`/transactions/${pendingId}/dismiss-payment-match`, { method: "POST", body: JSON.stringify({ transactionId }) })
 }
 
 // Move uma parcela/despesa no crédito para a fatura seguinte ou anterior do
