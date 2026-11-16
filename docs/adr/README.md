@@ -34,5 +34,6 @@ ADRs não são editados: uma decisão nova substitui a antiga num ADR novo, com 
 | [023](../../../dominio-api/docs/adr/023-backend-como-fonte-dos-dados-padrao.md) | Backend como única fonte dos dados padrão | dominio-api |
 | [024](../../../dominio-api/docs/adr/024-migrations-somente-aditivas.md) | Migrations somente aditivas | dominio-api |
 | [025](../../../dominio-api/docs/adr/025-conexao-pluggy-pelo-widget-e-webhook.md) | Conexão da Pluggy pelo widget e aviso por webhook | dominio-api |
+| [026](../../../dominio-api/docs/adr/026-job-de-notificacoes-na-api-e-api-acordada.md) | Job de notificações dentro da API, e API mantida acordada | dominio-api |
 | [027](../../../dominio-api/docs/adr/027-fatura-aberta-e-pendencias-pagas-pelo-banco.md) | Fatura aberta como "a pagar" e pendências pagas pelo banco | dominio-api |
-| [026](../../../dominio-api/docs/adr/026-saude-da-conexao-e-investimentos-da-pluggy.md) | Saúde da conexão, investimentos e webhook completo da Pluggy | dominio-api |
+| [028](../../../dominio-api/docs/adr/028-saude-da-conexao-e-investimentos-da-pluggy.md) | Saúde da conexão, investimentos e webhook completo da Pluggy | dominio-api |
