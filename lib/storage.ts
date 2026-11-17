@@ -16,6 +16,7 @@ import type {
   ImportPreviewRow,
 } from "./types"
 import { fetchApi } from "./api"
+import { mapCardFromApi } from "./card-mapping"
 import { normalizeMonthStartDay } from "./period"
 import { mapNotificationPrefs } from "./push"
 import { mapRuleConflict, mapRuleSuggestion, type RuleFeedback } from "./rules"
@@ -199,27 +200,6 @@ async function ensureSystemCategory(
 // ---------------------------------------------------------------------------
 // Cards
 // ---------------------------------------------------------------------------
-
-function mapCardFromApi(c: any): Card {
-  return {
-    id: c.id,
-    name: c.name,
-    bankName: c.bankName as BankName,
-    lastDigits: c.lastDigits,
-    hasCredit: !!c.hasCredit,
-    hasDebit: !!c.hasDebit,
-    kind: String(c.kind ?? "CARD").toLowerCase() as Card["kind"],
-    color: c.color,
-    limit: c.limit != null ? Number(c.limit) : undefined,
-    dueDate: c.dueDate ?? undefined,
-    closingDate: c.closingDate ?? undefined,
-    createdAt: c.createdAt,
-    spentAmount: c.spentAmount != null ? Number(c.spentAmount) : undefined,
-    calculatedBalance: c.calculatedBalance != null ? Number(c.calculatedBalance) : undefined,
-    investmentTotal: c.investmentTotal != null ? Number(c.investmentTotal) : undefined,
-    bank: c.bank ?? null,
-  }
-}
 
 function mapCardToApi(c: Partial<Card>) {
   const body: Record<string, unknown> = {}
