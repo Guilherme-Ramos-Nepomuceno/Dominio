@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { splitSpentByPlanned, type SpentItem } from "../plan.ts"
+import { splitSpentByPlanned, variableSpentItems, type SpentItem } from "../plan.ts"
 
 const item = (id: string, date: string, amount: number): SpentItem => ({
   transactionId: id,
@@ -42,4 +42,15 @@ test("sem planejado (0): todo gasto é 'a mais'", () => {
 test("sem gastos: nada em nenhuma lista", () => {
   const r = splitSpentByPlanned([], 100)
   assert.deepEqual(r, { within: [], over: [], overAmount: 0 })
+})
+
+test("gasto variável: tira os lançamentos que já estão na lista de comprometidos", () => {
+  const spent = [item("parcela", "2026-11-05", 225.13), item("condominio", "2026-11-07", 150), item("prestacao", "2026-11-15", 723.73)]
+  const variable = variableSpentItems([{ transactionId: "parcela" }], spent)
+  assert.deepEqual(variable.map((i) => i.transactionId), ["condominio", "prestacao"])
+})
+
+test("gasto variável: sem comprometidos, devolve tudo", () => {
+  const spent = [item("a", "2026-11-05", 10)]
+  assert.deepEqual(variableSpentItems([], spent), spent)
 })

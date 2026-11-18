@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
-import { formatMoneyInput, parseMoneyInput, splitSpentByPlanned, type CategoryGroup, type CommittedKind, type PlanCategory, type PlanGroup, type SpentItem } from "@/lib/plan"
+import { formatMoneyInput, parseMoneyInput, splitSpentByPlanned, variableSpentItems, type CategoryGroup, type CommittedKind, type PlanCategory, type PlanGroup, type SpentItem } from "@/lib/plan"
 import { formatMoneyWhole, spentProgress } from "@/lib/plan-layout"
 import { cn } from "@/lib/utils"
 import { useGroupDetailViewModel } from "../hooks/use-group-detail-view-model"
@@ -98,7 +98,9 @@ function CategoryRow({
   const [showCommitted, setShowCommitted] = useState(false)
   const [showSpent, setShowSpent] = useState(false)
   const planned = category.committed + category.plannedVariable
-  const spentSplit = splitSpentByPlanned(category.spentItems, planned)
+  const spentStatus = new Map(category.spentItems.map((i) => [i.transactionId, i.status]))
+  const variableSpent = variableSpentItems(category.committedItems, category.spentItems)
+  const spentSplit = splitSpentByPlanned(variableSpent, category.plannedVariable)
   const progress = spentProgress(category.spent, planned)
   const suggestionChanged =
     category.originalPlannedVariable !== null && Math.abs(category.originalPlannedVariable - category.plannedVariable) > 0.004
@@ -156,7 +158,7 @@ function CategoryRow({
                     <span className="flex-1 min-w-0">
                       <span className="block truncate text-foreground">{item.description}</span>
                       <span className="block text-[11px] text-muted-foreground">
-                        {COMMITTED_KIND_LABEL[item.kind]} · {formatDate(item.date)}
+                        {COMMITTED_KIND_LABEL[item.kind]}{spentStatus.get(item.transactionId) === "PAID" ? " · Pago" : ""} · {formatDate(item.date)}
                       </span>
                     </span>
                     <span className="tabular-nums text-foreground/80">{formatCurrency(item.amount)}</span>
@@ -167,7 +169,7 @@ function CategoryRow({
           </div>
         )}
 
-        {category.spentItems.length > 0 && (
+        {variableSpent.length > 0 && (
           <div>
             <button
               type="button"
@@ -176,12 +178,12 @@ function CategoryRow({
               className="flex w-full items-center gap-2 text-left text-sm"
             >
               <span className="flex-1 text-muted-foreground">
-                Gasto{" "}
+                Gasto variável{" "}
                 <span className="text-xs">
-                  · {category.spentItems.length} {category.spentItems.length === 1 ? "lançamento" : "lançamentos"}
+                  · {variableSpent.length} {variableSpent.length === 1 ? "lançamento" : "lançamentos"}
                 </span>
               </span>
-              <span className="font-medium tabular-nums text-foreground">{formatMoneyWhole(category.spent)}</span>
+              <span className="font-medium tabular-nums text-foreground">{formatMoneyWhole(category.spentVariable)}</span>
               <CaretDown size={12} weight="bold" className={cn("text-muted-foreground transition-transform", showSpent && "rotate-180")} />
             </button>
             {showSpent && (
@@ -189,7 +191,7 @@ function CategoryRow({
                 {spentSplit.within.length > 0 && (
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      Dentro do previsto · {formatMoneyWhole(Math.min(category.spent, planned))}
+                      Dentro do previsto · {formatMoneyWhole(Math.min(category.spentVariable, category.plannedVariable))}
                     </p>
                     <SpentList items={spentSplit.within} />
                   </div>

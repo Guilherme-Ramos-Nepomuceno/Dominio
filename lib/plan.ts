@@ -244,6 +244,14 @@ export function effectiveBudget(plan: Pick<Plan, "budgetAmount" | "suggestedBudg
   return plan.budgetAmount ?? plan.suggestedBudget
 }
 
+// Gastos que não são comprometidos (parcela, recorrente, conta a pagar): os
+// comprometidos já aparecem na lista própria, com o status de pago. Assim cada
+// lançamento aparece uma vez só e o total bate com o "gasto variável".
+export function variableSpentItems(committedItems: Array<{ transactionId: string }>, spentItems: SpentItem[]): SpentItem[] {
+  const committedIds = new Set(committedItems.map((i) => i.transactionId))
+  return spentItems.filter((i) => !committedIds.has(i.transactionId))
+}
+
 // Divide os gastos da categoria em "previsto" (cabem no planejado, em ordem
 // de data) e "a mais" (os que passam da linha do planejado). O último que
 // cruza a linha já conta como "a mais" — o total "a mais" é o que passou.
