@@ -25,7 +25,10 @@ function accountIcon(selection: AccountSelection) {
     return UsersThree
 }
 
-export function AccountSwitcher({ className }: { className?: string }) {
+// `compact`: só o ícone da conta atual, no estilo do sino ao lado (cabeçalho
+// do celular, onde marca, avisos e mês já ocupam a linha). Tocar abre o menu
+// com os nomes; o nome da conta atual fica no aria-label.
+export function AccountSwitcher({ className, compact = false }: { className?: string; compact?: boolean }) {
     const { availableAccounts, selection, selectAccount, loading } = useAccount()
 
     // Só uma conta disponível (sem família ainda) — nada para trocar.
@@ -38,17 +41,27 @@ export function AccountSwitcher({ className }: { className?: string }) {
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <button
+                    aria-label={compact ? `Conta: ${current.label}. Trocar de conta` : undefined}
+                    title={compact ? current.label : undefined}
                     className={cn(
-                        "flex items-center gap-2 w-full px-3 py-2 rounded-xl bg-muted/50 border border-transparent hover:border-border transition-all text-sm font-medium text-foreground",
+                        compact
+                            ? "shrink-0 p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            : "flex items-center gap-2 w-full px-3 py-2 rounded-xl bg-muted/50 border border-transparent hover:border-border transition-all text-sm font-medium text-foreground",
                         className
                     )}
                 >
-                    <CurrentIcon size={18} weight="bold" className="text-primary flex-shrink-0" />
-                    <span className="flex-1 text-left truncate">{current.label}</span>
-                    <CaretUpDown size={16} className="text-muted-foreground flex-shrink-0" />
+                    {compact ? (
+                        <CurrentIcon size={24} weight="bold" className="block" />
+                    ) : (
+                        <>
+                            <CurrentIcon size={18} weight="bold" className="text-primary flex-shrink-0" />
+                            <span className="flex-1 text-left truncate">{current.label}</span>
+                            <CaretUpDown size={16} className="text-muted-foreground flex-shrink-0" />
+                        </>
+                    )}
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64">
+            <DropdownMenuContent align={compact ? "end" : "start"} className="w-64">
                 <DropdownMenuLabel>Ver dados de</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {availableAccounts.map((account) => {

@@ -45,7 +45,7 @@ export function MonthHeaderSelector({ className }: MonthHeaderSelectorProps) {
             className,
           )}
         >
-          <span className="capitalize">
+          <span className="capitalize truncate">
             {MONTH_FULL[monthIndex]}
             {year !== currentYear && ` de ${year}`}
           </span>
@@ -55,7 +55,7 @@ export function MonthHeaderSelector({ className }: MonthHeaderSelectorProps) {
               ({periodRangeLabel})
             </span>
           )}
-          <CaretDown size={14} weight="bold" />
+          <CaretDown size={14} weight="bold" className="shrink-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3 z-110" align="end">
