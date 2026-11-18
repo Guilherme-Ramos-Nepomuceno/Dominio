@@ -27,6 +27,15 @@ export interface CommittedItem {
   kind: CommittedKind
 }
 
+// Lançamento que já aconteceu no mês (mesma base do gasto da categoria).
+export interface SpentItem {
+  transactionId: string
+  description: string
+  amount: number
+  date: string
+  status: string
+}
+
 export interface PlanCategory {
   categoryId: string
   name: string
@@ -34,6 +43,8 @@ export interface PlanCategory {
   icon: string | null
   committed: number
   committedItems: CommittedItem[]
+  // Gastos já acontecidos (por data), pra conferir o que de fato saiu.
+  spentItems: SpentItem[]
   plannedVariable: number
   // Valor sugerido antes da pessoa editar (null = nunca editado).
   originalPlannedVariable: number | null
@@ -159,6 +170,13 @@ function mapPlanCategory(c: any): PlanCategory {
       date: String(i.date ?? ""),
       kind: (i.kind ?? "PENDING") as CommittedKind,
     })),
+    spentItems: (c.spentItems ?? []).map((i: any) => ({
+      transactionId: String(i.transactionId),
+      description: String(i.description ?? ""),
+      amount: num(i.amount),
+      date: String(i.date ?? ""),
+      status: String(i.status ?? ""),
+    })),
     plannedVariable: num(c.plannedVariable),
     originalPlannedVariable: numOrNull(c.originalPlannedVariable),
     spent: num(c.spent),
@@ -224,6 +242,23 @@ export function isPlanEditable(status: PlanStatus): boolean {
 // Orçamento efetivo: o definido, ou a sugestão (renda prevista) enquanto não há.
 export function effectiveBudget(plan: Pick<Plan, "budgetAmount" | "suggestedBudget">): number {
   return plan.budgetAmount ?? plan.suggestedBudget
+}
+
+// Divide os gastos da categoria em "previsto" (cabem no planejado, em ordem
+// de data) e "a mais" (os que passam da linha do planejado). O último que
+// cruza a linha já conta como "a mais" — o total "a mais" é o que passou.
+export function splitSpentByPlanned(items: SpentItem[], planned: number): { within: SpentItem[]; over: SpentItem[]; overAmount: number } {
+  const sorted = items.slice().sort((a, b) => a.date.localeCompare(b.date))
+  const within: SpentItem[] = []
+  const over: SpentItem[] = []
+  let running = 0
+  for (const item of sorted) {
+    running = round2(running + item.amount)
+    if (running > planned + 0.004) over.push(item)
+    else within.push(item)
+  }
+  const total = round2(running)
+  return { within, over, overAmount: Math.max(0, round2(total - Math.max(0, planned))) }
 }
 
 export interface BarSegments {
