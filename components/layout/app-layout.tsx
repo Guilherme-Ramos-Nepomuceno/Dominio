@@ -74,10 +74,18 @@ export function AppLayout({ children, showMonthFilter = false, primaryAction, wi
         {/* A linha tem ~360px no celular: a conta fica só no ícone e o mês é o
             único que encolhe (com reticências), para nada sair da tela. Sem
             conta do casal o AccountSwitcher não renderiza nada. */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
-          <NotificationCenter />
-          {showMonthFilter && <MonthHeaderSelector className="min-w-0" />}
-          <AccountSwitcher compact />
+        <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+          <div className="shrink-0">
+            <NotificationCenter />
+          </div>
+          {showMonthFilter && (
+            <div className="flex min-w-0 justify-end">
+              <MonthHeaderSelector className="min-w-0" />
+            </div>
+          )}
+          <div className="shrink-0 empty:hidden">
+            <AccountSwitcher compact />
+          </div>
         </div>
       </div>
 

@@ -41,12 +41,13 @@ export function MonthHeaderSelector({ className }: MonthHeaderSelectorProps) {
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1 text-sm font-semibold text-foreground hover:opacity-70 transition-opacity",
+            "flex items-center gap-1 max-w-full overflow-hidden text-sm font-semibold text-foreground hover:opacity-70 transition-opacity",
             className,
           )}
         >
-          <span className="capitalize truncate">
-            {MONTH_FULL[monthIndex]}
+          {/* Só o mês com inicial maiúscula ("Setembro de 2027", não "De"). */}
+          <span className="min-w-0 truncate">
+            <span className="capitalize">{MONTH_FULL[monthIndex]}</span>
             {year !== currentYear && ` de ${year}`}
           </span>
           {/* Mês que não começa no dia 1: mostra o intervalo real (no celular só no popover). */}
