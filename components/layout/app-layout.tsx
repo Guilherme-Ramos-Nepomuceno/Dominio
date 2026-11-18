@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, type ReactNode } from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { BottomNav } from "./bottom-nav"
 import { DesktopNav } from "./desktop-nav"
@@ -28,6 +29,7 @@ import { QuickAddSheet } from "@/components/quick-add/quick-add-sheet"
 import { useQuickAddViewModel } from "@/components/quick-add/use-quick-add-view-model"
 import { useAccount } from "@/components/account/account-context"
 import { useNavTrail } from "./back-link"
+import { BrandWordmark } from "@/components/brand/brand"
 import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed"
 import { QUICK_ADD_OPEN_EVENT } from "@/components/guide/sample-preview"
 
@@ -60,11 +62,14 @@ export function AppLayout({ children, showMonthFilter = false, primaryAction, wi
 
       {/* Mobile Top Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-md border-b border-border z-40 flex items-center px-4 justify-between gap-2">
-        <div className="flex items-center gap-2 shrink-0">
-          <NotificationCenter />
-          <h1 className="font-bold text-lg text-foreground">Dominio</h1>
-        </div>
+        {/* Marca à esquerda (leva para a Home); à direita, avisos, mês e conta. */}
+        <h1 className="text-lg shrink-0">
+          <Link href="/" aria-label="Domínio, ir para o início" className="flex rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+            <BrandWordmark />
+          </Link>
+        </h1>
         <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+          <NotificationCenter />
           {showMonthFilter && <MonthHeaderSelector className="shrink-0" />}
           {/* Sem conta do casal o AccountSwitcher não renderiza nada: o espaço
               some (empty:hidden) e o seletor de mês vai para o canto direito. */}

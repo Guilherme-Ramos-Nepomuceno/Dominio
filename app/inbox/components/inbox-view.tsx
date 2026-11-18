@@ -120,7 +120,7 @@ export function InboxView() {
                           </button>
                         )}
                       </div>
-                      <p className={cn("font-semibold tabular-nums shrink-0", groupType === "income" ? "text-income" : "text-foreground")}>
+                      <p className={cn("font-semibold tabular-nums shrink-0", groupType === "income" ? "text-positive-ink" : "text-foreground")}>
                         {groupType === "income" ? "+ " : ""}
                         {formatCurrency(group.totalAmount)}
                       </p>

@@ -53,7 +53,7 @@ function FitLabel({ wish, highlighted }: { wish: PlanWish; highlighted: boolean 
   if (label.tone === "fresh") {
     return (
       <span className="inline-flex items-center gap-1 font-semibold text-foreground">
-        <Sparkle size={12} weight="fill" className="text-income" />
+        <Sparkle size={12} weight="fill" className="text-positive-ink" />
         {label.text}
       </span>
     )
@@ -61,7 +61,7 @@ function FitLabel({ wish, highlighted }: { wish: PlanWish; highlighted: boolean 
   if (label.tone === "fits") {
     return (
       <span className="inline-flex items-center gap-1 text-foreground/80">
-        <Check size={12} weight="bold" className="text-income" />
+        <Check size={12} weight="bold" className="text-positive-ink" />
         {label.text}
       </span>
     )

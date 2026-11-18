@@ -117,7 +117,7 @@ export function CoupleSplitSection({ monthKey }: { monthKey: string }) {
 
           <div className="flex items-center gap-3 border-t border-border pt-3">
             {line.tone === "done" ? (
-              <CheckCircle size={22} weight="duotone" className="shrink-0 text-income" />
+              <CheckCircle size={22} weight="duotone" className="shrink-0 text-positive-ink" />
             ) : (
               <HandCoins size={22} weight="duotone" className="shrink-0 text-primary" />
             )}

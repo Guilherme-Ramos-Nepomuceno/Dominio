@@ -13,10 +13,12 @@ import { asSpending, effectiveTransactionType, findCategory } from "@/lib/catego
 
 type ExpenseView = "all" | "debit" | "credit"
 
-const EXPENSE_VIEWS: Record<ExpenseView, { label: string; hint: string; dot: string; color: string }> = {
-  all: { label: "Tudo", hint: "Débito e crédito", dot: "bg-expense", color: "#F87171" },
-  debit: { label: "Débito", hint: "Débito, Pix e boleto", dot: "bg-expense", color: "#F87171" },
-  credit: { label: "Crédito", hint: "Compras no cartão de crédito", dot: "bg-amber-500", color: "#F59E0B" },
+// Despesa é uma série única (--series, ADR-030): o vermelho fica para estouro
+// e a forma de pagamento já aparece no seletor ao lado.
+const EXPENSE_VIEWS: Record<ExpenseView, { label: string; hint: string }> = {
+  all: { label: "Tudo", hint: "Débito e crédito" },
+  debit: { label: "Débito", hint: "Débito, Pix e boleto" },
+  credit: { label: "Crédito", hint: "Compras no cartão de crédito" },
 }
 
 interface IncomeExpenseCardsProps {
@@ -223,7 +225,7 @@ export function IncomeExpenseCards({
                   onClick={() => onPeriodChange("week")}
                   className={cn(
                   "relative z-10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
-                  period === "week" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+                  period === "week" ? "text-background" : "text-muted-foreground hover:text-foreground"
                   )}
               >
                   Semanal
@@ -232,7 +234,7 @@ export function IncomeExpenseCards({
                   onClick={() => onPeriodChange("month")}
                   className={cn(
                   "relative z-10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-center transition-colors duration-200",
-                  period === "month" ? "text-background" : "text-neutral-500 hover:text-neutral-300"
+                  period === "month" ? "text-background" : "text-muted-foreground hover:text-foreground"
                   )}
               >
                   Mensal
@@ -254,7 +256,7 @@ export function IncomeExpenseCards({
            <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-income"></div>
-                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Receitas</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Receitas</p>
               </div>
               {/* Espaço vazio onde estariam os botões no outro card, mantendo a altura */}
               <div className="h-6.5"></div>
@@ -272,7 +274,7 @@ export function IncomeExpenseCards({
               <div className="w-[55%] pb-1">
                  <MiniBarChart
                     data={incomeChartData}
-                    color="#A3E635"
+                    color="var(--income)"
                     height={56}
                     onBarClick={(p) => {
                       if (!p.dateStr) return
@@ -291,8 +293,8 @@ export function IncomeExpenseCards({
           {/* Cabeçalho: Tudo · Débito · Crédito */}
           <div className="flex items-center justify-between gap-3 mb-2">
               <div className="flex items-center gap-2">
-                <div className={cn("w-1.5 h-1.5 rounded-full", EXPENSE_VIEWS[expenseView].dot)}></div>
-                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Despesas</p>
+                <div className={"w-1.5 h-1.5 rounded-full bg-series"}></div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Despesas</p>
               </div>
               <div role="radiogroup" aria-label="Forma de pagamento" className="flex rounded-lg bg-muted/40 p-0.5">
                   {(Object.keys(EXPENSE_VIEWS) as ExpenseView[]).map((view) => (
@@ -329,7 +331,7 @@ export function IncomeExpenseCards({
               <div className="pb-1 w-[55%]">
                 <MiniBarChart
                     data={expenseChartData}
-                    color={EXPENSE_VIEWS[expenseView].color}
+                    color="var(--series)"
                     height={56}
                     onBarClick={(p) => {
                       if (!p.dateStr) return

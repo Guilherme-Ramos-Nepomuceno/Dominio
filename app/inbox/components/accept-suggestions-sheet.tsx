@@ -76,7 +76,7 @@ export function AcceptSuggestionsSheet({ groups, categories, onApply, onClose }:
                     </span>
                   </p>
                 </div>
-                <span className={cn("text-sm font-semibold tabular-nums shrink-0", isIncome ? "text-income" : "text-foreground")}>
+                <span className={cn("text-sm font-semibold tabular-nums shrink-0", isIncome ? "text-positive-ink" : "text-foreground")}>
                   {isIncome ? "+ " : ""}
                   {formatCurrency(group.totalAmount)}
                 </span>

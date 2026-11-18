@@ -316,7 +316,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
           <p className="text-xs text-primary flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
               <CheckCircle size={14} weight="fill" />
-              Vai dar baixa na pendência "{row.pendingMatch.description}" ({formatCurrency(row.pendingMatch.amount)})
+              Vai dar baixa na pendência &quot;{row.pendingMatch.description}&quot; ({formatCurrency(row.pendingMatch.amount)})
             </span>
             <button
               type="button"
@@ -329,7 +329,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
         )}
         {row.settleDecision === "no" && (
           <p className="text-xs text-muted-foreground flex items-center justify-between gap-1.5">
-            <span>Ok, vai importar como transação nova (não a pendência "{row.pendingMatch.description}").</span>
+            <span>Ok, vai importar como transação nova (não a pendência &quot;{row.pendingMatch.description}&quot;).</span>
             <button
               type="button"
               onClick={() => updateRow(row.externalId, { settleDecision: undefined })}
@@ -343,7 +343,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
           <>
             <p className="text-xs text-foreground flex items-start gap-1.5">
               <Question size={14} weight="bold" className="text-primary shrink-0 mt-0.5" />
-              Essa é a pendência "{row.pendingMatch.description}" ({formatCurrency(row.pendingMatch.amount)}) já cadastrada?
+              Essa é a pendência &quot;{row.pendingMatch.description}&quot; ({formatCurrency(row.pendingMatch.amount)}) já cadastrada?
             </p>
             <div className="flex gap-2">
               <button

@@ -23,6 +23,8 @@ import { parseMoneyInput, formatMoneyInput } from "@/lib/plan"
 import { trackEvent } from "@/lib/events"
 import type { Goal, SavingsGoal } from "@/lib/types"
 import { toast } from "@/hooks/use-toast"
+import { monthClosedToast } from "@/lib/brand"
+import { formatCurrency } from "@/lib/date-utils"
 
 const MONTH_NAMES = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -174,14 +176,14 @@ export function useClosePlanViewModel() {
         wishes: Object.keys(decisions).length,
         leftoverDestination: choice.destination ?? "NONE",
       })
-      toast({ title: "Mês fechado!", description: `O plano de ${monthLabel} foi fechado.`, variant: "success" })
+      toast({ ...monthClosedToast(monthName, data.summary.leftover, formatCurrency), variant: "success" })
       await load()
     } catch (e: any) {
       toast({ title: "Não foi possível fechar o mês", description: e?.message, variant: "destructive" })
     } finally {
       setIsClosing(false)
     }
-  }, [targetMonth, data, destination, destinationId, leftoverAmount, decisions, monthLabel, load])
+  }, [targetMonth, data, destination, destinationId, leftoverAmount, decisions, monthName, load])
 
   return {
     isReadOnly,

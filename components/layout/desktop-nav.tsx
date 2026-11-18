@@ -28,6 +28,7 @@ import {
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
+import { BrandWordmark } from "@/components/brand/brand"
 import { UserProfileBox } from "@/components/profile/user-profile-box"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { AccountSwitcher } from "@/components/account/account-switcher"
@@ -151,7 +152,11 @@ export function DesktopNav({ collapsed, onToggleCollapsed, onQuickAdd, quickAddL
     >
       {/* Marca + recolher */}
       <div className={cn("flex items-center h-16 shrink-0", collapsed ? "justify-center" : "justify-between pl-5 pr-3")}>
-        {!collapsed && <span className="text-xl font-bold text-foreground">Dominio</span>}
+        {!collapsed && (
+          <Link href="/" aria-label="Domínio, ir para o início" className="flex rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+            <BrandWordmark className="text-xl" />
+          </Link>
+        )}
         <WithTooltip show label={collapsed ? "Abrir menu" : "Recolher menu"}>
           <button
             type="button"

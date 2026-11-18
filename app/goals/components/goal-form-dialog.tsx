@@ -186,7 +186,6 @@ export function GoalFormDialog({ isOpen, onClose, onSave, initialGoal }: GoalFor
                         : "bg-muted text-muted-foreground hover:bg-muted-foreground/20",
                     )}
                   >
-                    {/* @ts-ignore */}
                     <IconComp size={24} weight={selectedIcon === iconName ? "fill" : "regular"} />
                   </button>
                 )

@@ -33,7 +33,7 @@ import { Bento, BentoAside, BentoMain, BentoTile, PAGE_WIDTH } from "@/component
 // Status = bolinha + rótulo (nunca só a cor).
 const STATUS_DOT: Record<PlanStatus, string> = {
   NONE: "bg-muted-foreground/60",
-  DRAFT: "bg-amber-500",
+  DRAFT: "bg-muted-foreground",
   CONFIRMED: "bg-income",
   CLOSED: "bg-foreground/50",
 }

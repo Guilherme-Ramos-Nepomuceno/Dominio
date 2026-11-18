@@ -91,7 +91,6 @@ export function CategoryHistoryDialog({ category, onClose }: CategoryHistoryDial
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            {/* @ts-ignore - componente de ícone dinâmico */}
             <CategoryIcon size={26} weight="duotone" className="shrink-0" style={{ color }} />
             <div className="min-w-0">
               <h2 id="category-history-title" className="text-lg font-semibold text-foreground truncate">
@@ -156,7 +155,7 @@ export function CategoryHistoryDialog({ category, onClose }: CategoryHistoryDial
                                 <span
                                   className={cn(
                                     "text-sm font-semibold tabular-nums shrink-0",
-                                    isIncome || t.type === "income" ? "text-income" : "text-foreground",
+                                    isIncome || t.type === "income" ? "text-positive-ink" : "text-foreground",
                                   )}
                                 >
                                   {t.type === "expense" ? "−" : "+"}

@@ -1,4 +1,5 @@
 import { getActiveAccountSelection, ACTIVE_ACCOUNT_KEY } from './active-account'
+import { trackRequest } from './api-activity'
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'
 
@@ -19,7 +20,13 @@ function getActiveAccountHeaderId(): string | null {
     return selection.type === 'couple' ? selection.id : null
 }
 
-export async function fetchApi(endpoint: string, options: RequestInit = {}) {
+// Toda chamada passa pelo contador de atividade (o D do cabeçalho anima
+// enquanto há chamadas em andamento).
+export function fetchApi(endpoint: string, options: RequestInit = {}) {
+    return trackRequest(request(endpoint, options))
+}
+
+async function request(endpoint: string, options: RequestInit) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('finance-token') : null
     const activeAccountId = getActiveAccountHeaderId()
 

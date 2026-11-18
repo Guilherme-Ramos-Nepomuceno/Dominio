@@ -36,7 +36,7 @@ export function WeekCategories({ categories }: { categories: WeekCategory[] }) {
           <div className="mt-1.5 h-1.5 rounded-full bg-muted overflow-hidden" aria-hidden>
             <div
               className="h-full rounded-full"
-              style={{ width: `${row.barPct}%`, background: row.categoryId === null ? "var(--plan-uncategorized)" : "var(--chart-3)" }}
+              style={{ width: `${row.barPct}%`, background: row.categoryId === null ? "var(--plan-uncategorized)" : "var(--series)" }}
             />
           </div>
           {row.plannedText && <p className="mt-1 text-xs text-muted-foreground">{row.plannedText}</p>}

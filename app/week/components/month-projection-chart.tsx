@@ -21,7 +21,7 @@ import {
 // do mês) não há projeção nenhuma: só o real e o planejado, num gráfico mais baixo. Uma cor só (a da série); o
 // que distingue real × projeção é o traço, explicado na legenda.
 
-const SERIES = "var(--chart-3)"
+const SERIES = "var(--series)"
 const config = {
   real: { label: "Gasto até hoje", color: SERIES },
   projected: { label: "Projeção", color: SERIES },

@@ -73,7 +73,7 @@ export function CategoryGroup({ category, rows, categories, onRename, onBulkRena
           <p className="text-sm font-medium text-foreground truncate">{category.name}</p>
           <p className="text-xs text-muted-foreground">{rows.length} {rows.length === 1 ? "item" : "itens"}</p>
         </div>
-        <p className={cn("font-semibold tabular-nums text-sm shrink-0", category.type === "expense" ? "text-foreground" : "text-income")}>
+        <p className={cn("font-semibold tabular-nums text-sm shrink-0", category.type === "expense" ? "text-foreground" : "text-positive-ink")}>
           {category.type === "expense" ? "" : "+"}{formatCurrency(total)}
         </p>
         <button

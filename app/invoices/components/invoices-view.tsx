@@ -446,9 +446,8 @@ export function InvoicesView() {
                                         {inv.transactions.map((transaction) => {
                                             const category = findCategory(categories, transaction.categoryId)
                                             const paid = transaction.status === "paid"
-                                            const CategoryIcon =
-                                                (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) ||
-                                                (transaction.categoryId ? PhosphorIcons.Circle : PhosphorIcons.Tag)
+                                            const CategoryIcon = ((category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) ||
+                                                (transaction.categoryId ? PhosphorIcons.Circle : PhosphorIcons.Tag)) as PhosphorIcons.Icon
                                             // A data principal é a desta parcela (o mês exibido); a data da
                                             // compra original aparece a partir da 2ª parcela.
                                             const purchase = transaction.parentId
@@ -462,7 +461,6 @@ export function InvoicesView() {
 
                                             return (
                                                 <li key={transaction.id} className={cn("flex items-start gap-3 py-3.5", (paid || transaction.outOfTotal) && "opacity-60")}>
-                                                    {/* @ts-ignore - Dynamic icon component */}
                                                     <CategoryIcon size={22} weight="duotone" className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="truncate font-medium text-foreground">{transaction.description}</p>

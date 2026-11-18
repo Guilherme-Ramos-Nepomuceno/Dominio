@@ -31,12 +31,10 @@
   /* Green for income */
   --expense: oklch(59.108% 0.22799 27.934);
   /* Pink/Red for expenses */
-  --savings: oklch(0.58 0.22 280);
-  /* Purple for savings */
-  --wallet: oklch(0.6 0.2 180);
-  /* Cyan/Turquoise for wallet */
-  --hobby: oklch(0.58 0.2 230);
-  /* Blue for hobbies */
+
+  /* Marca (ADR-030): azul ultramar, o "no azul". Só em marca, foco e
+     sequência no azul; nunca dentro de gráfico (ali ficam os grupos). */
+  --brand: #2340e8;
 
   /* Muted colors for labels */
   --muted: oklch(0.96 0.005 247);
@@ -49,14 +47,11 @@
   /* Minimal borders */
   --border: oklch(0.93 0.005 247);
   --input: oklch(0.93 0.005 247);
-  --ring: oklch(0.48 0.18 210);
+  --ring: var(--brand);
 
-  /* Chart colors */
-  --chart-1: oklch(0.6 0.2 180);
-  --chart-2: oklch(0.58 0.22 280);
-  --chart-3: oklch(0.58 0.2 230);
-  --chart-4: oklab(84.301% -0.20088 0.15163);
-  --chart-5: oklch(0.6 0.18 340);
+  /* Série única de gráfico sem grupo (despesas da Home, projeção do mês,
+     categorias da semana): família do ultramar, sem ser a cor da marca. */
+  --series: oklch(0.57 0.15 248);
 
   /* Generous rounded corners */
   --radius: 1.25rem;
@@ -64,12 +59,10 @@
   --radius-button: 1rem;
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.15 0 0);
-  --sidebar-primary: oklch(0.48 0.18 210);
-  --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.96 0.005 247);
   --sidebar-accent-foreground: oklch(0.15 0 0);
   --sidebar-border: oklch(0.93 0.005 247);
-  --sidebar-ring: oklch(0.48 0.18 210);
+  --sidebar-ring: var(--brand);
 }
 
 /* Dark mode with deep charcoal */
@@ -78,7 +71,8 @@
   --background: oklch(0.12 0.01 247);
   --foreground: oklch(0.97 0.01 247);
 
-  --card: oklch(19.574% 0.00002 271.152);
+  /* Mesmo cinza-azulado do fundo, das bordas e do muted. */
+  --card: oklch(0.196 0.01 247);
   --card-foreground: oklch(93.86% 0.00213 14.438);
   --popover: oklch(0.16 0.01 247);
   --popover-foreground: oklch(0.97 0.01 247);
@@ -89,12 +83,12 @@
   --secondary: oklch(0.2 0.01 247);
   --secondary-foreground: oklch(0.97 0.01 247);
 
-  --income: oklab(89.271% -0.11781 0.16283);
+  /* Verde de verdade (matiz 145, o mesmo do claro): o lima antigo ficava
+     colado no âmbar de atenção, inclusive para daltônicos. */
+  --income: oklch(0.82 0.19 145);
 
   --expense: oklch(65.526% 0.23087 26.386);
-  --savings: oklch(70.628% 0.14718 248.406);
-  --wallet: oklab(89.271% -0.11781 0.16283);
-  --hobby: oklab(70.882% -0.05449 -0.13539);
+  --brand: #8199ff;
 
   --muted: oklch(0.2 0.01 247);
   --muted-foreground: oklch(0.58 0.01 247);
@@ -105,21 +99,15 @@
 
   --border: oklch(0.24 0.01 247);
   --input: oklch(0.24 0.01 247);
-  --ring: oklch(0.58 0.2 210);
+  --ring: var(--brand);
 
-  --chart-1: oklch(0.65 0.2 180);
-  --chart-2: oklch(0.62 0.22 280);
-  --chart-3: oklch(0.62 0.2 230);
-  --chart-4: oklab(89.271% -0.11781 0.16283);
-  --chart-5: oklch(0.65 0.18 340);
+  --series: oklch(0.64 0.15 244);
   --sidebar: oklch(0.16 0.01 247);
   --sidebar-foreground: oklch(0.97 0.01 247);
-  --sidebar-primary: oklch(0.58 0.2 210);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.2 0.01 247);
   --sidebar-accent-foreground: oklch(0.97 0.01 247);
   --sidebar-border: oklch(0.24 0.01 247);
-  --sidebar-ring: oklch(0.58 0.2 210);
+  --sidebar-ring: var(--brand);
 }
 
 /* Planejar mês: uma cor fixa por grupo (kind) — a mesma na barra do mês, na
@@ -143,6 +131,9 @@
      verde/âmbar puros ficam abaixo de 3:1 no claro; estes passam 4.5:1 no card. */
   --positive-ink: #1e6b15;
   --attention-ink: #8a5100;
+  /* Atenção como preenchimento (barra do ritmo, dia acima do ritmo, rascunho):
+     sempre com rótulo ou ícone ao lado, nunca só a cor. Texto usa --attention-ink. */
+  --attention: #f59e0b;
   /* Guiado: véu em volta do componente em destaque, anel e brilho. */
   /* Painel de apoio do desktop (telas largas): um degrau de tom. */
   --panel: color-mix(in oklab, var(--foreground) 3.5%, var(--background));
@@ -161,6 +152,7 @@
   --plan-tint: 0.5;
   --positive-ink: var(--income);
   --attention-ink: #fbbf24;
+  --attention: #fbbf24;
   --panel: color-mix(in oklab, var(--foreground) 4.5%, var(--background));
   --guide-scrim: rgb(0 0 0 / 0.62);
   --guide-ring: var(--foreground);
@@ -191,16 +183,10 @@
   --color-income: var(--income);
   --color-positive-ink: var(--positive-ink);
   --color-attention-ink: var(--attention-ink);
+  --color-attention: var(--attention);
   --color-expense: var(--expense);
-  --color-savings: var(--savings);
-  --color-wallet: var(--wallet);
-  --color-hobby: var(--hobby);
-
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
+  --color-brand: var(--brand);
+  --color-series: var(--series);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: var(--radius);
@@ -209,14 +195,14 @@
   --radius-button: var(--radius-button);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
   --font-sans: var(--font-sans);
+  /* Bricolage Grotesque: só no número do dia, nos títulos de tela e na marca. */
+  --font-display: var(--font-display);
 
   /* Add progress animation keyframes */
   --animate-progress: progress 5s linear forwards;
@@ -293,5 +279,65 @@ select option {
     background-image:
       linear-gradient(to left, transparent var(--panel-w), var(--border) var(--panel-w), var(--border) calc(var(--panel-w) + 1px), transparent calc(var(--panel-w) + 1px)),
       linear-gradient(to left, var(--panel) var(--panel-w), transparent var(--panel-w));
+  }
+}
+
+/* D carregando (components/brand/brand.tsx, ADR-030): uma onda de luz
+   sobe pelas 4 camadas do D (cada camada adiantada 1/4 do ciclo em relação à
+   de cima) e o D respira. Luz e sombra de esfera variam com o fundo. */
+:root {
+  --brand-lit: 0.3;
+  --brand-shade: 0.28;
+}
+.dark {
+  --brand-lit: 0.22;
+  --brand-shade: 0.4;
+}
+.brand-loader {
+  --dur: 2.4s;
+  --n: 4;
+}
+.brand-loader-shell {
+  animation: brand-breathe var(--dur) ease-in-out infinite;
+}
+.brand-loader-band {
+  fill: currentColor;
+  opacity: 0.14;
+  animation: brand-wave var(--dur) ease-in-out infinite;
+  animation-delay: calc(var(--i) * var(--dur) / var(--n) * -1);
+}
+.brand-loader-rim {
+  opacity: 0.12;
+}
+.brand-loader-lit {
+  stop-opacity: var(--brand-lit);
+}
+.brand-loader-shade {
+  stop-opacity: var(--brand-shade);
+}
+@keyframes brand-wave {
+  0%, 100% { opacity: 0.14; }
+  38% { opacity: 1; }
+  64% { opacity: 0.34; }
+}
+@keyframes brand-breathe {
+  0%, 100% { opacity: 0.82; }
+  45% { opacity: 1; }
+}
+/* D parado no cabeçalho: a animação fica pausada (e invisível) até ter
+   chamada em andamento. */
+.brand-loader-paused .brand-loader-shell,
+.brand-loader-paused .brand-loader-band {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-loader-shell {
+    animation: none;
+    opacity: 1;
+  }
+  /* Parado, fica igual ao D da marca: a margem livre (última camada) mais clara. */
+  .brand-loader-band {
+    animation: none;
+    opacity: calc(1 - max(var(--i) - 2, 0) * 0.55);
   }
 }

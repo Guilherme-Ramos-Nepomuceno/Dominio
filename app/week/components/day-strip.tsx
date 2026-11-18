@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 // sutil destaca o círculo do card. Legenda visível + resumo para leitor de tela.
 const DOT: Record<DayStatus, string> = {
   UNDER: "bg-income ring-1 ring-inset ring-black/10",
-  OVER: "bg-amber-400 ring-1 ring-inset ring-black/10",
+  OVER: "bg-attention ring-1 ring-inset ring-black/10",
   NO_SPEND: "bg-muted ring-1 ring-inset ring-border",
   FUTURE: "border border-dashed border-muted-foreground/50",
 }

@@ -420,7 +420,7 @@ export function BankSyncView() {
           <p className="text-xs text-primary flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
               <CheckCircle size={14} weight="fill" />
-              {isBill ? "Vai dar baixa em" : "Vai vincular a"} "{existingDescription}"{existingDate && ` (${existingDate})`}, sem duplicar
+              {isBill ? "Vai dar baixa em" : "Vai vincular a"} &quot;{existingDescription}&quot;{existingDate && ` (${existingDate})`}, sem duplicar
             </span>
             <button type="button" onClick={reset} className="text-[11px] underline text-muted-foreground hover:text-foreground shrink-0">
               Trocar
@@ -448,9 +448,9 @@ export function BankSyncView() {
         <p className="text-xs text-foreground flex items-start gap-1.5">
           <Question size={14} weight="bold" className="text-primary shrink-0 mt-0.5" />
           {isBill ? (
-            <>Esse parece ser o pagamento de "{existingDescription}"{existingDate && ` (vence ${existingDate})`}, das suas contas a pagar. Dar baixa nela em vez de lançar de novo?</>
+            <>Esse parece ser o pagamento de &quot;{existingDescription}&quot;{existingDate && ` (vence ${existingDate})`}, das suas contas a pagar. Dar baixa nela em vez de lançar de novo?</>
           ) : (
-            <>Essa parece ser a transferência "{existingDescription}"{existingDate && ` (${existingDate})`} que você já lançou na mão. Vincular em vez de duplicar?</>
+            <>Essa parece ser a transferência &quot;{existingDescription}&quot;{existingDate && ` (${existingDate})`} que você já lançou na mão. Vincular em vez de duplicar?</>
           )}
         </p>
         <div className="grid grid-cols-2 gap-2">

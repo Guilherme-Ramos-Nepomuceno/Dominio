@@ -171,7 +171,7 @@ export function CompassDeviation({ onSelectCategory }: { onSelectCategory: (key:
                             <span
                               className={cn(
                                 "absolute top-1/2 h-2 -translate-y-1/2 rounded-full transition-[width] duration-500",
-                                up ? "left-1/2 bg-amber-400" : "right-1/2 bg-income",
+                                up ? "left-1/2 bg-attention" : "right-1/2 bg-income",
                               )}
                               style={{ width }}
                             />

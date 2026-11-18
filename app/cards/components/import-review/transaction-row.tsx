@@ -87,7 +87,7 @@ export function TransactionRow({ row, onRename, disabled, leftSlot, rightSlot, c
         </div>
 
         <div className="text-right shrink-0">
-          <p className={cn("font-semibold tabular-nums text-sm", row.type === "expense" ? "text-foreground" : "text-income")}>
+          <p className={cn("font-semibold tabular-nums text-sm", row.type === "expense" ? "text-foreground" : "text-positive-ink")}>
             {row.type === "expense" ? "-" : "+"}{formatCurrency(row.amount)}
           </p>
           <p className="text-[11px] text-muted-foreground">
@@ -107,7 +107,7 @@ export function TransactionRow({ row, onRename, disabled, leftSlot, rightSlot, c
             </p>
           )}
           {row.isDuplicate && (
-            <p className="text-[11px] text-amber-500 flex items-center gap-1">
+            <p className="text-[11px] text-attention-ink flex items-center gap-1">
               <WarningCircle size={12} weight="fill" /> Já foi importada antes
             </p>
           )}

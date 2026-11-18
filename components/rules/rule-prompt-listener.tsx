@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ToastAction } from "@/components/ui/toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -35,6 +35,9 @@ export function RulePromptListener() {
   const buffer = useRef<RuleFeedback[]>([])
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inBatch = useRef(false)
+  // O aviso é criado dentro do efeito, mas aplica com a versão mais recente
+  // de applyRules (atualizada logo abaixo dela).
+  const applyRef = useRef<((suggestions: RuleSuggestion[], conflicts: PendingRuleConflict[]) => Promise<void>) | null>(null)
   const [batch, setBatch] = useState<AggregatedRuleFeedback | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -120,7 +123,7 @@ export function RulePromptListener() {
         description: "Os próximos lançamentos desses estabelecimentos já entram categorizados.",
         action: (
           <div className="flex flex-col gap-1.5 shrink-0">
-            <ToastAction altText={applyLabel} onClick={() => applyRef.current(feedback.suggestions, feedback.conflicts)}>
+            <ToastAction altText={applyLabel} onClick={() => applyRef.current?.(feedback.suggestions, feedback.conflicts)}>
               {applyLabel}
             </ToastAction>
             <ToastAction
@@ -205,8 +208,9 @@ export function RulePromptListener() {
       ),
     })
   }
-  const applyRef = useRef(applyRules)
-  applyRef.current = applyRules
+  useLayoutEffect(() => {
+    applyRef.current = applyRules
+  })
 
   const applyBatch = () => {
     if (!batch) return

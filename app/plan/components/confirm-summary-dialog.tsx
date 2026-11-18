@@ -5,6 +5,7 @@ import Link from "next/link"
 import { CheckCircle } from "@phosphor-icons/react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { trackEvent } from "@/lib/events"
+import { BRAND_ACHIEVEMENT } from "@/lib/brand"
 import type { Plan } from "@/lib/plan"
 import { confirmSummary, confirmSummaryLines } from "@/lib/wins"
 
@@ -31,8 +32,9 @@ export function ConfirmSummaryDialog({ open, plan, onClose }: ConfirmSummaryDial
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-income/20 animate-in zoom-in-50 duration-500 motion-reduce:animate-none">
           <CheckCircle size={30} weight="fill" className="text-positive-ink" aria-hidden />
         </span>
-        <DialogTitle className="mt-1 text-xl font-bold">Mês organizado</DialogTitle>
-        <DialogDescription className="sr-only">Resumo do plano confirmado</DialogDescription>
+        <DialogTitle className="mt-1 font-display text-xl font-bold">Plano confirmado</DialogTitle>
+        {/* A conquista da marca (ADR-030): aqui é sempre verdade. */}
+        <DialogDescription className="-mt-1 text-sm text-muted-foreground">{BRAND_ACHIEVEMENT}</DialogDescription>
         {lines.length > 0 ? (
           <ul className="space-y-1.5 animate-in fade-in duration-700 motion-reduce:animate-none">
             {lines.map((line) => (

@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable react-hooks/static-components -- o ícone vem de um mapa fixo (getBankIcon, iconByName etc.): é o mesmo componente a cada render, não um componente novo. */
 
 import type React from "react"
 import { useEffect, useState } from "react"

@@ -61,7 +61,7 @@ export function NotificationCenter() {
 
     const handleNotificationClick = (href: string) => {
         setIsOpen(false)
-        window.location.href = href
+        window.location.assign(href)
     }
 
     return (
@@ -73,7 +73,7 @@ export function NotificationCenter() {
                 >
                     <Bell size={24} weight={hasUnread ? "fill" : "bold"} className={hasUnread ? "text-primary wobble-animation" : ""} />
                     {hasUnread && (
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-background animate-pulse" />
+                        <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full border border-background animate-pulse" />
                     )}
                 </button>
             </Popover.Trigger>

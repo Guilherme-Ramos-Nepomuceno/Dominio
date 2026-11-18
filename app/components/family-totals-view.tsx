@@ -28,7 +28,7 @@ export function FamilyTotalsView({ loading, totals }: { loading: boolean; totals
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <p className="text-xs text-muted-foreground mb-1">Receita</p>
-                        <p className="text-xl font-bold text-income tabular-nums">{formatCurrency(totals.income)}</p>
+                        <p className="text-xl font-bold text-positive-ink tabular-nums">{formatCurrency(totals.income)}</p>
                     </div>
                     <div>
                         <p className="text-xs text-muted-foreground mb-1">Despesa</p>
@@ -42,7 +42,7 @@ export function FamilyTotalsView({ loading, totals }: { loading: boolean; totals
                 {totals.pendingInvoiceTotal > 0 && (
                     <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Fatura pendente (dos dois)</span>
-                        <span className="text-lg font-bold text-amber-500 tabular-nums">{formatCurrency(totals.pendingInvoiceTotal)}</span>
+                        <span className="text-lg font-bold text-attention-ink tabular-nums">{formatCurrency(totals.pendingInvoiceTotal)}</span>
                     </div>
                 )}
             </div>
@@ -57,7 +57,7 @@ export function FamilyTotalsView({ loading, totals }: { loading: boolean; totals
                         <div className="grid grid-cols-3 gap-2 text-center">
                             <div>
                                 <p className="text-[11px] text-muted-foreground mb-0.5">Receita</p>
-                                <p className="text-sm font-bold text-income tabular-nums">{formatCurrency(income)}</p>
+                                <p className="text-sm font-bold text-positive-ink tabular-nums">{formatCurrency(income)}</p>
                             </div>
                             <div>
                                 <p className="text-[11px] text-muted-foreground mb-0.5">Despesa</p>
@@ -71,7 +71,7 @@ export function FamilyTotalsView({ loading, totals }: { loading: boolean; totals
                         {pendingInvoiceTotal > 0 && (
                             <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
                                 <span className="text-xs text-muted-foreground">Fatura pendente</span>
-                                <span className="text-sm font-bold text-amber-500 tabular-nums">{formatCurrency(pendingInvoiceTotal)}</span>
+                                <span className="text-sm font-bold text-attention-ink tabular-nums">{formatCurrency(pendingInvoiceTotal)}</span>
                             </div>
                         )}
                     </div>

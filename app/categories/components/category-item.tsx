@@ -31,7 +31,7 @@ export function CategoryItem({ category, totalAmount, transactionCount, planned 
 
   // Lógica para pegar o ícone dinâmico baseado no nome salvo na categoria
   // Se não encontrar, usa o Circle como fallback
-  const CategoryIcon = (category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle
+  const CategoryIcon = ((category.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Circle) as PhosphorIcons.Icon
 
   // No mobile a lixeira só aparece arrastando a linha pra esquerda (ganha espaço
   // horizontal) — no desktop ela some e volta a aparecer passando o mouse.
@@ -71,7 +71,6 @@ export function CategoryItem({ category, totalAmount, transactionCount, planned 
         onTouchEnd={onTouchEnd}
       >
         {/* Ícone na cor do grupo do plano */}
-        {/* @ts-ignore - componente de ícone dinâmico */}
         <CategoryIcon size={22} weight="duotone" className="shrink-0" style={{ color: color ?? undefined }} />
 
         <div className="flex-1 min-w-0">
@@ -91,7 +90,7 @@ export function CategoryItem({ category, totalAmount, transactionCount, planned 
             <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "var(--plan-track)" }} aria-hidden>
               <div
                 className="h-full rounded-full"
-                style={{ width: `${progress.pct}%`, backgroundColor: progress.over ? "var(--expense)" : color || "var(--chart-3)" }}
+                style={{ width: `${progress.pct}%`, backgroundColor: progress.over ? "var(--expense)" : color || "var(--series)" }}
               />
             </div>
           )}

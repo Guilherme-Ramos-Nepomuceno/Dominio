@@ -115,8 +115,8 @@ export function StatsView() {
 
         return (
             <div className="relative overflow-hidden group">
-                <div className="absolute inset-y-0 right-0 w-[80px] bg-red-500 flex items-center justify-center">
-                    <button onClick={() => setTransactionToCancel(transaction.id)} className="text-white w-full h-full flex items-center justify-center">
+                <div className="absolute inset-y-0 right-0 w-[80px] bg-destructive flex items-center justify-center">
+                    <button onClick={() => setTransactionToCancel(transaction.id)} className="text-destructive-foreground w-full h-full flex items-center justify-center">
                         <PhosphorIcons.Trash size={24} weight="bold" />
                     </button>
                 </div>
@@ -168,18 +168,18 @@ export function StatsView() {
                     </div>
                     <div className="text-right flex items-center gap-4">
                         <div>
-                            <p className={cn("text-sm font-semibold tabular-nums", transaction.type === "expense" ? "text-foreground" : "text-income")}>{transaction.type === "expense" ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
+                            <p className={cn("text-sm font-semibold tabular-nums", transaction.type === "expense" ? "text-foreground" : "text-positive-ink")}>{transaction.type === "expense" ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
                             {filters.paymentMethod === 'credit' && (
                                 <div className="flex justify-end mt-1">
                                     {transaction.status === 'paid' ? (
-                                        <span className="text-[10px] text-income flex items-center gap-1 bg-income/10 px-1.5 py-0.5 rounded-full"><CheckCircle size={10} weight="fill" />Paga</span>
+                                        <span className="text-[10px] text-positive-ink flex items-center gap-1 bg-income/10 px-1.5 py-0.5 rounded-full"><CheckCircle size={10} weight="fill" />Paga</span>
                                     ) : (
-                                        <span className="text-[10px] text-amber-500 flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded-full"><Circle size={8} weight="fill" />Fatura Aberta</span>
+                                        <span className="text-[10px] text-attention-ink flex items-center gap-1 bg-attention/15 px-1.5 py-0.5 rounded-full"><Circle size={8} weight="fill" />Fatura Aberta</span>
                                     )}
                                 </div>
                             )}
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); setTransactionToCancel(transaction.id); }} className="hidden md:flex opacity-0 group-hover:opacity-100 items-center justify-center w-8 h-8 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all" title="Desfazer/Cancelar">
+                        <button onClick={(e) => { e.stopPropagation(); setTransactionToCancel(transaction.id); }} className="hidden md:flex opacity-0 group-hover:opacity-100 items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all" title="Desfazer/Cancelar">
                             <PhosphorIcons.Trash size={16} weight="bold" />
                         </button>
                     </div>
@@ -246,7 +246,7 @@ export function StatsView() {
                         const isYesterday = date === yesterdayKey
                         const transactionsForDate = groupedTransactions[date]
                         const dateObjForTitle = new Date(date + "T12:00:00")
-                        let groupTitle = isToday ? "Hoje" : isYesterday ? "Ontem" : (() => {
+                        const groupTitle = isToday ? "Hoje" : isYesterday ? "Ontem" : (() => {
                             const dayAndMonth = dateObjForTitle.toLocaleDateString("pt-BR", { day: "numeric", month: "long" })
                             const weekDay = dateObjForTitle.toLocaleDateString("pt-BR", { weekday: "long" })
                             return dayAndMonth.charAt(0).toUpperCase() + dayAndMonth.slice(1) + ` • ${weekDay}`

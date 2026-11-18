@@ -38,3 +38,4 @@ ADRs não são editados: uma decisão nova substitui a antiga num ADR novo, com 
 | [027](../../../dominio-api/docs/adr/027-fatura-aberta-e-pendencias-pagas-pelo-banco.md) | Fatura aberta como "a pagar" e pendências pagas pelo banco | dominio-api |
 | [028](../../../dominio-api/docs/adr/028-saude-da-conexao-e-investimentos-da-pluggy.md) | Saúde da conexão, investimentos e webhook completo da Pluggy | dominio-api |
 | [029](../../../dominio-api/docs/adr/029-parcelas-previstas-e-mesma-compra-a-mao.md) | Parcelas previstas na fatura aberta e "é a mesma compra?" no cartão ligado ao banco | dominio-api |
+| [030](030-identidade-da-marca.md) | Identidade da marca: "Seu mês no azul.", Torre em D e azul ultramar | Dominio |

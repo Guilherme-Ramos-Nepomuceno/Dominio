@@ -1,4 +1,6 @@
 import type { MetadataRoute } from "next"
+import { BRAND_EXPLANATION } from "@/lib/brand"
+import { SYSTEM_BAR_COLOR } from "@/lib/theme"
 
 // Manifesto do PWA: permite instalar o Domínio na tela inicial (no iPhone é
 // isso que libera as notificações push, iOS 16.4+).
@@ -6,14 +8,16 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Domínio",
     short_name: "Domínio",
-    description: "Controle financeiro pessoal: plano do mês, semana e desejos.",
+    description: BRAND_EXPLANATION,
     lang: "pt-BR",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#18181e",
-    theme_color: "#18181e",
+    // Manifesto só aceita uma cor: a abertura usa o fundo do escuro (a barra
+    // depois segue o tema pelo theme-color do layout).
+    background_color: SYSTEM_BAR_COLOR.dark,
+    theme_color: SYSTEM_BAR_COLOR.dark,
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

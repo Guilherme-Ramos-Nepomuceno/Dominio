@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 const TONE = {
   good: "bg-income/15 text-foreground",
   neutral: "bg-muted text-muted-foreground",
-  over: "bg-amber-400/20 text-foreground",
+  over: "bg-attention/20 text-foreground",
   exceeded: "bg-expense/15 text-foreground",
 } as const
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react"
+import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react"
 import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice, getManualBankMatches, mergeManualWithBank, dismissManualBankMatch } from "@/lib/storage"
 import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
@@ -59,7 +59,9 @@ export function useInvoicesViewModel() {
     // escolhido vale pro app todo, então ao sair volta o que estava — a não
     // ser que a pessoa tenha trocado o mês aqui de propósito.
     const monthRef = useRef(selectedMonth)
-    monthRef.current = selectedMonth
+    useLayoutEffect(() => {
+        monthRef.current = selectedMonth
+    })
     useEffect(() => {
         const month = new URLSearchParams(window.location.search).get("month")
         if (!month || !/^\d{4}-\d{2}$/.test(month) || month === monthRef.current) return

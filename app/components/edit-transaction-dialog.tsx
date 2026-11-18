@@ -160,7 +160,7 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
             onChange={(e) => handleAmountChange(e.target.value)}
             className={cn(
               "w-full bg-transparent text-4xl font-semibold tabular-nums focus:outline-none",
-              isExpense ? "text-foreground" : "text-income",
+              isExpense ? "text-foreground" : "text-positive-ink",
             )}
           />
         </label>

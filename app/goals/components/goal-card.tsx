@@ -17,7 +17,7 @@ export function GoalCard({ goal, onEdit, onDelete, onAddFunds }: GoalCardProps) 
   const progress = (goal.currentAmount / goal.targetAmount) * 100
   const isCompleted = progress >= 100
 
-  const IconComponent = (goal.icon && PhosphorIcons[goal.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Target
+  const IconComponent = ((goal.icon && PhosphorIcons[goal.icon as keyof typeof PhosphorIcons]) || PhosphorIcons.Target) as PhosphorIcons.Icon
 
   const daysRemaining = goal.deadline
     ? Math.ceil((new Date(goal.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
@@ -32,7 +32,6 @@ export function GoalCard({ goal, onEdit, onDelete, onAddFunds }: GoalCardProps) 
             className="w-12 h-12 rounded-[1vw] flex items-center justify-center"
             style={{ backgroundColor: goal.color + "20", color: goal.color }}
           >
-            {/* @ts-ignore */}
             <IconComponent size={24} weight="bold" />
           </div>
 
@@ -78,7 +77,7 @@ export function GoalCard({ goal, onEdit, onDelete, onAddFunds }: GoalCardProps) 
           </div>
 
           <div className="text-right">
-            <p className={cn("text-lg font-bold", isCompleted ? "text-income" : "text-primary")}>
+            <p className={cn("text-lg font-bold", isCompleted ? "text-positive-ink" : "text-primary")}>
               {Math.min(progress, 100).toFixed(0)}%
             </p>
           </div>
@@ -107,7 +106,7 @@ export function GoalCard({ goal, onEdit, onDelete, onAddFunds }: GoalCardProps) 
       )}
 
       {isCompleted && (
-        <div className="text-center py-2 px-4 rounded-[1vw] bg-income/10 text-income font-semibold text-sm">
+        <div className="text-center py-2 px-4 rounded-[1vw] bg-income/10 text-positive-ink font-semibold text-sm">
           Meta Atingida!
         </div>
       )}

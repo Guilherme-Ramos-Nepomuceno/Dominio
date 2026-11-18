@@ -54,7 +54,7 @@ export function WeekHero({ week, isLoading, isCouple, recovery = null }: WeekHer
         <p id="home-week-label" className="text-sm text-muted-foreground">
           {isCouple ? "Casal · " : ""}Para gastar hoje
         </p>
-        <p className="mt-1 flex items-center gap-2 text-5xl font-semibold tracking-tight leading-none tabular-nums text-foreground">
+        <p className="mt-1 flex items-center gap-2 font-display text-5xl font-bold tracking-tight leading-none tabular-nums text-foreground">
           {formatCurrency(today)}
           <CaretRight size={18} weight="bold" className="text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" aria-hidden />
         </p>

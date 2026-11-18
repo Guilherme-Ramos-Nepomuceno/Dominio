@@ -48,7 +48,7 @@ import { daysWithSpending, weekUnlocks } from "@/lib/unlocks"
 const TONE_BAR: Record<HeroBarTone, string> = {
   good: "bg-income",
   neutral: "bg-foreground/45",
-  warning: "bg-amber-400",
+  warning: "bg-attention",
   over: "bg-expense",
 }
 
@@ -346,7 +346,7 @@ export function WeekView() {
                 {/* A sequência já aparece como vitória quando é ≥ 2. */}
                 {!wins.week.wins.some((w) => w.kind === "WEEKS_STREAK") && (
                   <li className="flex items-center gap-1.5">
-                    <Fire size={14} weight={week.streak > 0 ? "fill" : "regular"} aria-hidden className={week.streak > 0 ? "text-attention-ink" : ""} />
+                    <Fire size={14} weight={week.streak > 0 ? "fill" : "regular"} aria-hidden className={week.streak > 0 ? "text-brand" : ""} />
                     {streakLabel(week.streak) ?? "Feche a semana no limite para começar uma sequência"}
                   </li>
                 )}

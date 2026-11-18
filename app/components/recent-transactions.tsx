@@ -97,9 +97,8 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
                 const isUncategorized = !transaction.categoryId
 
                 // Get icon dynamically
-                const IconComponent =
-                  (category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) ||
-                  (isUncategorized ? PhosphorIcons.Tag : PhosphorIcons.Circle)
+                const IconComponent = ((category?.icon && PhosphorIcons[category.icon as keyof typeof PhosphorIcons]) ||
+                  (isUncategorized ? PhosphorIcons.Tag : PhosphorIcons.Circle)) as PhosphorIcons.Icon
 
                 return (
                   <button
@@ -113,7 +112,6 @@ export function RecentTransactions({ transactions, maxItems = 5, filterLabel, on
                       className={cn("w-8 h-8 flex items-center justify-center shrink-0", isUncategorized && "opacity-60")}
                       style={{ color: transactionIconColor(groups, transaction.categoryId, isExpense ? "expense" : "income") }}
                     >
-                      {/* @ts-ignore - Dynamic icon component */}
                       <IconComponent size={22} weight="duotone" />
                     </div>
 

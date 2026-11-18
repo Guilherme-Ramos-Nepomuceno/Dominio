@@ -25,7 +25,7 @@ import { useRecurringViewModel } from "../hooks/use-recurring-view-model"
 // Valor com sinal só na receita (despesa é o padrão da tela).
 function Amount({ value, type, className }: { value: number; type: string; className?: string }) {
     return (
-        <span className={cn("font-semibold tabular-nums", type === "income" ? "text-income" : "text-foreground", className)}>
+        <span className={cn("font-semibold tabular-nums", type === "income" ? "text-positive-ink" : "text-foreground", className)}>
             {type === "income" ? "+ " : ""}
             {formatCurrency(value)}
         </span>

@@ -16,7 +16,7 @@ export function PageHeader({ title, subtitle, action, className, back }: PageHea
     <div className={cn("flex items-start justify-between gap-4 mb-6 md:mb-8", className)}>
       <div>
         {back && <BackLink fallback={back} className="mb-3" />}
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground text-balance">{title}</h1>
+        <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-foreground text-balance">{title}</h1>
         {subtitle && <p className="mt-1 text-sm md:text-base text-muted-foreground text-pretty">{subtitle}</p>}
       </div>
       {action && <div className="flex-shrink-0">{action}</div>}

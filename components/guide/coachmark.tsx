@@ -28,7 +28,9 @@ function sameRect(a: Rect | null, b: Rect | null): boolean {
 function useTargetRect(target: string, onFound: (el: HTMLElement) => void): Rect | null {
   const [rect, setRect] = useState<Rect | null>(null)
   const onFoundRef = useRef(onFound)
-  onFoundRef.current = onFound
+  useLayoutEffect(() => {
+    onFoundRef.current = onFound
+  })
 
   useEffect(() => {
     let frame = 0

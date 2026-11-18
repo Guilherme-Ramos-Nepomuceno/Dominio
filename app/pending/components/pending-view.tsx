@@ -81,7 +81,7 @@ export function PendingView() {
                     </>
                 ) : vm.visibleTransactions.length === 0 ? (
                     <div className="py-12 text-center space-y-2">
-                        <CalendarCheck size={36} weight="duotone" className="mx-auto text-income" />
+                        <CalendarCheck size={36} weight="duotone" className="mx-auto text-positive-ink" />
                         <p className="text-sm font-medium text-foreground">Tudo em dia</p>
                         <p className="text-xs text-muted-foreground">Nenhuma conta esperando pagamento ou recebimento.</p>
                     </div>
@@ -97,7 +97,7 @@ export function PendingView() {
                                 {summary.toReceive > 0 && (
                                     <div>
                                         <p className="text-xs text-muted-foreground">A receber</p>
-                                        <p className="text-2xl font-semibold tabular-nums text-income">{formatCurrency(summary.toReceive)}</p>
+                                        <p className="text-2xl font-semibold tabular-nums text-positive-ink">{formatCurrency(summary.toReceive)}</p>
                                     </div>
                                 )}
                             </div>
@@ -192,7 +192,7 @@ export function PendingView() {
                                                         <p className="text-xs text-muted-foreground truncate">{meta.join(" · ")}</p>
                                                     </div>
                                                     <div className="shrink-0 text-right">
-                                                        <p className={cn("text-sm font-semibold tabular-nums", isExpense ? "text-foreground" : "text-income")}>
+                                                        <p className={cn("text-sm font-semibold tabular-nums", isExpense ? "text-foreground" : "text-positive-ink")}>
                                                             {isExpense ? "" : "+"}
                                                             {formatCurrency(transaction.amount)}
                                                         </p>

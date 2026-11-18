@@ -1,8 +1,10 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { Wallet, ArrowRight, WarningCircle } from "@phosphor-icons/react"
+import { ArrowRight, WarningCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import { BRAND_EXPLANATION, BRAND_NAME, BRAND_SIGNATURE } from "@/lib/brand"
+import { BrandWordmark } from "@/components/brand/brand"
 import { PASSWORD_HINT } from "@/lib/auth"
 import { useLoginViewModel } from "../hooks/use-login-view-model"
 
@@ -40,18 +42,18 @@ export function LoginView() {
                 transition={{ duration: 0.3 }}
                 className="w-full max-w-sm mx-auto flex-1 flex flex-col justify-center"
             >
-                <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-                        <Wallet size={20} weight="fill" className="text-background" />
-                    </span>
-                    <span className="text-lg font-bold text-foreground">Dominio</span>
+                {/* Uma frase da marca por tela (ADR-030): quem volta vê a
+                    assinatura junto da marca; quem chega vê a explicação. */}
+                <div className="flex flex-col items-start gap-2">
+                    <BrandWordmark className="text-3xl" />
+                    {isLogin && <span className="text-sm text-muted-foreground">{BRAND_SIGNATURE}</span>}
                 </div>
 
-                <h1 className="mt-10 text-3xl font-semibold tracking-tight text-foreground text-balance">
+                <h1 className="mt-10 font-display text-3xl font-semibold tracking-tight text-foreground text-balance">
                     {isLogin ? "Bem-vindo de volta" : "Crie sua conta"}
                 </h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                    {isLogin ? "Entre para ver quanto dá para gastar hoje." : "Leva um minuto. Depois montamos o plano do mês juntos."}
+                <p className="mt-2 text-sm text-muted-foreground text-pretty">
+                    {isLogin ? "Entre para ver quanto dá para gastar hoje." : BRAND_EXPLANATION}
                 </p>
 
                 <div className="mt-8 flex rounded-full border border-border p-0.5" role="tablist" aria-label="Entrar ou criar conta">
@@ -157,7 +159,7 @@ export function LoginView() {
                 </form>
             </motion.div>
 
-            <p className="mt-10 text-center text-xs text-muted-foreground">© 2026 Dominio</p>
+            <p className="mt-10 text-center text-xs text-muted-foreground">© 2026 {BRAND_NAME}</p>
         </div>
     )
 }

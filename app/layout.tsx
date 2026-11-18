@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Plus_Jakarta_Sans } from "next/font/google"
+import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { AccountProvider } from "@/components/account/account-context"
@@ -11,6 +11,8 @@ import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register"
 import { RulePromptListener } from "@/components/rules/rule-prompt-listener"
 import { GuideProvider } from "@/components/guide/guide-provider"
 import { ScreenTracker } from "@/components/session/screen-tracker"
+import { BRAND_EXPLANATION, BRAND_NAME, BRAND_SIGNATURE } from "@/lib/brand"
+import { SYSTEM_BAR_COLOR } from "@/lib/theme"
 import "./globals.css"
 
 const fontSans = Plus_Jakarta_Sans({
@@ -19,9 +21,17 @@ const fontSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
 })
 
+// Fonte de destaque (ADR-030): só no número do dia, nos títulos de tela e na
+// marca. A interface continua em Plus Jakarta Sans.
+const fontDisplay = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-display",
+})
+
 export const metadata: Metadata = {
-  title: "Dominio - Controle Financeiro Pessoal",
-  description: "Gerencie suas finanças pessoais com previsibilidade e controle total",
+  title: `${BRAND_NAME} · ${BRAND_SIGNATURE}`,
+  description: BRAND_EXPLANATION,
   generator: "Guilherme.Ramos",
   icons: {
     icon: "/icon.png",
@@ -42,7 +52,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#18181e",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: SYSTEM_BAR_COLOR.light },
+    { media: "(prefers-color-scheme: dark)", color: SYSTEM_BAR_COLOR.dark },
+  ],
 }
 
 export default function RootLayout({
@@ -52,7 +65,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${fontSans.className} ${fontSans.variable} antialiased`}>
+      <body className={`${fontSans.className} ${fontSans.variable} ${fontDisplay.variable} antialiased`}>
         <AuthGuard>
           <AccountProvider>
             <GuideProvider>

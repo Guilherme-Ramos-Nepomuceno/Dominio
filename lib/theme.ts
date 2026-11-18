@@ -3,16 +3,20 @@ export const THEME_KEY = "finance-app-theme"
 
 export type ThemeMode = "light" | "dark"
 
-export interface ThemeColors {
-  income: string
-  expense: string
-  savings: string
+// Cor da barra do sistema (theme-color) e da abertura do PWA: a mesma do
+// fundo de cada tema (--background em globals.css), para não ficar uma faixa
+// no topo (ADR-030).
+export const SYSTEM_BAR_COLOR: Record<ThemeMode, string> = {
+  light: "#f1f5f5",
+  dark: "#040609",
 }
 
-export const defaultThemeColors: ThemeColors = {
-  income: "#4ade80",
-  expense: "#f87171",
-  savings: "#a78bfa",
+// O layout manda uma meta por prefers-color-scheme; quando a pessoa escolhe
+// o tema no app, as duas passam a usar a cor do tema escolhido.
+const syncSystemBar = (theme: ThemeMode) => {
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.setAttribute("content", SYSTEM_BAR_COLOR[theme])
+  })
 }
 
 export const getTheme = (): ThemeMode => {
@@ -34,6 +38,7 @@ export const setTheme = (theme: ThemeMode) => {
   } else {
     document.documentElement.classList.remove("dark")
   }
+  syncSystemBar(theme)
 }
 
 export const toggleTheme = (): ThemeMode => {

@@ -84,7 +84,7 @@ export function QuickAddSheet({ vm }: { vm: QuickAddViewModel }) {
           <p
             className={cn(
               "text-center text-5xl font-semibold tabular-nums tracking-tight",
-              vm.cents === 0 ? "text-muted-foreground/60" : isIncome ? "text-income" : "text-foreground",
+              vm.cents === 0 ? "text-muted-foreground/60" : isIncome ? "text-positive-ink" : "text-foreground",
             )}
             aria-live="polite"
           >
