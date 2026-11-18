@@ -1115,19 +1115,23 @@ function mapGoalFromApi(g: any): Goal {
     id: g.id,
     name: g.name,
     targetAmount: Number(g.targetAmount),
-    currentAmount: Number(g.currentAmount),
+    // A API já soma as reservas alocadas (ver dominio-api goal.service.ts).
+    currentAmount: Number(g.currentAmount ?? 0),
     color: colorForId(g.id),
     icon: g.icon ?? undefined,
     deadline: g.deadline ?? undefined,
     createdAt: g.createdAt,
+    allocations: Array.isArray(g.allocations)
+      ? g.allocations.map((a: any) => ({ savingsGoalId: String(a.savingsGoalId), name: String(a.name), amount: Number(a.amount) }))
+      : [],
   }
 }
 
+// O progresso não é gravado pelo front: vem da soma das reservas alocadas.
 function mapGoalToApi(g: Partial<Goal>) {
   const body: Record<string, unknown> = {}
   if (g.name !== undefined) body.name = g.name
   if (g.targetAmount !== undefined) body.targetAmount = g.targetAmount
-  if (g.currentAmount !== undefined) body.currentAmount = g.currentAmount
   if (g.deadline !== undefined) body.deadline = g.deadline
   if (g.icon !== undefined) body.icon = g.icon
   return body
@@ -1153,6 +1157,22 @@ export async function updateGoal(id: string, updates: Partial<Goal>): Promise<vo
 export async function deleteGoal(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/goals/${id}`, { method: "DELETE" })
+}
+
+// Separa `amount` da reserva para o objetivo (valor absoluto, não soma).
+// Zero tira a separação. A API recusa se passar do livre da reserva.
+export async function allocateGoalFunds(goalId: string, savingsGoalId: string, amount: number): Promise<Goal> {
+  assertWritable()
+  const updated = await fetchApi(`/goals/${goalId}/allocations/${savingsGoalId}`, { method: "PUT", body: JSON.stringify({ amount }) })
+  notifyStorageUpdate()
+  return mapGoalFromApi(updated)
+}
+
+export async function removeGoalAllocation(goalId: string, savingsGoalId: string): Promise<Goal> {
+  assertWritable()
+  const updated = await fetchApi(`/goals/${goalId}/allocations/${savingsGoalId}`, { method: "DELETE" })
+  notifyStorageUpdate()
+  return mapGoalFromApi(updated)
 }
 
 // ---------------------------------------------------------------------------
@@ -1214,6 +1234,10 @@ function mapSavingsFromApi(s: any): SavingsGoal {
     icon: s.icon ?? "PiggyBank",
     cardId: s.cardId ?? undefined,
     isCasal: !!s.isCasal,
+    kind: s.kind ?? "OUTRO",
+    allocatedTo: Array.isArray(s.goalAllocations)
+      ? s.goalAllocations.map((a: any) => ({ goalId: String(a.goalId), goalName: String(a.goal?.name ?? ""), amount: Number(a.amount) }))
+      : [],
     bankInvestmentNames: Array.isArray(s.pluggyInvestments) && s.pluggyInvestments.length > 0 ? s.pluggyInvestments.map((i: any) => String(i.name)) : undefined,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
@@ -1228,6 +1252,7 @@ function mapSavingsToApi(s: Partial<SavingsGoal>) {
   if (s.cardId !== undefined) body.cardId = s.cardId
   if (s.icon !== undefined) body.icon = s.icon
   if (s.isCasal !== undefined) body.isCasal = s.isCasal
+  if (s.kind !== undefined) body.kind = s.kind
   return body
 }
 

@@ -1,31 +1,33 @@
 # Módulo de Reservas (Savings)
 
-Diferente de "Objetivos" (Goals), este módulo foca na categorização de dinheiro guardado (Envelopes Financeiros), permitindo separar o saldo global em "caixinhas".
+Dinheiro guardado, separado em "caixinhas" (reservas). Cada reserva pode ter um **tipo** (Emergência, Viagem...) e pode ser **separada para objetivos** (ver `app/goals/README.md` e [ADR-031](../../docs/adr/031-reservas-alocadas-em-objetivos.md)).
 
 ## Contexto
 
-Permite ao usuário dizer: "Do meu saldo total de R$ 10.000, R$ 2.000 são para Emergência". Isso evita a ilusão de riqueza.
+Permite dizer: "Do meu saldo total de R$ 10.000, R$ 2.000 são para emergência". Isso evita a ilusão de riqueza. Com a ADR-031, a reserva também é a origem do dinheiro dos objetivos: o que um objetivo tem é o que foi separado de uma ou mais reservas.
 
-## Especificações Técnicas
+## Especificações técnicas
 
-- **Entidade**: `SavingsGoal` (No código, compartilha terminologia com Goals, mas a UX é de "Reservas").
-- **Ações**: Adicionar Valor (`AddFunds`), Resgatar Valor (`RemoveFunds`).
+- **Entidade**: `SavingsGoal` (a UX chama de "Reservas").
+- **Tipo**: campo `kind` com lista fixa (`SAVINGS_KINDS` em `lib/goal-allocation.ts`). Padrão `OUTRO`.
+- **Saldo**: `currentAmount`. Se a reserva tem investimentos do banco ligados (ADR-028), o saldo vem do banco e não é editado à mão.
+- **Separado para objetivos**: `allocatedTo` (lista de objetivo e valor). O livre é o saldo menos o que está separado (`freeOfSavings`).
 
-## Regras de Negócio
+## Regras de negócio
 
-1. **Saldo Virtual**: Os valores adicionados às reservas não somem da conta bancária real, apenas são "carimbados" logicamente no sistema.
-2. **Proteção de Exclusão**: O sistema impede/alerta exclusão de reservas que ainda possuem saldo positivo (`currentAmount > 0`).
-3. **Persistência**: Entidade `savingsGoals` no LocalStorage.
+1. **Saldo virtual**: o dinheiro da reserva não sai da conta bancária real, só fica "carimbado" no sistema.
+2. **Separado não some**: não dá para baixar o saldo abaixo do que já está separado para objetivos (400). Antes, retire do objetivo.
+3. **Exclusão**: o front pede confirmação quando a reserva tem saldo. A API apaga sem essa checagem. Reserva apagada tira a separação dos objetivos (cascata).
+4. **Casal**: reserva marcada como casal entra inteira na conta do casal.
 
 ## Componentes
 
-- `SavingsGoalCard`: Card com display de valor e botões de ação rápida (+ / -).
-- `EditSavingsDialog`: Edição de nome/meta/cor.
+- `SavingsView` / `SavingsGoalCard`: total guardado, lista e, em cada reserva, o tipo e para quais objetivos ela já foi separada.
+- `AddSavingsGoalDialog` / `EditSavingsDialog`: criar e editar, com o seletor de tipo. Ainda no desenho antigo de diálogo (próximo passo).
 
-## API / Events
+## API
 
-| Evento | Função | Descrição |
+| Evento | Endpoint | Descrição |
 | :--- | :--- | :--- |
-| **Add Funds** | `addFundsToSavingsGoal` | Incrementa saldo da reserva |
-| **Remove** | `removeFundsFromSavingsGoal` | Decrementa saldo (Resgate) |
-| **Delete** | `deleteSavingsGoal` | Remove a categoria de reserva |
+| Listar / criar / editar / excluir | `GET/POST /savings`, `PUT/DELETE /savings/:id` | `kind` e `currentAmount` aceitos na criação e edição |
+| Separar para objetivo | `PUT /goals/:id/allocations/:savingsGoalId` | Ver `app/goals/README.md` |

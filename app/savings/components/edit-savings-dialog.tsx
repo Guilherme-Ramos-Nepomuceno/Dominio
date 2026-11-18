@@ -11,6 +11,8 @@ import type { Card } from "@/lib/types"
 import { getBankIcon } from "@/lib/bank-icons"
 import { SAVINGS_ICON_OPTIONS } from "@/lib/savings-icons"
 import { useAccount } from "@/components/account/account-context"
+import { AppSelect } from "@/components/ui/app-select"
+import { SAVINGS_KINDS } from "@/lib/goal-allocation"
 
 interface EditSavingsDialogProps {
   goal: any
@@ -24,6 +26,7 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
   const [selectedIcon, setSelectedIcon] = useState(goal.icon)
   const [selectedCardId, setSelectedCardId] = useState(goal.cardId || "")
   const [isCasal, setIsCasal] = useState(!!goal.isCasal)
+  const [selectedKind, setSelectedKind] = useState<string>(goal.kind ?? "OUTRO")
   const [cards, setCards] = useState<Card[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { family } = useAccount()
@@ -65,6 +68,7 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
         icon: selectedIcon,
         cardId: selectedCardId,
         isCasal,
+        kind: selectedKind,
       })
       onClose()
     } finally {
@@ -138,6 +142,17 @@ export function EditSavingsDialog({ goal, onSave, onClose }: EditSavingsDialogPr
             </div>
           </button>
           )}
+
+          {/* Tipo da reserva: agrupa as reservas (emergência, viagem...). */}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">Tipo</label>
+            <AppSelect
+              aria-label="Tipo da reserva"
+              value={selectedKind}
+              onChange={setSelectedKind}
+              options={SAVINGS_KINDS.map((k) => ({ value: k.value, label: k.label }))}
+            />
+          </div>
 
           {/* Icon Selection */}
           <div>

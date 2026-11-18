@@ -6,6 +6,7 @@ import { ArrowsDownUp, Bank, CheckCircle, Heart, Pencil, Trash } from "@phosphor
 import { formatCurrency } from "@/lib/date-utils"
 import { formatMoneyWhole } from "@/lib/plan-layout"
 import { getSavingsIcon } from "@/lib/savings-icons"
+import { freeOfSavings, savingsKindLabel } from "@/lib/goal-allocation"
 import { cn } from "@/lib/utils"
 
 interface SavingsGoalCardProps {
@@ -31,6 +32,7 @@ export function SavingsGoalCard({ goal, onDelete, onEdit }: SavingsGoalCardProps
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2">
             <span className="truncate font-semibold text-foreground">{goal.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{savingsKindLabel(goal.kind)}</span>
             {goal.isCasal && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 <Heart size={10} weight="fill" aria-hidden />
@@ -85,6 +87,14 @@ export function SavingsGoalCard({ goal, onDelete, onEdit }: SavingsGoalCardProps
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
+
+      {/* Quanto desta reserva já foi separado para objetivos; o resto é livre. */}
+      {(goal.allocatedTo?.length ?? 0) > 0 && (
+        <p className="mt-2 text-xs tabular-nums text-muted-foreground">
+          Separado para {goal.allocatedTo.map((a: { goalName: string; amount: number }) => `${a.goalName} ${formatCurrency(a.amount)}`).join(" · ")}
+          <span> · livre {formatCurrency(freeOfSavings(goal))}</span>
+        </p>
+      )}
 
       {bankNames.length > 0 && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">

@@ -10,11 +10,12 @@ import type { Card } from "@/lib/types"
 import { SAVINGS_ICON_OPTIONS } from "@/lib/savings-icons"
 import { useAccount } from "@/components/account/account-context"
 import { AppSelect } from "@/components/ui/app-select"
+import { SAVINGS_KINDS } from "@/lib/goal-allocation"
 
 interface AddSavingsGoalDialogProps {
   isOpen: boolean
   onClose: () => void
-  onAdd: (goal: { name: string; targetAmount: number; color: string; icon: string; cardId: string; isCasal?: boolean }) => void | Promise<void>
+  onAdd: (goal: { name: string; targetAmount: number; color: string; icon: string; cardId: string; isCasal?: boolean; kind?: string }) => void | Promise<void>
 }
 
 // Reservas não têm mais cor própria na interface (mesmo tratamento das categorias)
@@ -27,6 +28,7 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
   const [selectedIcon, setSelectedIcon] = useState<string>(SAVINGS_ICON_OPTIONS[0].name)
   const [selectedCardId, setSelectedCardId] = useState<string>("")
   const [isCasal, setIsCasal] = useState(false)
+  const [kind, setKind] = useState<string>("OUTRO")
   const [cards, setCards] = useState<Card[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { family } = useAccount()
@@ -85,6 +87,7 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
         icon: selectedIcon,
         cardId: selectedCardId,
         isCasal,
+        kind,
       })
 
       setName("")
@@ -92,6 +95,7 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
       setSelectedIcon(SAVINGS_ICON_OPTIONS[0].name)
       setSelectedCardId("")
       setIsCasal(false)
+      setKind("OUTRO")
       onClose()
     } finally {
       setIsSubmitting(false)
@@ -134,6 +138,17 @@ export function AddSavingsGoalDialog({ isOpen, onClose, onAdd }: AddSavingsGoalD
               className="w-full pl-12 pr-4 py-3 rounded-[1vw] bg-background border border-border text-foreground text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+        </div>
+
+        {/* Tipo da reserva: agrupa as reservas (emergência, viagem...). */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-foreground">Tipo</label>
+          <AppSelect
+            aria-label="Tipo da reserva"
+            value={kind}
+            onChange={setKind}
+            options={SAVINGS_KINDS.map((k) => ({ value: k.value, label: k.label }))}
+          />
         </div>
 
         <div className="space-y-2">

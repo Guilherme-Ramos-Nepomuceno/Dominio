@@ -142,11 +142,14 @@ export interface Goal {
   id: string
   name: string
   targetAmount: number
+  // Soma do que as reservas separaram para este objetivo (vem da API).
   currentAmount: number
   color: string
   icon?: string
   deadline?: string
   createdAt: string
+  // Quanto cada reserva separou para este objetivo.
+  allocations?: { savingsGoalId: string; name: string; amount: number }[]
 }
 
 export interface SavingsGoal {
@@ -158,6 +161,10 @@ export interface SavingsGoal {
   icon: string
   cardId?: string // Added cardId to track which card the savings are from
   isCasal?: boolean // Reserva compartilhada: entra inteira (com todo o histórico) na conta do casal
+  // Tipo da reserva: EMERGENCIA, VIAGEM, CURTO_PRAZO, LONGO_PRAZO ou OUTRO (ver lib/goal-allocation.ts).
+  kind?: string
+  // Quanto desta reserva foi separado para cada objetivo. O que sobra é livre.
+  allocatedTo?: { goalId: string; goalName: string; amount: number }[]
   // Investimentos do banco ligados a ela: com algum, o saldo vem do banco
   // (atualizado a cada sincronização) e não é editado à mão.
   bankInvestmentNames?: string[]

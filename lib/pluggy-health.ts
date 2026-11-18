@@ -79,6 +79,63 @@ export function isActiveInvestment(inv: Pick<InvestmentLike, "status" | "balance
   return inv.status !== "TOTAL_WITHDRAWAL" && inv.balance > 0
 }
 
+// Agrupa os investimentos pelo tipo que a Pluggy manda (CDB, LCI e Tesouro
+// ficam em "Renda fixa"). A ordem dos grupos é fixa, e grupo vazio não aparece.
+export type InvestmentGroupKey = "FIXED_INCOME" | "EQUITY" | "MUTUAL_FUND" | "ETF" | "COE" | "OTHER"
+
+export const INVESTMENT_GROUP_LABELS: Record<InvestmentGroupKey, string> = {
+  FIXED_INCOME: "Renda fixa",
+  EQUITY: "Ações",
+  MUTUAL_FUND: "Fundos",
+  ETF: "ETFs",
+  COE: "COE",
+  OTHER: "Outros",
+}
+
+const GROUP_ORDER: InvestmentGroupKey[] = ["FIXED_INCOME", "EQUITY", "MUTUAL_FUND", "ETF", "COE", "OTHER"]
+
+export function investmentGroupKey(type: string | null | undefined): InvestmentGroupKey {
+  switch (type) {
+    case "FIXED_INCOME":
+      return "FIXED_INCOME"
+    case "SECURITY":
+    case "EQUITY":
+      return "EQUITY"
+    case "MUTUAL_FUND":
+      return "MUTUAL_FUND"
+    case "ETF":
+      return "ETF"
+    case "COE":
+      return "COE"
+    default:
+      return "OTHER"
+  }
+}
+
+export interface InvestmentGroup<T> {
+  key: InvestmentGroupKey
+  label: string
+  items: T[]
+  total: number
+}
+
+export function groupInvestments<T extends { type: string | null; balance: number }>(investments: T[]): InvestmentGroup<T>[] {
+  const groups = new Map<InvestmentGroupKey, T[]>()
+  for (const inv of investments) {
+    const key = investmentGroupKey(inv.type)
+    groups.set(key, [...(groups.get(key) ?? []), inv])
+  }
+  return GROUP_ORDER.filter((key) => groups.has(key)).map((key) => {
+    const items = groups.get(key)!
+    return {
+      key,
+      label: INVESTMENT_GROUP_LABELS[key],
+      items,
+      total: items.reduce((sum, inv) => sum + inv.balance, 0),
+    }
+  })
+}
+
 function percent(value: number): string {
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`
 }
