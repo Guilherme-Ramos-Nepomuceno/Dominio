@@ -79,7 +79,9 @@ export function AppLayout({ children, showMonthFilter = false, primaryAction, wi
             <NotificationCenter />
           </div>
           {showMonthFilter && (
-            <div className="flex min-w-0 justify-end">
+            // min-w: o mês nunca encolhe até sumir (no iPhone a largura chegou a
+            // zero); abaixo disso quem cede é o texto, com reticências.
+            <div className="flex min-w-[4.75rem] shrink justify-end">
               <MonthHeaderSelector className="min-w-0" />
             </div>
           )}

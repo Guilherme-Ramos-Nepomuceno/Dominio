@@ -41,7 +41,7 @@ export function MonthHeaderSelector({ className }: MonthHeaderSelectorProps) {
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1 max-w-full overflow-hidden text-sm font-semibold text-foreground hover:opacity-70 transition-opacity",
+            "flex min-w-0 items-center gap-1 text-sm font-semibold text-foreground hover:opacity-70 transition-opacity",
             className,
           )}
         >
