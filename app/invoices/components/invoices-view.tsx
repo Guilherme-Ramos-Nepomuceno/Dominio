@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { CreditCardIcon, CheckCircle, PencilSimple, ArrowLeft, ArrowRight, Info, X } from "@phosphor-icons/react"
+import { CreditCardIcon, CheckCircle, PencilSimple, ArrowLeft, ArrowRight, Info, X, Bank, ClockCountdown, ArrowUDownLeft } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { PageHeader } from "@/components/ui/page-header"
@@ -17,6 +17,7 @@ import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
 import type { Invoice, InvoiceBank } from "@/lib/types"
 import { useInvoicesViewModel } from "../hooks/use-invoices-view-model"
 import { findCategory, transactionCategoryLabel } from "@/lib/category-utils"
+import { installmentLabel } from "@/lib/card-invoice"
 
 // Fechamento/vencimento são gravados como meia-noite no fuso do servidor
 // (em produção, UTC: "2026-11-12T00:00:00Z"). Lido no fuso do Brasil isso
@@ -167,6 +168,10 @@ export function InvoicesView() {
         handlePartialAmountChange,
         handleUpdateInvoiceDates,
         handleMoveTransaction,
+        bankMatches,
+        busyMatchId,
+        handleMergeMatch,
+        handleDismissMatch,
     } = useInvoicesViewModel()
     const [showPartial, setShowPartial] = useState(false)
 
@@ -299,6 +304,9 @@ export function InvoicesView() {
                                                         <Link href="/bank-sync" className="underline underline-offset-2 hover:text-foreground">aguardando revisão</Link>.
                                                     </p>
                                                 )}
+                                                {inv.projectedTotal >= 0.01 && (
+                                                    <p>Inclui {formatCurrency(inv.projectedTotal)} em parcelas que o banco ainda não mandou.</p>
+                                                )}
                                             </div>
                                         ) : isPaid ? (
                                             <p className="flex items-center gap-1.5 text-sm font-medium text-positive-ink">
@@ -378,13 +386,60 @@ export function InvoicesView() {
                                 )}
                             </section>
 
+                            {/* "É a mesma compra?": lançado à mão × veio do banco */}
+                            {fromBank && bankMatches.length > 0 && (
+                                <section aria-labelledby="bank-matches-title" className="space-y-3">
+                                    <SectionTitle id="bank-matches-title">Parece a mesma compra</SectionTitle>
+                                    <ul className="space-y-3">
+                                        {bankMatches.map((match) => {
+                                            const parcel = installmentLabel(match.manual.currentInstallment, match.manual.installments)
+                                            const series = (match.manual.installments ?? 0) > 1
+                                            const busy = busyMatchId === match.manual.id
+                                            return (
+                                                <li key={match.manual.id} className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2.5">
+                                                    <p className="flex items-start gap-1.5 text-xs text-foreground">
+                                                        <Bank size={14} weight="duotone" className="mt-px shrink-0 text-primary" aria-hidden />
+                                                        <span>
+                                                            Você lançou <span className="font-medium">{match.manual.description}</span>
+                                                            {parcel && ` (${parcel})`}, {formatCurrency(match.manual.amount)} em {formatDate(match.manual.date)}, e o banco mandou{" "}
+                                                            <span className="font-medium">{match.bank.description}</span>, {formatCurrency(match.bank.amount)} em {formatDate(match.bank.date)}.
+                                                        </span>
+                                                    </p>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        Juntar deixa a compra do banco com o seu nome e categoria e apaga {series ? "as parcelas lançadas à mão" : "o lançamento à mão"}.
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleMergeMatch(match)}
+                                                            disabled={!!busyMatchId}
+                                                            className="flex-1 rounded-lg bg-foreground py-2 text-xs font-semibold text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                                                        >
+                                                            {busy ? "Juntando..." : "É a mesma, juntar"}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDismissMatch(match)}
+                                                            disabled={busy}
+                                                            className="flex-1 rounded-lg border border-border py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                                                        >
+                                                            Não é
+                                                        </button>
+                                                    </div>
+                                                </li>
+                                            )
+                                        })}
+                                    </ul>
+                                </section>
+                            )}
+
                             {/* 2. Compras da fatura */}
                             <section aria-labelledby="invoice-items-title">
                                 <SectionTitle id="invoice-items-title">
-                                    {inv.transactions.length === 1 ? "1 compra" : `${inv.transactions.length} compras`}
+                                    {inv.transactions.length + inv.projected.length === 1 ? "1 compra" : `${inv.transactions.length + inv.projected.length} compras`}
                                 </SectionTitle>
 
-                                {inv.transactions.length === 0 ? (
+                                {inv.transactions.length + inv.projected.length + inv.refunds.length === 0 ? (
                                     <p className="mt-3 text-sm text-muted-foreground">Nenhuma compra nesta fatura.</p>
                                 ) : (
                                     <ul className="mt-1 divide-y divide-border">
@@ -466,6 +521,27 @@ export function InvoicesView() {
                                                 </li>
                                             )
                                         })}
+                                        {inv.projected.map((p) => (
+                                            <li key={`prevista-${p.sourceTransactionId}`} className="flex items-start gap-3 py-3.5">
+                                                <ClockCountdown size={22} weight="duotone" className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="truncate font-medium text-foreground">{p.description}</p>
+                                                    <p className="truncate text-xs text-muted-foreground tabular-nums">Parcela {p.currentInstallment}/{p.installments} · prevista</p>
+                                                    <p className="text-[11px] text-muted-foreground">O banco ainda não mandou esta parcela. Ela entra aqui quando chegar.</p>
+                                                </div>
+                                                <span className="shrink-0 font-semibold tabular-nums text-foreground">{formatCurrency(p.amount)}</span>
+                                            </li>
+                                        ))}
+                                        {inv.refunds.map((t) => (
+                                            <li key={t.id} className="flex items-start gap-3 py-3.5">
+                                                <ArrowUDownLeft size={22} weight="duotone" className="mt-0.5 shrink-0 text-positive-ink" aria-hidden />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="truncate font-medium text-foreground">{t.description}</p>
+                                                    <p className="truncate text-xs text-muted-foreground tabular-nums">Estorno · {formatDate(t.date)}</p>
+                                                </div>
+                                                <span className="shrink-0 font-semibold tabular-nums text-positive-ink">−{formatCurrency(t.amount)}</span>
+                                            </li>
+                                        ))}
                                     </ul>
                                 )}
 

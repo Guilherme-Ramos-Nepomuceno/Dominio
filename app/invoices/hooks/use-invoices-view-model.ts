@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react"
-import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice } from "@/lib/storage"
+import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice, getManualBankMatches, mergeManualWithBank, dismissManualBankMatch } from "@/lib/storage"
 import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
-import type { Card, Transaction, Category, Invoice } from "@/lib/types"
-import { effectiveTransactionType } from "@/lib/category-utils"
-import { countsInInvoice, openInvoiceMonthKey } from "@/lib/card-invoice"
+import type { Card, Transaction, Category, Invoice, ManualBankMatch } from "@/lib/types"
+import { effectiveTransactionType, findCategory } from "@/lib/category-utils"
+import { countsAsInvoiceRefund, countsInInvoice, invoiceTotal, openInvoiceMonthKey, sumAmounts } from "@/lib/card-invoice"
+import { useToast } from "@/hooks/use-toast"
 
 export function useInvoicesViewModel() {
     const [cards, setCards] = useState<Card[]>([])
@@ -21,6 +22,10 @@ export function useInvoicesViewModel() {
     const [loading, setLoading] = useState(true)
     const [isPaying, setIsPaying] = useState(false)
     const [isMoving, setIsMoving] = useState(false)
+    // "É a mesma compra?" do cartão selecionado (só cartão ligado ao banco).
+    const [bankMatches, setBankMatches] = useState<ManualBankMatch[]>([])
+    const [busyMatchId, setBusyMatchId] = useState<string | null>(null)
+    const { toast } = useToast()
 
     const loadData = useCallback(async () => {
         try {
@@ -107,6 +112,8 @@ export function useInvoicesViewModel() {
             )
 
             const realInvoice = invoicesByCard[card.id]
+            const inThisInvoice = (t: Transaction) =>
+                t.invoiceId ? (realInvoice ? t.invoiceId === realInvoice.id : getInvoiceMonth(t.date, card.closingDate) === selectedMonth) : getInvoiceMonth(t.date, card.closingDate) === selectedMonth
 
             // 2. Processa as transações para o mês selecionado — cada parcela já é
             // sua própria transação, com data e valor corretos (addTransaction já
@@ -114,15 +121,27 @@ export function useInvoicesViewModel() {
             // atribuído (respeita edição manual da fatura, ou "mover para fatura
             // seguinte/anterior"); lançamentos antigos sem invoiceId caem no
             // cálculo pelo dia de fechamento do cartão, como antes.
-            const monthTransactions: any[] = cardTransactions.filter((t) => {
-                if (t.invoiceId) return realInvoice ? t.invoiceId === realInvoice.id : getInvoiceMonth(t.date, card.closingDate) === selectedMonth
-                return getInvoiceMonth(t.date, card.closingDate) === selectedMonth
-            })
+            const monthTransactions: any[] = cardTransactions.filter(inThisInvoice)
 
             // Cartão ligado ao banco: lançamento manual aparece, mas fica fora
             // do total (a fonte da fatura é o banco — somar contaria duas vezes).
             const counted = monthTransactions.filter((t) => countsInInvoice(card, t))
-            const totalInvoice = counted.reduce((sum, t) => sum + t.amount, 0)
+            // Ligado ao banco: estorno do banco desconta e as parcelas que o banco
+            // ainda não mandou entram como previstas — a mesma conta do "a pagar"
+            // da tela de Cartões (e da fatura que o banco mostra).
+            const refunds = card.bank?.credit
+                ? transactions.filter(
+                      (t) =>
+                          t.cardId === card.id &&
+                          t.status !== "cancelled" &&
+                          effectiveTransactionType(categories, t) === "income" &&
+                          (!card.hasDebit || t.paymentMethod === "credit") &&
+                          inThisInvoice(t) &&
+                          countsAsInvoiceRefund(card, t, findCategory(categories, t.categoryId)),
+                  )
+                : []
+            const projected = card.bank?.credit && !realInvoice?.bank ? (realInvoice?.projectedInstallments ?? []) : []
+            const totalInvoice = invoiceTotal({ purchases: sumAmounts(counted), refunds: sumAmounts(refunds), projected: sumAmounts(projected) })
             const pendingTransactions = counted.filter(t => t.status === "pending")
             const totalPending = pendingTransactions.reduce((sum, t) => sum + t.amount, 0)
             const manualExcluded = monthTransactions.length - counted.length
@@ -140,11 +159,54 @@ export function useInvoicesViewModel() {
                 totalPending: totalPending,
                 manualExcluded,
                 awaitingReview,
+                refunds,
+                projected,
+                projectedTotal: sumAmounts(projected),
             }
         })
     }, [cards, transactions, categories, selectedMonth, invoicesByCard])
 
     const selectedInvoice = cardInvoices.find((inv) => inv.card.id === selectedCardId)
+
+    const selectedBankLinked = !!cards.find((c) => c.id === selectedCardId)?.bank?.credit
+    const loadBankMatches = useCallback(async () => {
+        if (!selectedCardId || !selectedBankLinked) {
+            setBankMatches([])
+            return
+        }
+        setBankMatches(await getManualBankMatches(selectedCardId))
+    }, [selectedCardId, selectedBankLinked])
+
+    useEffect(() => {
+        loadBankMatches()
+    }, [loadBankMatches])
+
+    // "É a mesma": a compra do banco fica com o nome e a categoria do
+    // lançamento à mão, que some (com as outras parcelas dele).
+    const handleMergeMatch = async (match: ManualBankMatch) => {
+        if (busyMatchId) return
+        setBusyMatchId(match.manual.id)
+        try {
+            const result = await mergeManualWithBank(match.manual.id, match.bank.id)
+            toast({
+                title: "Compras juntadas",
+                description: result.removed > 1
+                    ? `As ${result.removed} parcelas lançadas à mão viraram as do banco, com o nome "${match.manual.description}".`
+                    : `"${match.manual.description}" agora é a compra do banco.`,
+                variant: "success",
+            })
+            await Promise.all([loadData(), loadBankMatches()])
+        } catch (error: any) {
+            toast({ title: "Não foi possível juntar", description: error?.message, variant: "destructive" })
+        } finally {
+            setBusyMatchId(null)
+        }
+    }
+
+    const handleDismissMatch = async (match: ManualBankMatch) => {
+        setBankMatches((prev) => prev.filter((m) => m.manual.id !== match.manual.id))
+        await dismissManualBankMatch(match.manual.id, match.bank.id).catch(() => {})
+    }
 
     const handleUpdateInvoiceDates = async (updates: { closingDate?: string; dueDate?: string }) => {
         if (!selectedCardId) return
@@ -257,5 +319,9 @@ export function useInvoicesViewModel() {
         handlePartialAmountChange,
         handleUpdateInvoiceDates,
         handleMoveTransaction,
+        bankMatches,
+        busyMatchId,
+        handleMergeMatch,
+        handleDismissMatch,
     }
 }

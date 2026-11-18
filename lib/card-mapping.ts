@@ -14,6 +14,7 @@ function mapOpenInvoice(raw: any): OpenInvoice | null {
     registered: Number(raw.registered ?? 0),
     awaitingReview: Number(raw.awaitingReview ?? 0),
     manualExcluded: Number(raw.manualExcluded ?? 0),
+    projected: Number(raw.projected ?? 0),
   }
 }
 

@@ -21,7 +21,7 @@ const apiCard = {
   calculatedBalance: 0,
   investmentTotal: 0,
   bank: null,
-  openInvoice: { year: 2026, month: 12, closingDate: "2026-12-01", dueDate: "2026-12-08", total: 123.45, registered: 123.45, awaitingReview: 0, manualExcluded: 0 },
+  openInvoice: { year: 2026, month: 12, closingDate: "2026-12-01", dueDate: "2026-12-08", total: 123.45, registered: 123.45, awaitingReview: 0, manualExcluded: 0, projected: 0 },
 }
 
 test("o cartão mapeado mantém a fatura aberta que veio da API", () => {
@@ -34,6 +34,13 @@ test("com a fatura aberta mapeada, o link abre dezembro e o rótulo é o de deze
   assert.equal(cardInvoiceHref(card), "/invoices?card=c1&month=2026-12")
   assert.equal(openInvoiceLabel(card.openInvoice!), "Fatura de dezembro · vence 08/12")
   assert.equal(amountToPay(card), 123.45)
+})
+
+test("parcelas previstas vêm no total e à parte; API antiga sem o campo → 0", () => {
+  const card = mapCardFromApi({ ...apiCard, openInvoice: { ...apiCard.openInvoice, projected: "289.76" } })
+  assert.equal(card.openInvoice!.projected, 289.76)
+  const { projected, ...old } = apiCard.openInvoice
+  assert.equal(mapCardFromApi({ ...apiCard, openInvoice: old }).openInvoice!.projected, 0)
 })
 
 test("cartão sem fatura aberta (conta, dinheiro) fica com null", () => {

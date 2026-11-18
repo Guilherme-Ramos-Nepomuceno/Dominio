@@ -56,3 +56,30 @@ export function countsInInvoice(card: Pick<Card, "bank">, transaction: { externa
   if (!card.bank?.credit) return true
   return !!transaction.externalId
 }
+
+// Estorno que desconta da fatura do cartão ligado ao banco (como a API faz no
+// total da tela de Cartões): entrada que veio do banco e não é pagamento de
+// fatura nem transferência — essas têm categoria `excludedFromTotals`.
+export function countsAsInvoiceRefund(
+  card: Pick<Card, "bank">,
+  transaction: { externalId?: string | null },
+  category?: { excludedFromTotals?: boolean } | null,
+): boolean {
+  if (!card.bank?.credit) return false
+  return !!transaction.externalId && !category?.excludedFromTotals
+}
+
+export function sumAmounts(items: ReadonlyArray<{ amount: number }> | null | undefined): number {
+  return Math.round((items ?? []).reduce((sum, i) => sum + i.amount, 0) * 100) / 100
+}
+
+// Total da fatura no app: compras − estornos + parcelas previstas (as que o
+// banco ainda não mandou). Mesma conta do "a pagar" da tela de Cartões.
+export function invoiceTotal(parts: { purchases: number; refunds: number; projected: number }): number {
+  return Math.round((parts.purchases - parts.refunds + parts.projected) * 100) / 100
+}
+
+// "3/5" de uma parcela, ou nada.
+export function installmentLabel(current: number | null | undefined, total: number | null | undefined): string | null {
+  return current && total && total > 1 ? `${current}/${total}` : null
+}

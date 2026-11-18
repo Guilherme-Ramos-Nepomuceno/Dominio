@@ -37,3 +37,4 @@ ADRs não são editados: uma decisão nova substitui a antiga num ADR novo, com 
 | [026](../../../dominio-api/docs/adr/026-job-de-notificacoes-na-api-e-api-acordada.md) | Job de notificações dentro da API, e API mantida acordada | dominio-api |
 | [027](../../../dominio-api/docs/adr/027-fatura-aberta-e-pendencias-pagas-pelo-banco.md) | Fatura aberta como "a pagar" e pendências pagas pelo banco | dominio-api |
 | [028](../../../dominio-api/docs/adr/028-saude-da-conexao-e-investimentos-da-pluggy.md) | Saúde da conexão, investimentos e webhook completo da Pluggy | dominio-api |
+| [029](../../../dominio-api/docs/adr/029-parcelas-previstas-e-mesma-compra-a-mao.md) | Parcelas previstas na fatura aberta e "é a mesma compra?" no cartão ligado ao banco | dominio-api |

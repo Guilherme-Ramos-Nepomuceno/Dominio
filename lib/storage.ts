@@ -14,6 +14,7 @@ import type {
   BankName,
   Invoice,
   ImportPreviewRow,
+  ManualBankMatch,
 } from "./types"
 import { fetchApi } from "./api"
 import { mapCardFromApi } from "./card-mapping"
@@ -1028,7 +1029,32 @@ function mapInvoiceFromApi(i: any): Invoice {
     closingDate: i.closingDate,
     dueDate: i.dueDate,
     bank: i.bank ?? null,
+    projectedInstallments: (i.projectedInstallments ?? []).map((p: any) => ({ ...p, amount: Number(p.amount) })),
   }
+}
+
+// Cartão ligado ao banco: lançamentos à mão que parecem a mesma compra que
+// veio do banco. Sugestão é extra: se falhar, a fatura funciona igual.
+export async function getManualBankMatches(cardId: string): Promise<ManualBankMatch[]> {
+  try {
+    return (await fetchApi(`/cards/${cardId}/manual-bank-matches`)) ?? []
+  } catch {
+    return []
+  }
+}
+
+// "É a mesma": a compra do banco fica com o nome/categoria do lançamento à
+// mão, e o lançamento à mão (a série de parcelas inteira) some.
+export async function mergeManualWithBank(manualId: string, bankTransactionId: string): Promise<{ merged: number; removed: number }> {
+  assertWritable()
+  const result = await fetchApi(`/transactions/${manualId}/merge-with-bank`, { method: "POST", body: JSON.stringify({ bankTransactionId }) })
+  notifyStorageUpdate()
+  return result
+}
+
+export async function dismissManualBankMatch(manualId: string, bankTransactionId: string): Promise<void> {
+  assertWritable()
+  await fetchApi(`/transactions/${manualId}/dismiss-bank-match`, { method: "POST", body: JSON.stringify({ bankTransactionId }) })
 }
 
 export async function getInvoice(cardId: string, year: number, month: number): Promise<Invoice> {

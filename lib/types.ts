@@ -89,6 +89,25 @@ export interface Invoice {
   // Fatura vinda do banco (Pluggy): total, quitação e a conta registrado /
   // aguardando revisão / não registrado. Nulo = fatura sem vínculo com banco.
   bank?: InvoiceBank | null
+  // Cartão ligado ao banco, fatura aberta ou futura: parcelas de compras
+  // antigas que o banco ainda não mandou (o banco já conta na fatura dele).
+  projectedInstallments?: ProjectedInstallment[]
+}
+
+export interface ProjectedInstallment {
+  sourceTransactionId: string
+  description: string
+  amount: number
+  currentInstallment: number
+  installments: number
+  year: number
+  month: number
+}
+
+// "É a mesma compra?": lançamento à mão × compra que veio do banco.
+export interface ManualBankMatch {
+  manual: { id: string; description: string; amount: number; date: string; currentInstallment: number | null; installments: number | null }
+  bank: { id: string; description: string; originalDescription: string | null; amount: number; date: string }
 }
 
 export interface InvoiceBank {
@@ -178,6 +197,8 @@ export interface OpenInvoice {
   registered: number
   awaitingReview: number
   manualExcluded: number
+  // Parcelas previstas (o banco ainda não mandou) — já somadas no total.
+  projected: number
 }
 
 export interface MonthData {
