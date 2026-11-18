@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next"
-import { BRAND_EXPLANATION } from "@/lib/brand"
+import { BRAND_EXPLANATION, brandIconUrl } from "@/lib/brand"
 import { SYSTEM_BAR_COLOR } from "@/lib/theme"
 
 // Manifesto do PWA: permite instalar o Domínio na tela inicial (no iPhone é
@@ -19,9 +19,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: SYSTEM_BAR_COLOR.dark,
     theme_color: SYSTEM_BAR_COLOR.dark,
     icons: [
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: brandIconUrl("/icons/icon-192.png"), sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: brandIconUrl("/icons/icon-512.png"), sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: brandIconUrl("/icons/icon-maskable-512.png"), sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   }
 }

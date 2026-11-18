@@ -11,7 +11,7 @@ import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register"
 import { RulePromptListener } from "@/components/rules/rule-prompt-listener"
 import { GuideProvider } from "@/components/guide/guide-provider"
 import { ScreenTracker } from "@/components/session/screen-tracker"
-import { BRAND_EXPLANATION, BRAND_NAME, BRAND_SIGNATURE } from "@/lib/brand"
+import { BRAND_EXPLANATION, BRAND_NAME, BRAND_SIGNATURE, brandIconUrl } from "@/lib/brand"
 import { SYSTEM_BAR_COLOR } from "@/lib/theme"
 import "./globals.css"
 
@@ -33,9 +33,17 @@ export const metadata: Metadata = {
   title: `${BRAND_NAME} · ${BRAND_SIGNATURE}`,
   description: BRAND_EXPLANATION,
   generator: "Guilherme.Ramos",
+  // Ícones gerados por scripts/brand-icons.mjs (ADR-030). SVG para quem
+  // aceita, favicon.ico para quem pede /favicon.ico direto (salvar favorito
+  // ou atalho) e PNG de reserva.
   icons: {
-    icon: "/icon.png",
-    apple: "/icons/apple-touch-icon.png",
+    icon: [
+      { url: brandIconUrl("/brand/icon.svg"), type: "image/svg+xml" },
+      { url: brandIconUrl("/favicon.ico"), sizes: "16x16 32x32 48x48" },
+      { url: brandIconUrl("/icon.png"), type: "image/png", sizes: "256x256" },
+    ],
+    shortcut: brandIconUrl("/favicon.ico"),
+    apple: brandIconUrl("/apple-touch-icon.png"),
   },
   // PWA no iPhone: abre em tela cheia quando adicionado à tela inicial.
   appleWebApp: {

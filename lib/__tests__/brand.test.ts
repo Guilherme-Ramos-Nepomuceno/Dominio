@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { BRAND_ACHIEVEMENT, monthClosedToast } from "../brand.ts"
+import { BRAND_ACHIEVEMENT, BRAND_ICON_VERSION, brandIconUrl, monthClosedToast } from "../brand.ts"
 
 const money = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`
 
@@ -25,4 +25,8 @@ test("monthClosedToast: estourado fica neutro e sem a conquista", () => {
 
 test("monthClosedToast: centavo de arredondamento não vira estouro", () => {
   assert.equal(monthClosedToast("Novembro", -0.001, money).title, "Novembro fechou no azul")
+})
+
+test("brandIconUrl: põe a versão do ícone no endereço", () => {
+  assert.equal(brandIconUrl("/favicon.ico"), `/favicon.ico?v=${BRAND_ICON_VERSION}`)
 })

@@ -11,6 +11,12 @@ export const BRAND_EXPLANATION = "Ter domínio não é cortar tudo. É saber qua
 export const BRAND_CALL = "Domine o mês. Fique no azul."
 export const BRAND_ACHIEVEMENT = "Seu mês, seu domínio."
 
+// Versão dos ícones na URL (?v=). Navegador e sistema guardam o ícone pelo
+// endereço: sem mudar o endereço, quem salvou o app antes continuava vendo o
+// ícone antigo. Ao redesenhar o ícone, suba o número.
+export const BRAND_ICON_VERSION = 2
+export const brandIconUrl = (path: string) => `${path}?v=${BRAND_ICON_VERSION}`
+
 export interface ToastCopy {
   title: string
   description: string
