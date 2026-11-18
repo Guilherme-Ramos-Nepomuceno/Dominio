@@ -22,8 +22,28 @@ import { normalizeMonthStartDay } from "./period"
 import { mapNotificationPrefs } from "./push"
 import { mapRuleConflict, mapRuleSuggestion, type RuleFeedback } from "./rules"
 import { getActiveAccountSelection } from "./active-account"
+import { createInFlightGroup } from "./in-flight"
 import * as familyApi from "./family"
 import type { MemberMonthData } from "./family"
+
+// Leituras repetidas ao mesmo tempo viram uma requisição só. A tela inicial
+// monta vários componentes que pedem cartões, categorias, transações... juntos,
+// e todos pedem de novo a cada "storage-update" — eram até 15 chamadas a
+// /cards pra abrir a tela. Só a REQUISIÇÃO é compartilhada: cada chamador
+// mapeia a resposta e recebe objetos próprios. Os dados mudaram (qualquer
+// "storage-update", venha de onde vier), quem chegar depois busca de novo em
+// vez de pegar carona numa requisição de antes da mudança.
+const readsInFlight = createInFlightGroup<any>()
+if (typeof window !== "undefined") {
+  window.addEventListener("storage-update", () => readsInFlight.clear())
+}
+
+// A mesma rota devolve dados diferentes conforme a conta ativa (header do casal).
+function sharedRead<T = any>(key: string, load: () => Promise<T>): Promise<T> {
+  const ctx = getActiveAccountSelection()
+  const account = ctx.type === "personal" ? "personal" : `${ctx.type}:${ctx.id}`
+  return readsInFlight.run(`${account}|${key}`, load)
+}
 
 // Categorias criadas automaticamente na primeira vez que uma conta (pessoal ou do casal)
 // não tem nenhuma categoria ainda — o backend não vem com nada pré-cadastrado.
@@ -128,8 +148,9 @@ let seedingPromise: Promise<Category[]> | null = null
 
 export async function getCategories(): Promise<Category[]> {
   const ctx = getActiveAccountSelection()
-  const raw =
-    ctx.type === "partner" ? await familyApi.getMemberCategories(ctx.id) : await fetchApi("/categories")
+  const raw = await sharedRead("categories", () =>
+    ctx.type === "partner" ? familyApi.getMemberCategories(ctx.id) : fetchApi("/categories"),
+  )
 
   const categories = (raw || []).map(mapCategoryFromApi)
   if (categories.length === 0 && ctx.type !== "partner") {
@@ -227,7 +248,7 @@ export async function getMemberCardsMapped(memberId: string): Promise<Card[]> {
 
 export async function getCards(): Promise<Card[]> {
   const ctx = getActiveAccountSelection()
-  const raw = ctx.type === "partner" ? await familyApi.getMemberCards(ctx.id) : await fetchApi("/cards")
+  const raw = await sharedRead("cards", () => (ctx.type === "partner" ? familyApi.getMemberCards(ctx.id) : fetchApi("/cards")))
   // A carteira "Dinheiro" é criada pelo backend no cadastro (e na conta do
   // casal). O front não cria mais quando a lista vem vazia: duas telas lendo
   // ao mesmo tempo criavam uma cada, e a pessoa ficava com dois "Dinheiro".
@@ -393,7 +414,7 @@ export async function getInbox(): Promise<InboxData> {
 }
 
 export async function getInboxCount(): Promise<number> {
-  const result = await fetchApi("/transactions/inbox/count")
+  const result = await sharedRead("inbox-count", () => fetchApi("/transactions/inbox/count"))
   return Number(result?.count ?? 0)
 }
 
@@ -773,20 +794,28 @@ export async function confirmPluggyPending(ids: string[]): Promise<ConfirmPluggy
 }
 
 export async function getPluggyPendingCount(): Promise<number> {
-  const result = await fetchApi("/pluggy/pending/count")
+  const result = await sharedRead("pluggy-pending-count", () => fetchApi("/pluggy/pending/count"))
   return result.count
 }
 
+// `compact=1`: a API manda só os campos da transação, sem categoria/cartão
+// aninhados — mapTransactionFromApi só usa os ids, e a resposta cai pela metade.
+const COMPACT = { compact: "1" }
+
 export async function getTransactions(): Promise<Transaction[]> {
   const ctx = getActiveAccountSelection()
-  const raw = ctx.type === "partner" ? await familyApi.getMemberTransactions(ctx.id) : await fetchApi("/transactions")
+  const raw = await sharedRead<any[] | null>("transactions", () =>
+    ctx.type === "partner" ? familyApi.getMemberTransactions(ctx.id, COMPACT) : fetchApi("/transactions?compact=1"),
+  )
+  // Cada chamador recebe seus próprios objetos (o map cria novos), então um
+  // componente que ordena/altera a lista não mexe na do outro.
   return (raw || []).map(mapTransactionFromApi)
 }
 
 // Busca o histórico COMPLETO (não só o isCasal) de um membro específico da família —
 // usado para consolidar a visão "Total da Família", que soma tudo dos dois parceiros.
 export async function getMemberTransactionsMapped(memberId: string): Promise<Transaction[]> {
-  const raw = await familyApi.getMemberTransactions(memberId)
+  const raw = await sharedRead<any[] | null>(`member-transactions:${memberId}`, () => familyApi.getMemberTransactions(memberId, COMPACT))
   return (raw || []).map(mapTransactionFromApi)
 }
 
@@ -1204,7 +1233,7 @@ function mapSavingsToApi(s: Partial<SavingsGoal>) {
 
 export async function getSavingsGoals(): Promise<SavingsGoal[]> {
   const ctx = getActiveAccountSelection()
-  const raw = ctx.type === "partner" ? await familyApi.getMemberSavings(ctx.id) : await fetchApi("/savings")
+  const raw = await sharedRead("savings", () => (ctx.type === "partner" ? familyApi.getMemberSavings(ctx.id) : fetchApi("/savings")))
   return (raw || []).map(mapSavingsFromApi)
 }
 
