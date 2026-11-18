@@ -73,6 +73,31 @@ export function useInvoicesViewModel() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
+    // Pelo menu (sem ?month=), a tela também abre na fatura aberta do cartão
+    // mostrado: em novembro, um cartão que fecha dia 1 já está na fatura de
+    // dezembro. Vale só nesta tela — ao sair volta o mês que estava, a não ser
+    // que a pessoa tenha trocado o mês aqui de propósito.
+    const appliedOpenMonth = useRef<{ month: string; previous: string } | null>(null)
+    const openMonthHandled = useRef(false)
+    useEffect(() => {
+        if (openMonthHandled.current || cards.length === 0 || selectedCardId === null) return
+        openMonthHandled.current = true
+        if (new URLSearchParams(window.location.search).get("month")) return
+        const card = cards.find((c) => c.id === selectedCardId)
+        const month = card?.openInvoice ? openInvoiceMonthKey(card.openInvoice) : null
+        if (!month || month === monthRef.current) return
+        appliedOpenMonth.current = { month, previous: monthRef.current }
+        setSelectedMonth(month)
+    }, [cards, selectedCardId, setSelectedMonth])
+    useEffect(
+        () => () => {
+            const applied = appliedOpenMonth.current
+            if (applied && monthRef.current === applied.month) setSelectedMonth(applied.previous)
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [],
+    )
+
     useEffect(() => {
         if (cards.length === 0) return
         const [year, month] = selectedMonth.split("-").map(Number)
