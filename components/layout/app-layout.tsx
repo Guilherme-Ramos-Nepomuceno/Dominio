@@ -64,7 +64,7 @@ export function AppLayout({ children, showMonthFilter = false, primaryAction, wi
       {/* No PWA do iPhone (statusBarStyle black-translucent) o app desenha por
           baixo da barra de status: o cabeçalho reserva essa faixa
           (safe-area-inset-top, 0 fora do iPhone) e a linha de 4rem vem abaixo. */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-background/80 backdrop-blur-md border-b border-border z-40 flex items-center px-4 justify-between gap-2">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-background/80 backdrop-blur-md border-b border-border z-40 flex items-center pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] justify-between gap-2">
         {/* Marca à esquerda (leva para a Home); à direita, avisos, mês e conta. */}
         <h1 className="text-lg shrink-0">
           <Link href="/" aria-label="Domínio, ir para o início" className="flex rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
