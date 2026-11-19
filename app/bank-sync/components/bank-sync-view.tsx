@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { Bank, Plus, ArrowsClockwise, Check, CheckCircle, CaretLeft, CaretRight, CaretDown, ArrowRight, Question, ArrowsLeftRight, Wallet, CreditCard, WarningCircle } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
@@ -29,7 +30,6 @@ import { AppSelect } from "@/components/ui/app-select"
 import { checkPluggyCredentials, normalizePluggyCredential } from "@/lib/pluggy-credentials"
 import type { PluggyItemStatus } from "@/lib/storage"
 import { healthLine, canReconnect, needsAction, healthDetails } from "@/lib/pluggy-health"
-import { BankInvestmentsSection } from "./bank-investments-section"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1246,12 +1246,19 @@ export function BankSyncView() {
             </ul>
           </section>
 
-          <BankInvestmentsSection
-            investments={vm.investments}
-            savingsGoals={vm.savingsGoals}
-            linkingInvestmentId={vm.linkingInvestmentId}
-            onLink={vm.linkInvestment}
-          />
+          {vm.investments.length > 0 && (
+            <section aria-labelledby="sync-investments-title" className="space-y-1">
+              <SectionTitle id="sync-investments-title">Investimentos no banco</SectionTitle>
+              <p className="text-sm text-muted-foreground">
+                {formatCurrency(vm.investments.reduce((sum, i) => sum + i.balance, 0))} em {vm.investments.length} investimento
+                {vm.investments.length === 1 ? "" : "s"}. Eles já entram no seu guardado. Veja e escolha para qual reserva cada um vai em{" "}
+                <Link href="/savings?view=invested" className="font-semibold text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">
+                  Reservas, Tudo investido
+                </Link>
+                .
+              </p>
+            </section>
+          )}
 
           {/* 5. Mapa categoria do banco → categoria da conta */}
           <PluggyCategoryMapSection />

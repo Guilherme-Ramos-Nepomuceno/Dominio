@@ -25,6 +25,7 @@ import { getActiveAccountSelection } from "./active-account"
 import { createInFlightGroup } from "./in-flight"
 import * as familyApi from "./family"
 import type { MemberMonthData } from "./family"
+import { normalizeSavingsKind } from "./goal-allocation"
 
 // Leituras repetidas ao mesmo tempo viram uma requisição só. A tela inicial
 // monta vários componentes que pedem cartões, categorias, transações... juntos,
@@ -564,6 +565,8 @@ export interface PluggyInvestment {
   dueDate: string | null
   bankUpdatedAt: string | null
   savingsGoalId: string | null
+  // Quanto deste investimento é de cada reserva. O que não foi direcionado está em Guardado.
+  allocations: { savingsGoalId: string; name: string; amount: number }[]
 }
 
 export interface PluggyAccount {
@@ -676,13 +679,15 @@ export async function getPluggyInvestments(): Promise<PluggyInvestment[]> {
     balance: Number(i.balance),
     amountOriginal: i.amountOriginal === null ? null : Number(i.amountOriginal),
     profit: i.profit === null ? null : Number(i.profit),
+    allocations: Array.isArray(i.allocations) ? i.allocations.map((a: any) => ({ ...a, amount: Number(a.amount) })) : [],
   }))
 }
 
-// `null` desliga: a reserva volta a ser editada à mão, com o último saldo.
-export async function linkPluggyInvestment(investmentId: string, savingsGoalId: string | null): Promise<void> {
+// Divide o valor de um investimento do banco entre reservas. O que não for
+// direcionado fica em Guardado. Valor absoluto por reserva (zero ou fora da lista tira).
+export async function setInvestmentAllocations(investmentId: string, allocations: { savingsGoalId: string; amount: number }[]): Promise<void> {
   assertWritable()
-  await fetchApi(`/pluggy/investments/${investmentId}`, { method: "PATCH", body: JSON.stringify({ savingsGoalId }) })
+  await fetchApi(`/pluggy/investments/${investmentId}/allocations`, { method: "PUT", body: JSON.stringify({ allocations }) })
   notifyStorageUpdate()
 }
 
@@ -1234,11 +1239,18 @@ function mapSavingsFromApi(s: any): SavingsGoal {
     icon: s.icon ?? "PiggyBank",
     cardId: s.cardId ?? undefined,
     isCasal: !!s.isCasal,
-    kind: s.kind ?? "OUTRO",
+    kind: normalizeSavingsKind(s.kind),
     allocatedTo: Array.isArray(s.goalAllocations)
       ? s.goalAllocations.map((a: any) => ({ goalId: String(a.goalId), goalName: String(a.goal?.name ?? ""), amount: Number(a.amount) }))
       : [],
     bankInvestmentNames: Array.isArray(s.pluggyInvestments) && s.pluggyInvestments.length > 0 ? s.pluggyInvestments.map((i: any) => String(i.name)) : undefined,
+    isDefault: !!s.isDefault,
+    bank: Array.isArray(s.investmentAllocations)
+      ? s.investmentAllocations.map((a: any) => ({ investmentId: String(a.investment?.id ?? ""), name: String(a.investment?.name ?? ""), amount: Number(a.amount) }))
+      : [],
+    sources: Array.isArray(s.sources)
+      ? s.sources.map((x: any) => ({ id: String(x.id), name: String(x.name), amount: Number(x.amount), updatedAt: String(x.updatedAt) }))
+      : [],
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   }
@@ -1299,16 +1311,51 @@ export async function applySavingsGoalDelta(
   const goals = await getSavingsGoals()
   const goal = goals.find((g) => g.id === goalId)
   if (!goal) return
-  // Reserva ligada a investimento do banco: o saldo é o do banco e chega no
-  // próximo sync (a API recusa saldo digitado). A transação já ficou registrada.
-  if (goal.bankInvestmentNames?.length) return
-
   const newAmount = direction === "add" ? goal.currentAmount + amount : Math.max(0, goal.currentAmount - amount)
 
   const updates: Partial<SavingsGoal> = { currentAmount: newAmount }
   if (cardId && !goal.cardId) updates.cardId = cardId
 
   await updateSavingsGoal(goalId, updates)
+}
+
+// Fontes registradas pelo nome ("Tesouro Selic", "Poupança"). Sem reserva, vão
+// para Guardado. `fromRest` detalha o que já estava no saldo, sem somar de novo.
+export async function addSavingsSource(input: { name: string; amount: number; savingsGoalId?: string; fromRest?: boolean }): Promise<void> {
+  assertWritable()
+  await fetchApi("/savings/sources", { method: "POST", body: JSON.stringify(input) })
+  notifyStorageUpdate()
+}
+
+// `amount` é o valor de hoje (zero remove). `savingsGoalId` passa para outra reserva.
+export async function updateSavingsSource(id: string, updates: { name?: string; amount?: number; savingsGoalId?: string }): Promise<void> {
+  assertWritable()
+  await fetchApi(`/savings/sources/${id}`, { method: "PUT", body: JSON.stringify(updates) })
+  notifyStorageUpdate()
+}
+
+export async function deleteSavingsSource(id: string): Promise<void> {
+  assertWritable()
+  await fetchApi(`/savings/sources/${id}`, { method: "DELETE" })
+  notifyStorageUpdate()
+}
+
+// Aviso do ajuste automático (resgate no banco, retirada que reduziu o separado).
+export interface SavingsAdjustment {
+  id: string
+  investmentId: string | null
+  message: string
+  amount: number
+  createdAt: string
+}
+
+export async function getSavingsAdjustments(): Promise<SavingsAdjustment[]> {
+  const raw = await fetchApi("/savings/adjustments")
+  return (raw || []).map((a: any) => ({ ...a, amount: Number(a.amount) }))
+}
+
+export async function dismissSavingsAdjustment(id: string): Promise<void> {
+  await fetchApi(`/savings/adjustments/${id}/dismiss`, { method: "POST" })
 }
 
 export { ensureSystemCategory, isReadOnly }

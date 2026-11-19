@@ -40,3 +40,5 @@ ADRs não são editados: uma decisão nova substitui a antiga num ADR novo, com 
 | [029](../../../dominio-api/docs/adr/029-parcelas-previstas-e-mesma-compra-a-mao.md) | Parcelas previstas na fatura aberta e "é a mesma compra?" no cartão ligado ao banco | dominio-api |
 | [030](030-identidade-da-marca.md) | Identidade da marca: "Seu mês no azul.", Torre em D e azul ultramar | Dominio |
 | [031](031-reservas-alocadas-em-objetivos.md) | Reservas separadas para objetivos, tipo da reserva e investimentos por tipo | Dominio + dominio-api |
+| [032](032-reserva-por-grupo-sem-cartao.md) | Reserva por grupo (Segurança, Planejado, Futuro), sem cartão obrigatório | Dominio + dominio-api |
+| [033](033-composicao-do-saldo-das-reservas.md) | Composição do saldo das reservas, reserva Guardado e ajuste automático | Dominio + dominio-api |

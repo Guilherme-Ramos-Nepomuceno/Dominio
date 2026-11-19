@@ -1,6 +1,16 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { allocationFor, availableForGoal, freeOfSavings, goalProgress, savingsKindLabel, validateAllocationAmount } from "../goal-allocation.ts"
+import {
+  allocationFor,
+  availableForGoal,
+  freeOfSavings,
+  goalProgress,
+  groupSavingsByKind,
+  normalizeSavingsKind,
+  savingsKindLabel,
+  suggestSavingsKind,
+  validateAllocationAmount,
+} from "../goal-allocation.ts"
 
 const emergencia = {
   currentAmount: 1000,
@@ -47,8 +57,46 @@ test("validação do valor separado segue a régua da API", () => {
   assert.equal(validateAllocationAmount(Number.NaN, 100), "Informe um valor válido")
 })
 
-test("rótulo do tipo de reserva, com 'Outra' para valor desconhecido", () => {
-  assert.equal(savingsKindLabel("VIAGEM"), "Viagem")
-  assert.equal(savingsKindLabel(undefined), "Outra")
-  assert.equal(savingsKindLabel("QUALQUER"), "Outra")
+test("rótulo do grupo, com 'Guardado' para valor desconhecido ou vazio", () => {
+  assert.equal(savingsKindLabel("SEGURANCA"), "Segurança")
+  assert.equal(savingsKindLabel(undefined), "Guardado")
+  assert.equal(savingsKindLabel("QUALQUER"), "Guardado")
+})
+
+test("tipos antigos viram o grupo equivalente", () => {
+  assert.equal(normalizeSavingsKind("EMERGENCIA"), "SEGURANCA")
+  assert.equal(normalizeSavingsKind("VIAGEM"), "PLANEJADO")
+  assert.equal(normalizeSavingsKind("CURTO_PRAZO"), "PLANEJADO")
+  assert.equal(normalizeSavingsKind("LONGO_PRAZO"), "FUTURO")
+  assert.equal(normalizeSavingsKind("OUTRO"), "GUARDADO")
+  assert.equal(savingsKindLabel("VIAGEM"), "Planejado")
+})
+
+test("sugere o grupo pelo nome, sem acento e sem diferenciar maiúscula", () => {
+  assert.equal(suggestSavingsKind("Reserva de Emergência"), "SEGURANCA")
+  assert.equal(suggestSavingsKind("Viagem Europa"), "PLANEJADO")
+  assert.equal(suggestSavingsKind("IPVA 2027"), "PLANEJADO")
+  assert.equal(suggestSavingsKind("Aposentadoria"), "FUTURO")
+  assert.equal(suggestSavingsKind("Caixinha da Ana"), null)
+  assert.equal(suggestSavingsKind("   "), null)
+  // palavra inteira: "carrossel" não é "carro"
+  assert.equal(suggestSavingsKind("Carrossel"), null)
+})
+
+test("agrupa as reservas na ordem dos grupos, com subtotal, e some o grupo vazio", () => {
+  const groups = groupSavingsByKind([
+    { kind: "OUTRO", currentAmount: 50 },
+    { kind: "EMERGENCIA", currentAmount: 1000.1 },
+    { kind: "SEGURANCA", currentAmount: 200.2 },
+    { kind: "FUTURO", currentAmount: 10 },
+  ])
+  assert.deepEqual(
+    groups.map((g) => [g.kind, g.total, g.items.length]),
+    [
+      ["SEGURANCA", 1200.3, 2],
+      ["FUTURO", 10, 1],
+      ["GUARDADO", 50, 1],
+    ],
+  )
+  assert.deepEqual(groupSavingsByKind([]), [])
 })

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { addGoal, allocateGoalFunds, deleteGoal, getGoals, getSavingsGoals, removeGoalAllocation, updateGoal } from "@/lib/storage"
 import type { Goal, SavingsGoal } from "@/lib/types"
 import { freeOfSavings } from "@/lib/goal-allocation"
+import type { GoalFormData } from "../components/goal-form-sheet"
 
 // Objetivos e as reservas que os alimentam. O progresso de cada objetivo vem da
 // API (soma das reservas separadas para ele); aqui só se monta a tela.
@@ -41,14 +42,27 @@ export function useGoalsViewModel() {
     }
 
     // O progresso não é digitado: `currentAmount` não entra no formulário.
-    const handleSaveGoal = async (goalData: { name: string; targetAmount: number; deadline?: string; icon?: string }) => {
+    const handleSaveGoal = async ({ allocations, ...goalData }: GoalFormData) => {
         if (editingGoal) {
             await updateGoal(editingGoal.id, goalData)
-        } else {
-            await addGoal({ ...goalData, color: "#71717a", currentAmount: 0, allocations: [] })
+            await load()
+            closeForm()
+            return
+        }
+        const created = await addGoal({ ...goalData, color: "#71717a", currentAmount: 0, allocations: [] })
+        // Separa de cada reserva escolhida. Se alguma falhar, o objetivo já existe:
+        // abre a separação dele para a pessoa tentar de novo, em vez de perder o resto.
+        let failed = false
+        for (const a of allocations) {
+            try {
+                await allocateGoalFunds(created.id, a.savingsGoalId, a.amount)
+            } catch {
+                failed = true
+            }
         }
         await load()
         closeForm()
+        if (failed) setAllocatingGoal(created)
     }
 
     const handleDeleteGoal = async (goal: Goal) => {

@@ -2,26 +2,42 @@
 
 import { useState } from "react"
 import type React from "react"
+import Link from "next/link"
 import { FormSheet, SheetPrimaryButton, UnderlineInput } from "@/components/ui/form-sheet"
-import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
-import type { Goal } from "@/lib/types"
+import { formatCurrency, formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
+import { freeOfSavings, savingsKindLabel, validateAllocationAmount } from "@/lib/goal-allocation"
+import type { Goal, SavingsGoal } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { GOAL_ICON_OPTIONS } from "../goal-icons"
 
-interface GoalFormSheetProps {
-  onClose: () => void
-  onSave: (goal: { name: string; targetAmount: number; deadline?: string; icon?: string }) => Promise<void>
-  initialGoal?: Goal
+export interface GoalFormData {
+  name: string
+  targetAmount: number
+  deadline?: string
+  icon?: string
+  // Quanto de cada reserva já vai para este objetivo (só ao criar).
+  allocations: { savingsGoalId: string; amount: number }[]
 }
 
-// Nome, valor da meta, prazo opcional e ícone. O quanto já foi guardado não se
-// digita: vem das reservas separadas para o objetivo.
-export function GoalFormSheet({ onClose, onSave, initialGoal }: GoalFormSheetProps) {
+interface GoalFormSheetProps {
+  onClose: () => void
+  onSave: (goal: GoalFormData) => Promise<void>
+  initialGoal?: Goal
+  // Reservas para escolher "De onde vem" ao criar. Ao editar, a separação é feita em "Separar".
+  reserves?: SavingsGoal[]
+}
+
+// Nome, valor da meta, prazo opcional, ícone e, ao criar, de onde vem o dinheiro.
+// O quanto já foi guardado não se digita: vem das reservas separadas para o objetivo.
+export function GoalFormSheet({ onClose, onSave, initialGoal, reserves = [] }: GoalFormSheetProps) {
   // A folha só existe enquanto está aberta: o estado começa do objetivo editado.
   const [name, setName] = useState(() => initialGoal?.name ?? "")
   const [targetText, setTargetText] = useState(() => (initialGoal ? formatCurrencyInput(String(Math.round(initialGoal.targetAmount * 100))) : ""))
   const [deadline, setDeadline] = useState(() => (initialGoal?.deadline ? initialGoal.deadline.split("T")[0] : ""))
   const [icon, setIcon] = useState<string>(() => initialGoal?.icon ?? GOAL_ICON_OPTIONS[0].name)
+  // Valor digitado por reserva (só reservas com livre aparecem).
+  const [amounts, setAmounts] = useState<Record<string, string>>({})
+  const withFree = initialGoal ? [] : reserves.filter((r) => freeOfSavings(r) > 0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,9 +48,19 @@ export function GoalFormSheet({ onClose, onSave, initialGoal }: GoalFormSheetPro
     if (!name.trim()) return setError("Dê um nome ao objetivo")
     if (!Number.isFinite(targetAmount) || targetAmount <= 0) return setError("Informe quanto custa")
 
+    const allocations: GoalFormData["allocations"] = []
+    for (const reserve of withFree) {
+      const text = amounts[reserve.id]?.trim()
+      if (!text) continue
+      const amount = parseCurrencyInput(text)
+      const problem = validateAllocationAmount(amount, freeOfSavings(reserve))
+      if (problem) return setError(`${reserve.name}: ${problem}`)
+      if (amount > 0) allocations.push({ savingsGoalId: reserve.id, amount })
+    }
+
     setSubmitting(true)
     try {
-      await onSave({ name: name.trim(), targetAmount, deadline: deadline || undefined, icon })
+      await onSave({ name: name.trim(), targetAmount, deadline: deadline || undefined, icon, allocations })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não deu para salvar")
     } finally {
@@ -73,6 +99,44 @@ export function GoalFormSheet({ onClose, onSave, initialGoal }: GoalFormSheetPro
           <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Até quando (opcional)</span>
           <UnderlineInput type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
         </label>
+
+        {!initialGoal && (
+          <div className="space-y-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">De onde vem o dinheiro (opcional)</span>
+            {withFree.length > 0 ? (
+              <ul className="divide-y divide-border">
+                {withFree.map((reserve) => (
+                  <li key={reserve.id} className="flex items-center gap-3 py-2.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-foreground">{reserve.name}</span>
+                      <span className="block text-xs tabular-nums text-muted-foreground">
+                        {savingsKindLabel(reserve.kind)} · {formatCurrency(freeOfSavings(reserve))} livre
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-baseline gap-1.5">
+                      <span className="text-sm text-muted-foreground">R$</span>
+                      <UnderlineInput
+                        inputMode="decimal"
+                        aria-label={`Quanto de ${reserve.name} vai para este objetivo`}
+                        value={amounts[reserve.id] ?? ""}
+                        onChange={(e) => setAmounts((prev) => ({ ...prev, [reserve.id]: formatCurrencyInput(e.target.value) }))}
+                        placeholder="0,00"
+                        className="w-24 text-right tabular-nums"
+                      />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma reserva com dinheiro livre agora.{" "}
+                <Link href="/savings" className="font-semibold text-foreground underline decoration-foreground/30 underline-offset-4">
+                  Ver reservas
+                </Link>
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2">
           <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Ícone</span>

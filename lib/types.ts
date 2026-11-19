@@ -168,6 +168,12 @@ export interface SavingsGoal {
   // Investimentos do banco ligados a ela: com algum, o saldo vem do banco
   // (atualizado a cada sincronização) e não é editado à mão.
   bankInvestmentNames?: string[]
+  // Reserva padrão "Guardado": recebe o dinheiro guardado que ainda não tem destino.
+  isDefault?: boolean
+  // Composição do saldo (ver lib/savings-composition.ts): partes de investimentos
+  // do banco e fontes registradas pelo nome. O que sobra é "sem detalhar".
+  bank?: { investmentId: string; name: string; amount: number }[]
+  sources?: { id: string; name: string; amount: number; updatedAt: string }[]
   createdAt: string
   updatedAt: string
 }

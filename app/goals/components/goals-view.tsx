@@ -3,6 +3,7 @@
 import { Plus } from "@phosphor-icons/react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageSwitch } from "@/components/ui/page-switch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { formatCurrency } from "@/lib/date-utils"
@@ -14,6 +15,11 @@ import { AllocateFundsSheet } from "./allocate-funds-sheet"
 import { GoalFormSheet } from "./goal-form-sheet"
 import { GoalRow } from "./goal-row"
 
+const SAVED_MONEY_TABS = [
+  { href: "/savings", label: "Reservas" },
+  { href: "/goals", label: "Objetivos" },
+]
+
 // Página corrida (ADR-013): o total separado para objetivos em destaque, e a
 // lista dos objetivos com as reservas de onde vem o dinheiro.
 export function GoalsView() {
@@ -24,7 +30,8 @@ export function GoalsView() {
 
   return (
     <AppLayout primaryAction={{ label: "Novo objetivo", onPress: vm.openNew }}>
-      <PageHeader back="/all-menus" title="Objetivos" subtitle="Quanto você já separou para cada coisa" />
+      <PageHeader back="/all-menus" title="Objetivos" subtitle="Quanto você já separou para cada coisa" className="mb-4 md:mb-4" />
+      <PageSwitch label="Guardado" current="/goals" items={SAVED_MONEY_TABS} className="mb-8" />
 
       {vm.loading ? (
         <div className="mx-auto max-w-2xl space-y-10" aria-busy>
@@ -74,7 +81,7 @@ export function GoalsView() {
         </div>
       )}
 
-      {vm.isFormOpen && <GoalFormSheet initialGoal={vm.editingGoal} onClose={vm.closeForm} onSave={vm.handleSaveGoal} />}
+      {vm.isFormOpen && <GoalFormSheet initialGoal={vm.editingGoal} reserves={vm.reserves} onClose={vm.closeForm} onSave={vm.handleSaveGoal} />}
 
       {allocatingGoal && (
         <AllocateFundsSheet
@@ -89,21 +96,17 @@ export function GoalsView() {
   )
 }
 
-// Primeiro acesso, sem objetivo: explica o fluxo em três passos (reserva, objetivo,
-// separar) e leva para criar o primeiro. Sem cartão nem ícone solto no centro.
+// Primeiro acesso, sem objetivo: explica o fluxo em dois passos (objetivo, origem do
+// dinheiro) e leva para criar o primeiro. Sem cartão nem ícone solto no centro.
 function FirstGoal({ onCreate, freeInReserves, hasReserves }: { onCreate: () => void; freeInReserves: number; hasReserves: boolean }) {
   const steps = [
-    {
-      title: "Tenha uma reserva",
-      text: "O dinheiro que você guarda, como emergência ou viagem, fica numa reserva.",
-    },
     {
       title: "Crie o objetivo",
       text: "Diga o que quer pagar, quanto custa e, se quiser, até quando.",
     },
     {
-      title: "Separe da reserva",
-      text: "Escolha quanto de cada reserva vai para cada objetivo. O resto continua livre.",
+      title: "Escolha de onde vem o dinheiro",
+      text: "Do que você já guarda nas reservas. Escolha quanto de cada uma vai para ele; o resto continua livre.",
     },
   ]
 
