@@ -2,15 +2,16 @@ import { QueryClient } from "@tanstack/react-query"
 import { ApiError } from "./api"
 import { getActiveAccountSelection } from "./active-account"
 import { getCurrentUser } from "./auth"
+import type { DataDomain } from "./data-events"
 
 // Cache das leituras da API (TanStack Query). A ideia: ao trocar de tela, o
 // que já foi carregado aparece na hora e, se estiver velho, é atualizado em
 // segundo plano — sem voltar ao skeleton.
 //
 // Os dados só mudam quando a pessoa grava algo (lançamento, categorização...)
-// ou quando chega coisa do Pluggy. As duas coisas já disparam "storage-update"
-// (lib/storage.ts, lib/planning-api.ts), e o QueryProvider transforma esse
-// evento em invalidação do cache. Por isso o staleTime pode ser generoso.
+// ou quando chega coisa do Pluggy. As gravações avisam qual domínio mexeram
+// (lib/data-events.ts) e o QueryProvider invalida só o que depende dele. Por
+// isso o staleTime pode ser generoso.
 
 // Quem é o dono do dado: o usuário logado + a conta ativa (pessoal, casal ou
 // parceiro). A mesma rota devolve dados diferentes conforme a conta, então a
@@ -22,13 +23,95 @@ export function accountScope(): string {
   return `${userId}|${account}`
 }
 
-// Chaves de todas as consultas num lugar só — invalidar por prefixo
-// (ex.: ["transactions"]) pega todas as contas de uma vez.
+// Raiz de cada chave = o "assunto" do dado. A invalidação por domínio
+// (DOMAIN_INVALIDATES) trabalha nessas raízes.
+export type QueryRoot =
+  | "transactions"
+  | "categories"
+  | "cards"
+  | "savings"
+  | "goals"
+  | "settings"
+  | "inbox"
+  | "pluggy"
+  | "plan"
+  | "invoice"
+  | "pending-matches"
+  | "month-data"
+  | "rules"
+  | "family"
+
+// Chaves de todas as consultas num lugar só. Sempre [raiz, conta, ...resto].
 export const queryKeys = {
   transactions: () => ["transactions", accountScope()] as const,
   categories: () => ["categories", accountScope()] as const,
-  savingsGoals: () => ["savings-goals", accountScope()] as const,
   cards: () => ["cards", accountScope()] as const,
+  savingsGoals: () => ["savings", accountScope()] as const,
+  savingsAdjustments: () => ["savings", accountScope(), "adjustments"] as const,
+  goals: () => ["goals", accountScope()] as const,
+  settings: () => ["settings", accountScope()] as const,
+
+  inbox: () => ["inbox", accountScope(), "list"] as const,
+  inboxCount: () => ["inbox", accountScope(), "count"] as const,
+
+  pluggyConnection: () => ["pluggy", accountScope(), "connection"] as const,
+  pluggyPending: () => ["pluggy", accountScope(), "pending"] as const,
+  pluggyPendingCount: () => ["pluggy", accountScope(), "pending-count"] as const,
+  pluggyInvestments: () => ["pluggy", accountScope(), "investments"] as const,
+  pluggyAccounts: (itemId: string) => ["pluggy", accountScope(), "accounts", itemId] as const,
+
+  plan: (year: number, month: number) => ["plan", accountScope(), "plan", year, month] as const,
+  week: (year: number, month: number, date?: string) => ["plan", accountScope(), "week", year, month, date ?? null] as const,
+  wins: (year: number, month: number, date?: string) => ["plan", accountScope(), "wins", year, month, date ?? null] as const,
+  closingSummary: (year: number, month: number) => ["plan", accountScope(), "closing", year, month] as const,
+  categoryGroups: () => ["plan", accountScope(), "groups"] as const,
+  wishes: (year: number, month: number) => ["plan", accountScope(), "wishes", year, month] as const,
+  wishCandidates: (wishId: string) => ["plan", accountScope(), "wish-candidates", wishId] as const,
+
+  invoice: (cardId: string, year: number, month: number) => ["invoice", accountScope(), cardId, year, month] as const,
+  manualBankMatches: (cardId: string) => ["invoice", accountScope(), "manual-matches", cardId] as const,
+
+  pendingPaymentMatches: () => ["pending-matches", accountScope()] as const,
+
+  monthData: (year: number, month: number) => ["month-data", accountScope(), year, month] as const,
+  memberMonthData: (memberId: string, year: number, month: number) => ["month-data", accountScope(), "member", memberId, year, month] as const,
+
+  rules: () => ["rules", accountScope(), "list"] as const,
+  ruleSuggestions: () => ["rules", accountScope(), "suggestions"] as const,
+  pluggyCategoryMap: () => ["rules", accountScope(), "pluggy-map"] as const,
+  genericTerms: () => ["rules", accountScope(), "generic-terms"] as const,
+
+  // Dados de um membro da família (visão "Total da Família", acerto do casal).
+  member: (kind: "transactions" | "categories" | "cards" | "savings", memberId: string) =>
+    ["family", accountScope(), kind, memberId] as const,
+  coupleSettlements: (month: string) => ["family", accountScope(), "settlements", month] as const,
+}
+
+// O que cada tipo de gravação pode ter mudado. Conservador de propósito: na
+// dúvida, invalida — buscar de novo é barato, mostrar dado errado não é. O
+// ganho é não rebuscar o que com certeza não mudou (ex.: lançar um gasto não
+// mexe em categorias, cartões, reservas, objetivos, configurações, regras).
+export const DOMAIN_INVALIDATES: Record<DataDomain, QueryRoot[]> = {
+  transactions: ["transactions", "inbox", "plan", "invoice", "pending-matches", "month-data", "pluggy", "family"],
+  categories: ["categories", "transactions", "inbox", "plan", "invoice", "month-data", "rules", "pluggy", "family"],
+  cards: ["cards", "transactions", "invoice", "plan", "month-data", "savings", "pluggy", "pending-matches", "family"],
+  savings: ["savings", "goals", "plan", "transactions", "month-data", "pluggy", "family"],
+  goals: ["goals", "savings", "plan"],
+  settings: ["settings", "plan", "month-data", "invoice"],
+  // Plano em si (orçamento, grupos, desejos). Quem também mexe em dinheiro
+  // (comprar desejo, guardar sobra, fechar o mês) avisa os outros domínios.
+  plan: ["plan", "month-data"],
+  rules: ["rules", "transactions", "inbox", "plan", "pluggy"],
+  pluggy: ["pluggy", "transactions", "inbox", "cards", "savings", "plan", "invoice", "pending-matches", "month-data", "family"],
+  "pluggy-review": ["pluggy"],
+  family: ["family", "month-data", "plan"],
+}
+
+// Sem domínio (aviso antigo, sem detalhe) = invalida tudo.
+export function invalidateDomains(client: QueryClient, domains: readonly DataDomain[] | undefined): Promise<void> {
+  if (!domains || domains.length === 0) return client.invalidateQueries()
+  const roots = new Set<string>(domains.flatMap((d) => DOMAIN_INVALIDATES[d] ?? []))
+  return client.invalidateQueries({ predicate: (query) => roots.has(String(query.queryKey[0])) })
 }
 
 function createQueryClient() {

@@ -5,6 +5,7 @@ import { useAccount } from "@/components/account/account-context"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { isInPlanMonth } from "@/lib/period"
 import { getMemberTransactionsMapped } from "@/lib/storage"
+import { notifyDataChanged } from "@/lib/data-events"
 import { createCoupleSettlement, getCoupleSettlements, getMemberCategories, type CoupleSettlement } from "@/lib/family"
 import {
   applySettlements,
@@ -123,7 +124,7 @@ export function useCoupleSplit(monthKey: string, enabled = true) {
       await createCoupleSettlement({ month: monthKey, fromUserId: remaining.fromId, toUserId: remaining.toId, amount: remaining.amount })
       setSettlements(await getCoupleSettlements(monthKey))
       // Outras partes da tela que mostram o acerto (ex: o passo do Fechamento) recarregam.
-      window.dispatchEvent(new Event("storage-update"))
+      notifyDataChanged("family")
     } finally {
       setSaving(false)
     }

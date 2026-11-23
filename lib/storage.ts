@@ -23,6 +23,7 @@ import { mapNotificationPrefs } from "./push"
 import { mapRuleConflict, mapRuleSuggestion, type RuleFeedback } from "./rules"
 import { getActiveAccountSelection } from "./active-account"
 import { createInFlightGroup } from "./in-flight"
+import { CACHE_INVALIDATE_EVENT, STORAGE_UPDATE_EVENT, invalidateCachedData, notifyDataChanged } from "./data-events"
 import * as familyApi from "./family"
 import type { MemberMonthData } from "./family"
 import { normalizeSavingsKind } from "./goal-allocation"
@@ -36,7 +37,8 @@ import { normalizeSavingsKind } from "./goal-allocation"
 // vez de pegar carona numa requisição de antes da mudança.
 const readsInFlight = createInFlightGroup<any>()
 if (typeof window !== "undefined") {
-  window.addEventListener("storage-update", () => readsInFlight.clear())
+  window.addEventListener(STORAGE_UPDATE_EVENT, () => readsInFlight.clear())
+  window.addEventListener(CACHE_INVALIDATE_EVENT, () => readsInFlight.clear())
 }
 
 // A mesma rota devolve dados diferentes conforme a conta ativa (header do casal).
@@ -77,13 +79,9 @@ function colorForId(id: string): string {
   return PALETTE[hash % PALETTE.length]
 }
 
-// Avisa as telas que dependem de useTransactions/useMonthData/useTotalBalance que os dados
-// mudaram, para que refaçam o fetch sem precisar de um reload da página inteira.
-function notifyStorageUpdate(): void {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("storage-update"))
-  }
-}
+// Avisos de "dados mudaram" (lib/data-events.ts): notifyDataChanged também
+// faz as telas que ainda escutam "storage-update" recarregarem;
+// invalidateCachedData só invalida o cache (gravações que antes não avisavam).
 
 // Resposta de categorizar/editar pode trazer uma sugestão de regra ("sempre
 // colocar X em Y?") ou um conflito com regra existente — vira um evento que o
@@ -169,7 +167,9 @@ async function seedDefaultCategories(): Promise<Category[]> {
   const created: Category[] = []
   for (const category of DEFAULT_CATEGORIES) {
     try {
-      created.push(await addCategory(category))
+      // Sem aviso de "categorias mudaram": quem pediu as categorias recebe
+      // esta lista — avisar invalidaria a própria consulta em andamento.
+      created.push(await createCategoryApi(category))
     } catch (error) {
       console.error("Failed to seed default category:", category.name, error)
     }
@@ -177,21 +177,29 @@ async function seedDefaultCategories(): Promise<Category[]> {
   return created
 }
 
-export async function addCategory(category: Omit<Category, "id">): Promise<Category> {
+async function createCategoryApi(category: Omit<Category, "id">): Promise<Category> {
   assertWritable()
   const created = await fetchApi("/categories", { method: "POST", body: JSON.stringify(mapCategoryToApi(category)) })
   return mapCategoryFromApi(created)
 }
 
+export async function addCategory(category: Omit<Category, "id">): Promise<Category> {
+  const created = await createCategoryApi(category)
+  invalidateCachedData("categories")
+  return created
+}
+
 export async function updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
   assertWritable()
   const updated = await fetchApi(`/categories/${id}`, { method: "PUT", body: JSON.stringify(mapCategoryToApi(updates)) })
+  invalidateCachedData("categories")
   return mapCategoryFromApi(updated)
 }
 
 export async function deleteCategory(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/categories/${id}`, { method: "DELETE" })
+  invalidateCachedData("categories")
 }
 
 // Encontra (ou cria) uma categoria de sistema pelo nome+tipo — usado para transações
@@ -259,17 +267,20 @@ export async function getCards(): Promise<Card[]> {
 export async function addCard(card: Omit<Card, "id" | "createdAt">): Promise<Card> {
   assertWritable()
   const created = await fetchApi("/cards", { method: "POST", body: JSON.stringify(mapCardToApi(card)) })
+  invalidateCachedData("cards")
   return mapCardFromApi(created)
 }
 
 export async function updateCard(id: string, updates: Partial<Card>): Promise<void> {
   assertWritable()
   await fetchApi(`/cards/${id}`, { method: "PUT", body: JSON.stringify(mapCardToApi(updates)) })
+  invalidateCachedData("cards")
 }
 
 export async function deleteCard(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/cards/${id}`, { method: "DELETE" })
+  invalidateCachedData("cards")
 }
 
 // Mescla `mergeCardId` para dentro de `id` — transações e reservas do cartão
@@ -278,7 +289,7 @@ export async function deleteCard(id: string): Promise<void> {
 export async function mergeCards(id: string, mergeCardId: string): Promise<Card> {
   assertWritable()
   const merged = await fetchApi(`/cards/${id}/merge`, { method: "POST", body: JSON.stringify({ mergeCardId }) })
-  notifyStorageUpdate()
+  notifyDataChanged("cards")
   return mapCardFromApi(merged)
 }
 
@@ -425,7 +436,7 @@ export async function categorizeTransactions(transactionIds: string[], categoryI
     method: "POST",
     body: JSON.stringify({ transactionIds, categoryId }),
   })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
   emitRuleFeedback(result, categoryId)
   return Number(result?.updated ?? 0)
 }
@@ -499,7 +510,7 @@ export async function confirmStatementImport(cardId: string, paymentMethod: Paym
       rows: rows.map((r) => ({ ...r, type: r.type.toUpperCase() })),
     }),
   })
-  if (result.createdCount > 0 || result.settledCount > 0) notifyStorageUpdate()
+  if (result.createdCount > 0 || result.settledCount > 0) notifyDataChanged("transactions")
   return result
 }
 
@@ -650,6 +661,7 @@ export async function getPluggyConnection(): Promise<PluggyConnectionStatus> {
 export async function savePluggyCredentials(clientId: string, clientSecret: string): Promise<void> {
   assertWritable()
   await fetchApi("/pluggy/connection", { method: "POST", body: JSON.stringify({ clientId, clientSecret }) })
+  invalidateCachedData("pluggy")
 }
 
 // Token de 30 min para abrir o widget Pluggy Connect — gerado no backend com
@@ -670,6 +682,7 @@ export async function createPluggyConnectToken(itemId?: string): Promise<string>
 export async function removePluggyItem(itemId: string): Promise<void> {
   assertWritable()
   await fetchApi(`/pluggy/items/${itemId}`, { method: "DELETE" })
+  invalidateCachedData("pluggy")
 }
 
 export async function getPluggyInvestments(): Promise<PluggyInvestment[]> {
@@ -688,12 +701,14 @@ export async function getPluggyInvestments(): Promise<PluggyInvestment[]> {
 export async function setInvestmentAllocations(investmentId: string, allocations: { savingsGoalId: string; amount: number }[]): Promise<void> {
   assertWritable()
   await fetchApi(`/pluggy/investments/${investmentId}/allocations`, { method: "PUT", body: JSON.stringify({ allocations }) })
-  notifyStorageUpdate()
+  notifyDataChanged("pluggy", "savings")
 }
 
 export async function addPluggyItem(pluggyItemId: string, syncFromDate?: string): Promise<PluggyItemStatus> {
   assertWritable()
-  return fetchApi("/pluggy/items", { method: "POST", body: JSON.stringify({ pluggyItemId, syncFromDate }) })
+  const result = await fetchApi("/pluggy/items", { method: "POST", body: JSON.stringify({ pluggyItemId, syncFromDate }) })
+  invalidateCachedData("pluggy")
+  return result
 }
 
 // `syncFromDate: null` limpa o corte. `discardExistingBefore: true` também
@@ -705,10 +720,12 @@ export async function updatePluggyItemSyncFrom(
   discardExistingBefore?: boolean,
 ): Promise<PluggyItemStatus> {
   assertWritable()
-  return fetchApi(`/pluggy/items/${itemId}`, {
+  const result = await fetchApi(`/pluggy/items/${itemId}`, {
     method: "PATCH",
     body: JSON.stringify({ syncFromDate, discardExistingBefore }),
   })
+  invalidateCachedData("pluggy")
+  return result
 }
 
 export async function listPluggyAccounts(itemId: string): Promise<PluggyAccount[]> {
@@ -721,6 +738,7 @@ export async function mapPluggyAccount(itemId: string, pluggyAccountId: string, 
     method: "POST",
     body: JSON.stringify({ pluggyAccountId, cardId, paymentMethod: paymentMethod?.toUpperCase() }),
   })
+  invalidateCachedData("pluggy")
 }
 
 export interface PluggySyncResult {
@@ -748,7 +766,7 @@ export async function syncPluggyTransactions(options: { auto?: boolean } = {}): 
   // Nenhuma Transaction real muda aqui ainda (só cria pendências pra revisar),
   // mas o sino de notificação escuta esse mesmo evento pra reconferir a
   // contagem — mais simples que inventar um evento paralelo só pra isso.
-  notifyStorageUpdate()
+  notifyDataChanged("pluggy")
   return result
 }
 
@@ -779,6 +797,7 @@ export async function updatePluggyPending(
     body.duplicateDecision = updates.duplicateDecision ? updates.duplicateDecision.toUpperCase() : null
   }
   const row = await fetchApi(`/pluggy/pending/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+  invalidateCachedData("pluggy-review")
   return mapPluggyPendingFromApi(row)
 }
 
@@ -794,7 +813,7 @@ export interface ConfirmPluggyPendingResult {
 export async function confirmPluggyPending(ids: string[]): Promise<ConfirmPluggyPendingResult> {
   assertWritable()
   const result = await fetchApi("/pluggy/pending/confirm", { method: "POST", body: JSON.stringify({ ids }) })
-  if (result.createdCount > 0) notifyStorageUpdate()
+  if (result.createdCount > 0) notifyDataChanged("pluggy")
   return result
 }
 
@@ -901,7 +920,7 @@ export async function addTransaction(
       })
     }
 
-    notifyStorageUpdate()
+    notifyDataChanged("transactions")
     return first
   }
 
@@ -940,20 +959,20 @@ export async function addTransaction(
       })
     }
 
-    notifyStorageUpdate()
+    notifyDataChanged("transactions")
     return head
   }
 
   // --- Transação simples ---
   const result = await createTransactionApi({ ...transaction, status: initialStatus })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
   return result
 }
 
 export async function updateTransaction(id: string, updates: Partial<Transaction>): Promise<void> {
   assertWritable()
   const result = await fetchApi(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(mapTransactionToApi(updates)) })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
   if (updates.categoryId) emitRuleFeedback(result, updates.categoryId)
 }
 
@@ -962,13 +981,13 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
 export async function deleteTransaction(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${id}`, { method: "DELETE" })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
 }
 
 export async function deleteAllTransactions(): Promise<void> {
   assertWritable()
   await fetchApi("/transactions", { method: "DELETE" })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
 }
 
 // `paidByUserId`: na conta do casal, qual dos dois pagou (entra no acerto do mês).
@@ -978,20 +997,20 @@ export async function markTransactionAsPaid(id: string, cardId?: string, paidAt?
     method: "PATCH",
     body: JSON.stringify({ cardId, confirmDate: paidAt, paidByUserId }),
   })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
 }
 
 export async function cancelTransaction(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${id}/cancel`, { method: "PATCH" })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
 }
 
 // Cancela esta ocorrência e todas as futuras da mesma recorrência (não apenas o mês atual).
 export async function cancelRecurringTransaction(id: string): Promise<{ cancelledCount: number }> {
   assertWritable()
   const result = await fetchApi(`/transactions/${id}/cancel-recurrence`, { method: "PATCH" })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
   return result
 }
 
@@ -1030,12 +1049,13 @@ export async function getPendingPaymentMatches(): Promise<PendingPaymentMatch[]>
 export async function settlePendingWithPayment(pendingId: string, transactionId: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${pendingId}/settle-with-payment`, { method: "POST", body: JSON.stringify({ transactionId }) })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
 }
 
 export async function dismissPendingPaymentMatch(pendingId: string, transactionId: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${pendingId}/dismiss-payment-match`, { method: "POST", body: JSON.stringify({ transactionId }) })
+  invalidateCachedData("transactions")
 }
 
 // Move uma parcela/despesa no crédito para a fatura seguinte ou anterior do
@@ -1046,7 +1066,7 @@ export async function moveTransactionInvoice(id: string, direction: "next" | "pr
     method: "PATCH",
     body: JSON.stringify({ direction }),
   })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
   return mapTransactionFromApi(result)
 }
 
@@ -1082,13 +1102,14 @@ export async function getManualBankMatches(cardId: string): Promise<ManualBankMa
 export async function mergeManualWithBank(manualId: string, bankTransactionId: string): Promise<{ merged: number; removed: number }> {
   assertWritable()
   const result = await fetchApi(`/transactions/${manualId}/merge-with-bank`, { method: "POST", body: JSON.stringify({ bankTransactionId }) })
-  notifyStorageUpdate()
+  notifyDataChanged("transactions")
   return result
 }
 
 export async function dismissManualBankMatch(manualId: string, bankTransactionId: string): Promise<void> {
   assertWritable()
   await fetchApi(`/transactions/${manualId}/dismiss-bank-match`, { method: "POST", body: JSON.stringify({ bankTransactionId }) })
+  invalidateCachedData("transactions")
 }
 
 export async function getInvoice(cardId: string, year: number, month: number): Promise<Invoice> {
@@ -1107,7 +1128,7 @@ export async function updateInvoiceDates(
     method: "PUT",
     body: JSON.stringify(updates),
   })
-  notifyStorageUpdate()
+  notifyDataChanged("cards")
   return mapInvoiceFromApi(raw)
 }
 
@@ -1151,17 +1172,20 @@ export async function getGoals(): Promise<Goal[]> {
 export async function addGoal(goal: Omit<Goal, "id" | "createdAt">): Promise<Goal> {
   assertWritable()
   const created = await fetchApi("/goals", { method: "POST", body: JSON.stringify(mapGoalToApi(goal)) })
+  invalidateCachedData("goals")
   return mapGoalFromApi(created)
 }
 
 export async function updateGoal(id: string, updates: Partial<Goal>): Promise<void> {
   assertWritable()
   await fetchApi(`/goals/${id}`, { method: "PUT", body: JSON.stringify(mapGoalToApi(updates)) })
+  invalidateCachedData("goals")
 }
 
 export async function deleteGoal(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/goals/${id}`, { method: "DELETE" })
+  invalidateCachedData("goals")
 }
 
 // Separa `amount` da reserva para o objetivo (valor absoluto, não soma).
@@ -1169,14 +1193,14 @@ export async function deleteGoal(id: string): Promise<void> {
 export async function allocateGoalFunds(goalId: string, savingsGoalId: string, amount: number): Promise<Goal> {
   assertWritable()
   const updated = await fetchApi(`/goals/${goalId}/allocations/${savingsGoalId}`, { method: "PUT", body: JSON.stringify({ amount }) })
-  notifyStorageUpdate()
+  notifyDataChanged("goals")
   return mapGoalFromApi(updated)
 }
 
 export async function removeGoalAllocation(goalId: string, savingsGoalId: string): Promise<Goal> {
   assertWritable()
   const updated = await fetchApi(`/goals/${goalId}/allocations/${savingsGoalId}`, { method: "DELETE" })
-  notifyStorageUpdate()
+  notifyDataChanged("goals")
   return mapGoalFromApi(updated)
 }
 
@@ -1223,6 +1247,7 @@ export async function setSettings(settings: Partial<AppSettings>): Promise<void>
   await fetchApi("/settings", { method: "PUT", body: JSON.stringify(mapSettingsToApi(settings)) })
   // O SelectedMonthProvider escuta para reler o dia de início do mês.
   if (typeof window !== "undefined") window.dispatchEvent(new Event("settings-update"))
+  invalidateCachedData("settings")
 }
 
 // ---------------------------------------------------------------------------
@@ -1284,17 +1309,20 @@ export async function getMemberSavingsMapped(memberId: string): Promise<SavingsG
 export async function addSavingsGoal(goal: Omit<SavingsGoal, "id" | "createdAt" | "updatedAt">): Promise<SavingsGoal> {
   assertWritable()
   const created = await fetchApi("/savings", { method: "POST", body: JSON.stringify(mapSavingsToApi(goal)) })
+  invalidateCachedData("savings")
   return mapSavingsFromApi(created)
 }
 
 export async function updateSavingsGoal(id: string, updates: Partial<SavingsGoal>): Promise<void> {
   assertWritable()
   await fetchApi(`/savings/${id}`, { method: "PUT", body: JSON.stringify(mapSavingsToApi(updates)) })
+  invalidateCachedData("savings")
 }
 
 export async function deleteSavingsGoal(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/savings/${id}`, { method: "DELETE" })
+  invalidateCachedData("savings")
 }
 
 // Ajusta o saldo de uma reserva quando uma transação da categoria "Investimento"
@@ -1324,20 +1352,20 @@ export async function applySavingsGoalDelta(
 export async function addSavingsSource(input: { name: string; amount: number; savingsGoalId?: string; fromRest?: boolean }): Promise<void> {
   assertWritable()
   await fetchApi("/savings/sources", { method: "POST", body: JSON.stringify(input) })
-  notifyStorageUpdate()
+  notifyDataChanged("savings")
 }
 
 // `amount` é o valor de hoje (zero remove). `savingsGoalId` passa para outra reserva.
 export async function updateSavingsSource(id: string, updates: { name?: string; amount?: number; savingsGoalId?: string }): Promise<void> {
   assertWritable()
   await fetchApi(`/savings/sources/${id}`, { method: "PUT", body: JSON.stringify(updates) })
-  notifyStorageUpdate()
+  notifyDataChanged("savings")
 }
 
 export async function deleteSavingsSource(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/savings/sources/${id}`, { method: "DELETE" })
-  notifyStorageUpdate()
+  notifyDataChanged("savings")
 }
 
 // Aviso do ajuste automático (resgate no banco, retirada que reduziu o separado).
@@ -1356,6 +1384,7 @@ export async function getSavingsAdjustments(): Promise<SavingsAdjustment[]> {
 
 export async function dismissSavingsAdjustment(id: string): Promise<void> {
   await fetchApi(`/savings/adjustments/${id}/dismiss`, { method: "POST" })
+  invalidateCachedData("savings")
 }
 
 export { ensureSystemCategory, isReadOnly }

@@ -1,6 +1,7 @@
 import type { APIRequestContext } from "@playwright/test"
 
-export const API_URL = "http://localhost:3334"
+// Sobrescrevível para rodar uma pilha paralela (outra sessão usando a padrão).
+export const API_URL = process.env.E2E_API_URL ?? "http://localhost:3334"
 export const PASSWORD = "senha-de-teste-123"
 
 // E-mail único por teste: os testes rodam em paralelo e o banco é o mesmo.

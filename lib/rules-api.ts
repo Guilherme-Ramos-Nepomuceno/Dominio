@@ -1,6 +1,7 @@
 // Chamadas das regras de categorização e do mapa de categorias da Pluggy.
 
 import { ApiError, fetchApi } from "./api"
+import { invalidateCachedData } from "./data-events"
 import { isReadOnly } from "./storage"
 import { mapPluggyCategoryMap, mapRule, type CategoryRule, type PluggyCategoryMapping, type RuleSource } from "./rules"
 
@@ -40,7 +41,9 @@ function friendlyRuleError(error: unknown): unknown {
 export async function createCategoryRule(input: CategoryRuleInput): Promise<CategoryRule> {
   assertWritable()
   try {
-    return mapRule(await fetchApi("/category-rules", { method: "POST", body: JSON.stringify(input) }))
+    const rule = mapRule(await fetchApi("/category-rules", { method: "POST", body: JSON.stringify(input) }))
+    invalidateCachedData("rules")
+    return rule
   } catch (error) {
     throw friendlyRuleError(error)
   }
@@ -49,7 +52,9 @@ export async function createCategoryRule(input: CategoryRuleInput): Promise<Cate
 export async function updateCategoryRule(id: string, updates: Partial<CategoryRuleInput>): Promise<CategoryRule> {
   assertWritable()
   try {
-    return mapRule(await fetchApi(`/category-rules/${id}`, { method: "PUT", body: JSON.stringify(updates) }))
+    const rule = mapRule(await fetchApi(`/category-rules/${id}`, { method: "PUT", body: JSON.stringify(updates) }))
+    invalidateCachedData("rules")
+    return rule
   } catch (error) {
     throw friendlyRuleError(error)
   }
@@ -58,6 +63,7 @@ export async function updateCategoryRule(id: string, updates: Partial<CategoryRu
 export async function deleteCategoryRule(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/category-rules/${id}`, { method: "DELETE" })
+  invalidateCachedData("rules")
 }
 
 // Regras sugeridas pelo histórico: estabelecimento que a pessoa já
@@ -82,6 +88,7 @@ export async function getRuleSuggestions(): Promise<RuleSuggestion[]> {
 export async function dismissRuleSuggestion(merchantKey: string): Promise<void> {
   assertWritable()
   await fetchApi("/category-rules/suggestions/dismiss", { method: "POST", body: JSON.stringify({ merchantKey }) })
+  invalidateCachedData("rules")
 }
 
 export async function getPluggyCategoryMap(): Promise<PluggyCategoryMapping[]> {
@@ -95,6 +102,7 @@ export async function setPluggyCategoryMapping(pluggyCategory: string, categoryI
     method: "PUT",
     body: JSON.stringify({ categoryId }),
   })
+  invalidateCachedData("rules")
   return mapPluggyCategoryMap(raw)
 }
 
@@ -118,5 +126,7 @@ export async function getGenericTerms(): Promise<GenericTerms> {
 // null = volta para a lista padrão.
 export async function setGenericTerms(terms: string[] | null): Promise<GenericTerms> {
   assertWritable()
-  return mapGenericTerms(await fetchApi("/category-rules/generic-terms", { method: "PUT", body: JSON.stringify({ terms }) }))
+  const result = mapGenericTerms(await fetchApi("/category-rules/generic-terms", { method: "PUT", body: JSON.stringify({ terms }) }))
+  invalidateCachedData("rules")
+  return result
 }
