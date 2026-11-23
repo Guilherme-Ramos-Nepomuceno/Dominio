@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import type { Transaction, Category, MonthData } from "@/lib/types"
-import { getTransactions, getCategories, getSavingsGoals, getPendingTransactions, getCards } from "@/lib/storage"
+import { useCallback, useMemo } from "react"
+import type { Transaction, Category, MonthData, SavingsGoal, Card } from "@/lib/types"
+import { useCardsQuery, useCategoriesQuery, useSavingsGoalsQuery, useTransactionsQuery } from "@/hooks/queries"
 import { isInPlanMonth } from "@/lib/period"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { asSpending, effectiveTransactionType, findCategory, spendingType } from "@/lib/category-utils"
@@ -23,50 +23,41 @@ export function isInternalTransfer(categories: Category[], t: Transaction): bool
   return !!findCategory(categories, t.categoryId)?.excludedFromTotals
 }
 
-export function useTransactions(selectedMonth?: string) {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+// Referências estáveis para "ainda sem dado" — um [] novo a cada render
+// invalidaria os useMemo abaixo.
+const NO_TRANSACTIONS: Transaction[] = []
+const NO_CATEGORIES: Category[] = []
+const NO_SAVINGS: SavingsGoal[] = []
+const NO_CARDS: Card[] = []
 
+export function useTransactions(selectedMonth?: string) {
   // "Mês" segue o período do plano (Configurações > Meu mês começa no dia).
   const { currentMonth, monthStartDay } = useSelectedMonth()
   const month = selectedMonth || currentMonth
 
-  const loadTransactions = useCallback(async () => {
-    setLoading(true)
-    const allTransactions = await getTransactions()
-    const monthTransactions = allTransactions.filter((t) => isInPlanMonth(t.date, month, monthStartDay))
-    setTransactions(monthTransactions)
-    setLoading(false)
-  }, [month, monthStartDay])
+  // Histórico inteiro vem do cache (uma busca serve todas as telas e meses);
+  // trocar de mês é só filtro em memória. Gravações invalidam o cache pelo
+  // "storage-update" (components/session/query-provider.tsx).
+  const query = useTransactionsQuery()
+  const all = query.data ?? NO_TRANSACTIONS
+  const transactions = useMemo(
+    () => all.filter((t) => isInPlanMonth(t.date, month, monthStartDay)),
+    [all, month, monthStartDay],
+  )
 
-  useEffect(() => {
-    loadTransactions()
+  const { refetch } = query
+  const refresh = useCallback(() => {
+    void refetch()
+  }, [refetch])
 
-    // Listen for storage updates (same window)
-    const handleStorageUpdate = () => {
-      loadTransactions()
-    }
-    window.addEventListener("storage-update", handleStorageUpdate)
-
-    return () => {
-      window.removeEventListener("storage-update", handleStorageUpdate)
-    }
-  }, [loadTransactions])
-
-  const refresh = () => {
-    loadTransactions()
-  }
-
-  return { transactions, loading, refresh }
+  // `loading` só no primeiro carregamento: com dado em cache, uma
+  // revalidação em segundo plano não volta a mostrar skeleton.
+  return { transactions, loading: query.isPending, refresh }
 }
 
 export function useMonthData(month: string): MonthData {
   const { transactions } = useTransactions(month)
-  const [categories, setCategories] = useState<Category[]>([])
-
-  useEffect(() => {
-    getCategories().then(setCategories)
-  }, [])
+  const categories = useCategoriesQuery().data ?? NO_CATEGORIES
 
   const paidTransactions = transactions.filter((t) => t.status !== "pending" && t.status !== "cancelled")
   // Estorno desconta da despesa em vez de contar como receita (asSpending).
@@ -173,42 +164,38 @@ export function computeTotalBalanceFrom(
 
 export function useTotalBalance(month: string) {
   const { monthStartDay } = useSelectedMonth()
-  const [savingsGoals, setSavingsGoals] = useState<any[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
-  // Só true até o primeiro carregamento — atualizações depois (via
-  // storage-update) não voltam a mostrar o skeleton.
-  const [isLoading, setIsLoading] = useState(true)
+  const savingsQuery = useSavingsGoalsQuery()
+  const categoriesQuery = useCategoriesQuery()
+  const transactionsQuery = useTransactionsQuery()
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [savings, cats, all] = await Promise.all([getSavingsGoals(), getCategories(), getTransactions()])
-        setSavingsGoals(savings)
-        setCategories(cats)
-        setAllTransactions(all)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    load()
+  const savingsGoals = savingsQuery.data ?? NO_SAVINGS
+  const categories = categoriesQuery.data ?? NO_CATEGORIES
+  const allTransactions = transactionsQuery.data ?? NO_TRANSACTIONS
 
-    window.addEventListener("storage-update", load)
-    return () => window.removeEventListener("storage-update", load)
-  }, [])
+  // Só true até o primeiro carregamento — revalidações depois (troca de
+  // tela, storage-update) mostram o dado em cache em vez do skeleton.
+  const isLoading = savingsQuery.isPending || categoriesQuery.isPending || transactionsQuery.isPending
 
-  return { ...computeTotalBalanceFrom(allTransactions, categories, savingsGoals, month, [], monthStartDay), isLoading }
+  const totals = useMemo(
+    () => computeTotalBalanceFrom(allTransactions, categories, savingsGoals, month, [], monthStartDay),
+    [allTransactions, categories, savingsGoals, month, monthStartDay],
+  )
+
+  return { ...totals, isLoading }
 }
 
 // Pendências de qualquer mês (incluindo meses anteriores não pagos), com a mesma
 // deduplicação de recorrência/parcelas usada na tela de Contas a Pagar/Receber.
 export function usePendingSummary() {
-  const [items, setItems] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+  // Mesmo cache do resto da Home: as pendências saem do histórico já
+  // carregado (getPendingTransactions baixava tudo de novo só para filtrar).
+  const transactionsQuery = useTransactionsQuery()
+  const cardsQuery = useCardsQuery()
+  const allTransactions = transactionsQuery.data ?? NO_TRANSACTIONS
+  const cards = cardsQuery.data ?? NO_CARDS
 
-  const loadPending = useCallback(async () => {
-    setLoading(true)
-    const [pending, cards] = await Promise.all([getPendingTransactions(), getCards()])
+  const items = useMemo(() => {
+    const pending = allTransactions.filter((t) => t.status === "pending")
 
     const visible = pending.filter((t) => {
       if (t.cardId) {
@@ -251,28 +238,19 @@ export function usePendingSummary() {
       }
     })
 
-    const result = [...singles, ...Array.from(grouped.values())].sort(
+    return [...singles, ...Array.from(grouped.values())].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     )
+  }, [allTransactions, cards])
 
-    setItems(result)
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    loadPending()
-
-    const handleStorageUpdate = () => {
-      loadPending()
-    }
-    window.addEventListener("storage-update", handleStorageUpdate)
-
-    return () => {
-      window.removeEventListener("storage-update", handleStorageUpdate)
-    }
-  }, [loadPending])
+  const refetchTransactions = transactionsQuery.refetch
+  const refetchCards = cardsQuery.refetch
+  const refresh = useCallback(async () => {
+    await Promise.all([refetchTransactions(), refetchCards()])
+  }, [refetchTransactions, refetchCards])
 
   const total = items.reduce((sum, t) => sum + t.amount, 0)
+  const loading = transactionsQuery.isPending || cardsQuery.isPending
 
-  return { items, total, count: items.length, loading, refresh: loadPending }
+  return { items, total, count: items.length, loading, refresh }
 }

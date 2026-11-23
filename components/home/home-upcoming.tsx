@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useMemo } from "react"
 import Link from "next/link"
 import { CalendarBlank, CaretRight } from "@phosphor-icons/react"
-import { getCards, getPendingTransactions } from "@/lib/storage"
+import { useCardsQuery, useTransactionsQuery } from "@/hooks/queries"
 import { formatCurrency } from "@/lib/date-utils"
 import { formatWeekday } from "@/lib/week"
 import { dayKey, upcomingDayLabel, upcomingOutflows } from "@/lib/home"
@@ -21,29 +21,27 @@ function weekdayName(iso: string): string {
 }
 
 export function HomeUpcoming({ todayISO, weekEnd }: { todayISO: string; weekEnd: string }) {
-  const [pending, setPending] = useState<Transaction[] | null>(null)
+  // Do cache compartilhado (hooks/queries.ts) — antes cada volta à Home
+  // baixava o histórico inteiro de novo só para filtrar as pendências.
+  const transactionsQuery = useTransactionsQuery()
+  const cardsQuery = useCardsQuery()
+  const transactions = transactionsQuery.data
+  const cards = cardsQuery.data
 
-  const load = useCallback(async () => {
-    try {
-      const [items, cards] = await Promise.all([getPendingTransactions(), getCards()])
-      setPending(
-        items.filter((t) => {
-          const card = t.cardId ? cards.find((c) => c.id === t.cardId) : undefined
-          if (card?.hasCredit && (!card.hasDebit || t.paymentMethod === "credit")) return false
-          return true
-        }),
-      )
-    } catch (error) {
-      console.error("Falha ao carregar as pendências na Home:", error)
-      setPending([])
-    }
-  }, [])
-
-  useEffect(() => {
-    load()
-    window.addEventListener("storage-update", load)
-    return () => window.removeEventListener("storage-update", load)
-  }, [load])
+  // null = ainda carregando (não mostra a linha). Falha ao carregar vira
+  // lista vazia, como antes.
+  const pending = useMemo<Transaction[] | null>(() => {
+    if (transactionsQuery.isError || cardsQuery.isError) return []
+    if (!transactions || !cards) return null
+    return transactions
+      .filter((t) => t.status === "pending")
+      .filter((t) => {
+        const card = t.cardId ? cards.find((c) => c.id === t.cardId) : undefined
+        if (card?.hasCredit && (!card.hasDebit || t.paymentMethod === "credit")) return false
+        return true
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  }, [transactions, cards, transactionsQuery.isError, cardsQuery.isError])
 
   if (!pending) return null
   const { within, next } = upcomingOutflows(pending, todayISO, weekEnd.slice(0, 10))

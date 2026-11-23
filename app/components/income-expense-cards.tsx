@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { MiniBarChart, type ChartDataPoint } from "./mini-bar-chart"
 import { formatCurrency } from "@/lib/date-utils"
 import { getPlanPeriod } from "@/lib/period"
@@ -8,7 +8,13 @@ import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { PeriodType, Card, Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
-import { getTransactions, getCards, getCategories } from "@/lib/storage"
+import { useCardsQuery, useCategoriesQuery, useTransactionsQuery } from "@/hooks/queries"
+
+// Referências estáveis enquanto o cache não tem dado (um [] novo por render
+// refaria os useMemo abaixo à toa).
+const NO_TRANSACTIONS: Transaction[] = []
+const NO_CARDS: Card[] = []
+const NO_CATEGORIES: Category[] = []
 import { asSpending, effectiveTransactionType, findCategory } from "@/lib/category-utils"
 
 type ExpenseView = "all" | "debit" | "credit"
@@ -77,23 +83,13 @@ export function IncomeExpenseCards({
   // Tudo = débito + crédito; os outros dois são recortes do mesmo total.
   const [expenseView, setExpenseView] = useState<ExpenseView>("all")
 
-  const [allHistory, setAllHistory] = useState<Transaction[]>([])
-  const [cards, setCards] = useState<Card[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  // Do cache compartilhado (hooks/queries.ts): a Home não baixa o histórico
+  // de novo a cada volta; gravações invalidam pelo "storage-update".
+  const allHistory = useTransactionsQuery().data ?? NO_TRANSACTIONS
+  const cards = useCardsQuery().data ?? NO_CARDS
+  const categories = useCategoriesQuery().data ?? NO_CATEGORIES
   // Estorno entra como despesa negativa (desconta da saída) e não como entrada.
   const totalsSource = useMemo(() => weekChartSource.map((t) => asSpending(categories, t)), [weekChartSource, categories])
-
-  useEffect(() => {
-    const load = async () => {
-      setAllHistory(await getTransactions())
-      setCards(await getCards())
-      setCategories(await getCategories())
-    }
-    load()
-
-    window.addEventListener("storage-update", load)
-    return () => window.removeEventListener("storage-update", load)
-  }, [])
 
   // 1. Gastos: as pagas mais as ainda não pagas com data até hoje (compra na
   // fatura, conta que vence hoje) — o mesmo que a barra do mês soma. Débito e
