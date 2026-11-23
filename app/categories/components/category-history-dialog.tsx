@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { X, CircleNotch, Circle, CaretDown } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
-import { getTransactions } from "@/lib/storage"
+import { useTransactionsQuery } from "@/hooks/queries"
 import type { Category, Transaction } from "@/lib/types"
 import { formatCurrency, formatMonth } from "@/lib/date-utils"
 import { dayGroupLabel, dayKey } from "@/lib/home"
@@ -18,28 +18,28 @@ interface CategoryHistoryDialogProps {
   onClose: () => void
 }
 
+const NO_TRANSACTIONS: Transaction[] = []
+
 // Mês local "YYYY-MM" (a data vem em UTC; slice(0, 7) erraria a virada do mês).
 const monthKey = (date: string) => dayKey(date).slice(0, 7)
 
 // Histórico de uma categoria, no desenho das telas novas: mês com o total,
 // dias com o total do dia e as transações em lista solta (sem caixinha).
 export function CategoryHistoryDialog({ category, onClose }: CategoryHistoryDialogProps) {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+  // Histórico do cache compartilhado — abrir o diálogo não baixa tudo de novo.
+  const transactionsQuery = useTransactionsQuery({ enabled: !!category })
+  const transactions = transactionsQuery.data ?? NO_TRANSACTIONS
+  const loading = transactionsQuery.isPending
   // Quantos meses (do mais recente para trás) estão revelados na lista.
   const [visibleMonthCount, setVisibleMonthCount] = useState(1)
+  // Outra categoria aberta: volta a mostrar só o mês mais recente.
+  const [shownCategory, setShownCategory] = useState(category)
+  if (category !== shownCategory) {
+    setShownCategory(category)
+    if (category) setVisibleMonthCount(1)
+  }
   const groups = useCategoryGroups()
   const todayISO = toISODate(new Date())
-
-  useEffect(() => {
-    if (!category) return
-    setLoading(true)
-    setVisibleMonthCount(1)
-    getTransactions().then((all) => {
-      setTransactions(all)
-      setLoading(false)
-    })
-  }, [category])
 
   // Esc fecha.
   useEffect(() => {

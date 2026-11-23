@@ -1,30 +1,28 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { addGoal, allocateGoalFunds, deleteGoal, getGoals, getSavingsGoals, removeGoalAllocation, updateGoal } from "@/lib/storage"
+import { useState, useMemo } from "react"
+import { addGoal, allocateGoalFunds, deleteGoal, removeGoalAllocation, updateGoal } from "@/lib/storage"
 import type { Goal, SavingsGoal } from "@/lib/types"
 import { freeOfSavings } from "@/lib/goal-allocation"
+import { useGoalsQuery, useSavingsGoalsQuery } from "@/hooks/queries"
 import type { GoalFormData } from "../components/goal-form-sheet"
+
+const NO_GOALS: Goal[] = []
+const NO_RESERVES: SavingsGoal[] = []
 
 // Objetivos e as reservas que os alimentam. O progresso de cada objetivo vem da
 // API (soma das reservas separadas para ele); aqui só se monta a tela.
 export function useGoalsViewModel() {
-    const [goals, setGoals] = useState<Goal[]>([])
-    const [reserves, setReserves] = useState<SavingsGoal[]>([])
-    const [loading, setLoading] = useState(true)
+    // Do cache; as gravações (objetivo, separação) invalidam objetivos e
+    // reservas sozinhas — os handlers não recarregam à mão.
+    const goalsQuery = useGoalsQuery()
+    const reservesQuery = useSavingsGoalsQuery()
+    const goals = goalsQuery.data ?? NO_GOALS
+    const reserves = reservesQuery.data ?? NO_RESERVES
+    const loading = goalsQuery.isPending || reservesQuery.isPending
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [editingGoal, setEditingGoal] = useState<Goal | undefined>()
     const [allocatingGoal, setAllocatingGoal] = useState<Goal | undefined>()
-
-    const load = useCallback(async () => {
-        const [goalList, reserveList] = await Promise.all([getGoals(), getSavingsGoals()])
-        setGoals(goalList)
-        setReserves(reserveList)
-    }, [])
-
-    useEffect(() => {
-        load().finally(() => setLoading(false))
-    }, [load])
 
     const openNew = () => {
         setEditingGoal(undefined)
@@ -45,8 +43,7 @@ export function useGoalsViewModel() {
     const handleSaveGoal = async ({ allocations, ...goalData }: GoalFormData) => {
         if (editingGoal) {
             await updateGoal(editingGoal.id, goalData)
-            await load()
-            closeForm()
+                closeForm()
             return
         }
         const created = await addGoal({ ...goalData, color: "#71717a", currentAmount: 0, allocations: [] })
@@ -60,7 +57,6 @@ export function useGoalsViewModel() {
                 failed = true
             }
         }
-        await load()
         closeForm()
         if (failed) setAllocatingGoal(created)
     }
@@ -72,19 +68,16 @@ export function useGoalsViewModel() {
             : `Excluir "${goal.name}"?`
         if (!confirm(message)) return
         await deleteGoal(goal.id)
-        await load()
     }
 
     // Valor absoluto: quanto desta reserva fica para este objetivo (zero tira).
     const handleAllocate = async (goalId: string, savingsGoalId: string, amount: number) => {
         await allocateGoalFunds(goalId, savingsGoalId, amount)
-        await load()
         setAllocatingGoal(undefined)
     }
 
     const handleRemoveAllocation = async (goalId: string, savingsGoalId: string) => {
         await removeGoalAllocation(goalId, savingsGoalId)
-        await load()
         setAllocatingGoal(undefined)
     }
 

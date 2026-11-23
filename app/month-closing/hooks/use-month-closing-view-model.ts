@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
+import { useQueries, type UseQueryResult } from "@tanstack/react-query"
 import { useAccount } from "@/components/account/account-context"
-import { getMonthData } from "@/lib/storage"
-import { getMemberMonthData } from "@/lib/family"
+import { getMemberMonthData, type MemberMonthData } from "@/lib/family"
+import { queryKeys } from "@/lib/query-client"
+import { useMonthDataQuery } from "@/hooks/queries"
 
 export interface CardInvoiceTotal {
     cardId: string
@@ -66,75 +68,81 @@ function nextMonth(): { year: number; month: number; label: string } {
     return { year, month, label: label.charAt(0).toUpperCase() + label.slice(1) }
 }
 
+// Fora do componente (referência estável): o useQueries devolve a mesma lista
+// enquanto nenhum resultado mudar.
+function combineMemberMonthData(results: UseQueryResult<MemberMonthData>[]) {
+    return {
+        data: results.map((r) => r.data),
+        pending: results.some((r) => r.isPending),
+    }
+}
+
 export function useMonthClosingViewModel() {
     const { selection, family } = useAccount()
     const isCoupleAccount = selection.type === "couple"
     const [viewMode, setViewMode] = useState<"casal" | "familia">("casal")
-    const [data, setData] = useState<MonthClosingData | null>(null)
-    const [isLoading, setIsLoading] = useState(true)
     const { year, month, label } = nextMonth()
 
-    useEffect(() => {
-        let cancelled = false
+    // Do cache (mesmas chaves de hooks/queries.ts): cancelar, editar ou pagar
+    // uma fatura invalida "month-data" e o total se atualiza sozinho, sem
+    // voltar ao skeleton.
+    const familyMode = viewMode === "familia" && !!family
+    const personalMembers = useMemo(
+        () => (familyMode ? family!.members.filter((m) => m.accountType === "PERSONAL") : []),
+        [familyMode, family],
+    )
+    const ownQuery = useMonthDataQuery(year, month, { enabled: !familyMode })
+    const members = useQueries({
+        queries: personalMembers.map((m) => ({
+            queryKey: queryKeys.memberMonthData(m.id, year, month),
+            queryFn: () => getMemberMonthData(m.id, year, month),
+        })),
+        combine: combineMemberMonthData,
+    })
 
-        const load = async () => {
-            setIsLoading(true)
-            try {
-                if (viewMode === "familia" && family) {
-                    const personalMembers = family.members.filter((m) => m.accountType === "PERSONAL")
-                    const results = await Promise.all(personalMembers.map((m) => getMemberMonthData(m.id, year, month)))
-                    if (cancelled) return
+    const ownData = ownQuery.data
+    const memberData = members.data
+    const data = useMemo<MonthClosingData | null>(() => {
+        if (familyMode) {
+            // Só com todos carregados — total de um parceiro só não é o da família.
+            if (memberData.some((r) => !r)) return null
+            const cardsBreakdown: CardInvoiceTotal[] = []
+            const cardlessItems: CardlessPendingItem[] = []
+            let pendingInvoiceTotal = 0
+            let cardlessPendingTotal = 0
 
-                    const cardsBreakdown: CardInvoiceTotal[] = []
-                    const cardlessItems: CardlessPendingItem[] = []
-                    let pendingInvoiceTotal = 0
-                    let cardlessPendingTotal = 0
+            memberData.forEach((r, i) => {
+                if (!r) return
+                const memberName = personalMembers[i].name || personalMembers[i].email
+                pendingInvoiceTotal += r.pendingInvoiceTotal ?? 0
+                cardlessPendingTotal += r.cardlessPendingTotal ?? 0
+                ;(r.pendingInvoiceByCard ?? []).forEach((c) => cardsBreakdown.push({ ...c, memberName }))
+                ;(r.cardlessPending ?? []).forEach((item) => cardlessItems.push({ ...item, memberName }))
+            })
 
-                    results.forEach((r, i) => {
-                        const memberName = personalMembers[i].name || personalMembers[i].email
-                        pendingInvoiceTotal += r.pendingInvoiceTotal ?? 0
-                        cardlessPendingTotal += r.cardlessPendingTotal ?? 0
-                        ;(r.pendingInvoiceByCard ?? []).forEach((c) => cardsBreakdown.push({ ...c, memberName }))
-                        ;(r.cardlessPending ?? []).forEach((item) => cardlessItems.push({ ...item, memberName }))
-                    })
-
-                    setData({
-                        month: `${year}-${String(month).padStart(2, "0")}`,
-                        pendingInvoiceTotal,
-                        cardlessPendingTotal,
-                        cardsBreakdown,
-                        ...groupCardlessItems(cardlessItems),
-                    })
-                } else {
-                    const result = await getMonthData(year, month)
-                    if (cancelled) return
-                    // `?? []`/`?? 0`: defende contra um backend ainda não
-                    // atualizado com esses campos (resposta antiga sem eles)
-                    // — melhor mostrar "nada pendente" do que quebrar a tela.
-                    setData({
-                        month: result.month,
-                        pendingInvoiceTotal: result.pendingInvoiceTotal ?? 0,
-                        cardlessPendingTotal: result.cardlessPendingTotal ?? 0,
-                        cardsBreakdown: result.pendingInvoiceByCard ?? [],
-                        ...groupCardlessItems(result.cardlessPending ?? []),
-                    })
-                }
-            } finally {
-                if (!cancelled) setIsLoading(false)
+            return {
+                month: `${year}-${String(month).padStart(2, "0")}`,
+                pendingInvoiceTotal,
+                cardlessPendingTotal,
+                cardsBreakdown,
+                ...groupCardlessItems(cardlessItems),
             }
         }
-
-        load()
-
-        // Mesmo motivo de use-family-totals/use-family-home-data: cancelar,
-        // editar ou pagar uma fatura dispara esse evento em vez de recarregar
-        // a página — sem o listener essa tela ficaria com o total antigo.
-        window.addEventListener("storage-update", load)
-        return () => {
-            cancelled = true
-            window.removeEventListener("storage-update", load)
+        if (!ownData) return null
+        // `?? []`/`?? 0`: defende contra um backend ainda não
+        // atualizado com esses campos (resposta antiga sem eles)
+        // — melhor mostrar "nada pendente" do que quebrar a tela.
+        return {
+            month: ownData.month,
+            pendingInvoiceTotal: ownData.pendingInvoiceTotal ?? 0,
+            cardlessPendingTotal: ownData.cardlessPendingTotal ?? 0,
+            cardsBreakdown: ownData.pendingInvoiceByCard ?? [],
+            ...groupCardlessItems(ownData.cardlessPending ?? []),
         }
-    }, [viewMode, family, year, month])
+    }, [familyMode, memberData, personalMembers, ownData, year, month])
+
+    // Skeleton só no primeiro carregamento de cada visão.
+    const isLoading = familyMode ? members.pending : ownQuery.isPending
 
     return {
         monthLabel: label,

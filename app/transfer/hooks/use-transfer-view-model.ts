@@ -1,13 +1,18 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { getCards, getMemberCardsMapped, addTransaction, ensureSystemCategory } from "@/lib/storage"
+import { addTransaction, ensureSystemCategory } from "@/lib/storage"
+import { useCardsQuery, useMemberCardsQuery } from "@/hooks/queries"
 import { transferToFamilyMember } from "@/lib/family"
 import { parseCurrencyInput, formatCurrencyInput } from "@/lib/date-utils"
 import { getCurrentUser } from "@/lib/auth"
 import { useAccount } from "@/components/account/account-context"
 import type { Card } from "@/lib/types"
+
+// Referência estável para "ainda sem dado" — um [] novo a cada render
+// invalidaria os useMemo abaixo.
+const NO_CARDS: Card[] = []
 
 export function useTransferViewModel() {
     const router = useRouter()
@@ -21,8 +26,10 @@ export function useTransferViewModel() {
         setCurrentUserId(getCurrentUser()?.id ?? null)
     }, [])
 
-    const [cards, setCards] = useState<Card[]>([])
-    const [loading, setLoading] = useState(true)
+    // Contas do cache; `loading` só no primeiro carregamento.
+    const cardsQuery = useCardsQuery()
+    const cards = cardsQuery.data ?? NO_CARDS
+    const loading = cardsQuery.isPending
     const debitCards = useMemo(() => cards.filter((c) => c.hasDebit), [cards])
 
     // Outros parceiros pessoais da família (não a conta do casal) — destino
@@ -32,36 +39,21 @@ export function useTransferViewModel() {
         [family, currentUserId],
     )
 
-    const loadCards = useCallback(async () => {
-        try {
-            setCards(await getCards())
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    useEffect(() => { loadCards() }, [loadCards])
-
     const [fromCardId, setFromCardId] = useState("")
-    const [toMemberId, setToMemberId] = useState("") // "" = uma das minhas próprias contas
+    const [toMemberId, setToMemberIdState] = useState("") // "" = uma das minhas próprias contas
     const [toCardId, setToCardId] = useState("")
+    // Trocar o destinatário zera a conta escolhida (era de outra pessoa).
+    const setToMemberId = (memberId: string) => {
+        setToMemberIdState(memberId)
+        setToCardId("")
+    }
     const [amount, setAmount] = useState("")
     const [description, setDescription] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const [memberCards, setMemberCards] = useState<Card[]>([])
-    useEffect(() => {
-        setToCardId("")
-        if (!toMemberId) {
-            setMemberCards([])
-            return
-        }
-        let cancelled = false
-        getMemberCardsMapped(toMemberId).then((memberAll) => {
-            if (!cancelled) setMemberCards(memberAll.filter((c) => c.hasDebit))
-        })
-        return () => { cancelled = true }
-    }, [toMemberId])
+    const memberCardsQuery = useMemberCardsQuery(toMemberId, { enabled: !!toMemberId })
+    const memberAll = toMemberId ? (memberCardsQuery.data ?? NO_CARDS) : NO_CARDS
+    const memberCards = useMemo(() => memberAll.filter((c) => c.hasDebit), [memberAll])
 
     const toCardOptions = toMemberId ? memberCards : debitCards.filter((c) => c.id !== fromCardId)
 

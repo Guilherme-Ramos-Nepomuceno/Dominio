@@ -1,41 +1,43 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
-import { getCards, getTransactions, getSavingsGoals, deleteCard, updateCard, mergeCards } from "@/lib/storage"
-import type { Card } from "@/lib/types"
+import { useState, useMemo, useCallback } from "react"
+import { deleteCard, updateCard, mergeCards } from "@/lib/storage"
+import type { Card, SavingsGoal, Transaction } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+import { useCardsQuery, useSavingsGoalsQuery, useTransactionsQuery } from "@/hooks/queries"
+
+// Referências estáveis para "ainda sem dado" — um [] novo a cada render
+// invalidaria o useMemo de processedCards.
+const NO_CARDS: Card[] = []
+const NO_TRANSACTIONS: Transaction[] = []
+const NO_SAVINGS: SavingsGoal[] = []
 
 export function useCardsViewModel() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [cards, setCards] = useState<any[]>([])
-    const [transactions, setTransactions] = useState<any[]>([])
-    const [savingsGoals, setSavingsGoals] = useState<any[]>([])
     const [cardToDelete, setCardToDelete] = useState<string | null>(null)
     const [editingCard, setEditingCard] = useState<Card | null>(null)
     const [mergingCard, setMergingCard] = useState<Card | null>(null)
     const [importingCard, setImportingCard] = useState<Card | null>(null)
-
-    const [loading, setLoading] = useState(true)
     const { toast } = useToast()
 
-    const loadData = useCallback(async () => {
-        try {
-            const [cardsData, transactionsData, savingsGoalsData] = await Promise.all([
-                getCards(),
-                getTransactions(),
-                getSavingsGoals(),
-            ])
-            setCards(cardsData)
-            setTransactions(transactionsData)
-            setSavingsGoals(savingsGoalsData)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
+    // Tudo do cache: as gravações abaixo avisam o domínio e as consultas se
+    // atualizam sozinhas (components/session/query-provider.tsx).
+    const cardsQuery = useCardsQuery()
+    const transactionsQuery = useTransactionsQuery()
+    const savingsQuery = useSavingsGoalsQuery()
+    const cards = cardsQuery.data ?? NO_CARDS
+    const transactions = transactionsQuery.data ?? NO_TRANSACTIONS
+    const savingsGoals = savingsQuery.data ?? NO_SAVINGS
 
-    useEffect(() => {
-        loadData()
-    }, [loadData])
+    // Só no primeiro carregamento — revalidação em segundo plano não volta o skeleton.
+    const loading = cardsQuery.isPending || transactionsQuery.isPending || savingsQuery.isPending
+
+    const refetchCards = cardsQuery.refetch
+    const refetchTransactions = transactionsQuery.refetch
+    const refetchSavings = savingsQuery.refetch
+    const loadData = useCallback(async () => {
+        await Promise.all([refetchCards(), refetchTransactions(), refetchSavings()])
+    }, [refetchCards, refetchTransactions, refetchSavings])
 
     const currentMonth = useMemo(() => new Date().toISOString().slice(0, 7), [])
 
@@ -43,7 +45,6 @@ export function useCardsViewModel() {
         if (cardToDelete) {
             await deleteCard(cardToDelete)
             setCardToDelete(null)
-            await loadData()
             toast({
                 title: "Cartão removido",
                 description: "O cartão foi excluído com sucesso.",
@@ -53,7 +54,6 @@ export function useCardsViewModel() {
     }
 
     const handleCreateSuccess = async () => {
-        await loadData()
         setIsDialogOpen(false)
         toast({
             title: "Cartão adicionado!",
@@ -65,7 +65,6 @@ export function useCardsViewModel() {
     const handleSaveEdit = async (id: string, updates: Partial<Card>) => {
         await updateCard(id, updates)
         setEditingCard(null)
-        await loadData()
         toast({
             title: "Cartão atualizado!",
             description: "As alterações foram salvas.",
@@ -77,7 +76,6 @@ export function useCardsViewModel() {
         if (!mergingCard) return
         await mergeCards(mergingCard.id, mergeCardId)
         setMergingCard(null)
-        await loadData()
         toast({
             title: "Cartões mesclados!",
             description: "As transações e reservas foram unificadas.",

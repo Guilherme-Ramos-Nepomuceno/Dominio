@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { formatCurrency } from "@/lib/date-utils"
-import { getCards } from "@/lib/storage"
+import { useCardsQuery } from "@/hooks/queries"
 import type { Card, Transaction } from "@/lib/types"
 import { getBankIcon, bankLogos } from "@/lib/bank-icons"
 import { pairTransfers } from "@/lib/pair-transfers"
 import { ArrowsLeftRight } from "@phosphor-icons/react"
+
+// Referência estável para "ainda sem cartões".
+const NO_CARDS: Card[] = []
 
 interface RecentTransfersProps {
   transfers: Transaction[]
@@ -19,13 +21,9 @@ interface RecentTransfersProps {
 }
 
 export function RecentTransfers({ transfers, maxItems = 5, cards: cardsProp }: RecentTransfersProps) {
-  const [fetchedCards, setFetchedCards] = useState<Card[]>([])
-  const cards = cardsProp ?? fetchedCards
-
-  useEffect(() => {
-    if (cardsProp) return
-    getCards().then(setFetchedCards)
-  }, [cardsProp])
+  // Sem a lista consolidada, os cartões da conta ativa vêm do cache.
+  const cardsQuery = useCardsQuery({ enabled: !cardsProp })
+  const cards = cardsProp ?? cardsQuery.data ?? NO_CARDS
 
   if (transfers.length === 0) return null
 

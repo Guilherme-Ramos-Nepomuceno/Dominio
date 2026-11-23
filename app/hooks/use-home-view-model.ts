@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { PLAN_TOUR, isTourActive, showsPlanInvite } from "@/lib/guide"
 import { useGuide } from "@/components/guide/guide-provider"
-import { getPlan } from "@/lib/planning-api"
+import { usePlanQuery } from "@/hooks/queries"
 import { parseMonthKey, toISODate } from "@/lib/period"
 import { useTotalBalance } from "@/hooks/use-transactions"
 import { useFamilyHomeData } from "@/hooks/use-family-home-data"
@@ -44,22 +44,13 @@ export function useHomeViewModel() {
     // Conta nova: convite para montar o plano do mês (o guiado acontece na
     // própria tela Planejar). Some quando o plano começa ou o guiado é pulado.
     const guide = useGuide()
-    const [planStatus, setPlanStatus] = useState<string | null>(null)
     const isPersonal = selection.type === "personal"
     const tourActive = !!guide.state && isTourActive(guide.state, PLAN_TOUR)
-    useEffect(() => {
-        if (!isPersonal || !tourActive) return
-        let cancelled = false
-        const { year, month } = parseMonthKey(currentMonth)
-        getPlan(year, month)
-            .then((plan) => {
-                if (!cancelled) setPlanStatus(plan.status)
-            })
-            .catch(() => {})
-        return () => {
-            cancelled = true
-        }
-    }, [isPersonal, tourActive, currentMonth])
+    // Plano do mês atual pelo cache (o mesmo que o Planejar usa); só busca
+    // enquanto o convite pode aparecer. Erro = sem status (como antes).
+    const { year: planYear, month: planMonth } = parseMonthKey(currentMonth)
+    const planQuery = usePlanQuery(planYear, planMonth, { enabled: isPersonal && tourActive })
+    const planStatus = planQuery.data?.status ?? null
     const showOnboardingCard = showsPlanInvite({ isPersonal, planStatus, tourActive })
 
     // Mesmos componentes da Home nos dois modos — só troca a fonte dos dados:

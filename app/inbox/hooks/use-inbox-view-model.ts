@@ -1,14 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   beginRuleFeedbackBatch,
   categorizeTransactions,
   endRuleFeedbackBatch,
-  getCategories,
-  getInbox,
+  type InboxData,
   type InboxGroup,
 } from "@/lib/storage"
+import { queryKeys } from "@/lib/query-client"
+import { useCategoriesQuery, useInboxQuery } from "@/hooks/queries"
 import type { Category } from "@/lib/types"
 import { trackEvent } from "@/lib/events"
 import { groupsWithSuggestion, inboxGroupKey, initialSelections } from "@/lib/inbox"
@@ -25,59 +27,67 @@ function categorizeErrorMessage(error: unknown): string {
   return (error as any)?.message || "Tente novamente."
 }
 
+const NO_GROUPS: InboxGroup[] = []
+const NO_CATEGORIES: Category[] = []
+
 export function useInboxViewModel() {
   const { toast } = useToast()
   const { isReadOnly } = useAccount()
 
-  const [groups, setGroups] = useState<InboxGroup[]>([])
-  const [total, setTotal] = useState(0)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [selections, setSelections] = useState<Record<string, string | null>>({})
+  const queryClient = useQueryClient()
+  // Inbox e categorias do cache compartilhado. Classificar invalida o inbox
+  // (domínio "transactions") e ele se atualiza sozinho.
+  const inboxQuery = useInboxQuery()
+  const categoriesQuery = useCategoriesQuery()
+  const inbox = inboxQuery.data
+  const groups = inbox?.groups ?? NO_GROUPS
+  const total = inbox?.total ?? 0
+  const categories = categoriesQuery.data ?? NO_CATEGORIES
+  // Skeleton só no primeiro carregamento (e ao tentar de novo depois de um
+  // erro); falha com dado em mãos não troca a lista pelo erro.
+  const failed = (inboxQuery.isError && !inbox) || (categoriesQuery.isError && !categoriesQuery.data)
+  const retrying = failed && (inboxQuery.isFetching || categoriesQuery.isFetching)
+  const isLoading = inboxQuery.isPending || categoriesQuery.isPending || retrying
+  const loadError = failed && !retrying
+
+  // O que a pessoa escolheu em cada grupo. Grupos sem escolha mostram a
+  // sugestão pré-selecionada; a escolha vale enquanto o grupo está na lista.
+  const [chosen, setChosen] = useState<Record<string, string | null>>({})
+  const selections = useMemo(() => {
+    const initial = initialSelections(groups, categories)
+    const next: Record<string, string | null> = {}
+    for (const key of Object.keys(initial)) next[key] = key in chosen ? chosen[key] : initial[key]
+    return next
+  }, [groups, categories, chosen])
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
   const [busyGroupKey, setBusyGroupKey] = useState<string | null>(null)
   const [isAcceptingAll, setIsAcceptingAll] = useState(false)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
   const viewedTracked = useRef(false)
 
-  const load = useCallback(async () => {
-    try {
-      const [inbox, cats] = await Promise.all([getInbox(), getCategories()])
-      setGroups(inbox.groups)
-      setTotal(inbox.total)
-      setCategories(cats)
-      // Mantém o que a pessoa já escolheu num grupo que continua na lista;
-      // grupos novos nascem com a sugestão pré-selecionada.
-      const initial = initialSelections(inbox.groups, cats)
-      setSelections((prev) => {
-        const next: Record<string, string | null> = {}
-        for (const key of Object.keys(initial)) next[key] = key in prev ? prev[key] : initial[key]
-        return next
-      })
-      setLoadError(false)
-      if (!viewedTracked.current) {
-        viewedTracked.current = true
-        trackEvent("inbox_viewed", { count: inbox.total })
-      }
-    } catch {
-      setLoadError(true)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
-    load()
-  }, [load])
+    if (!inbox || viewedTracked.current) return
+    viewedTracked.current = true
+    trackEvent("inbox_viewed", { count: inbox.total })
+  }, [inbox])
 
+  // Tira o grupo da lista na hora (no cache, com cópia); a revalidação que a
+  // gravação dispara confirma com o servidor.
   const removeGroupLocally = (key: string, removedCount: number) => {
-    setGroups((prev) => prev.filter((g) => inboxGroupKey(g) !== key))
-    setTotal((prev) => Math.max(0, prev - removedCount))
+    queryClient.setQueryData<InboxData>(queryKeys.inbox(), (prev) =>
+      prev
+        ? {
+            ...prev,
+            groups: prev.groups.filter((g) => inboxGroupKey(g) !== key),
+            total: Math.max(0, prev.total - removedCount),
+          }
+        : prev,
+    )
   }
 
   const selectCategory = (group: InboxGroup, categoryId: string | null) => {
-    setSelections((prev) => ({ ...prev, [inboxGroupKey(group)]: categoryId }))
+    setChosen((prev) => ({ ...prev, [inboxGroupKey(group)]: categoryId }))
   }
 
   const toggleExpanded = (group: InboxGroup) => {
@@ -99,7 +109,7 @@ export function useInboxViewModel() {
     const ids = group.transactions.map((t) => t.id)
     if (ids.length === 0) return
 
-    if (chosenId) setSelections((prev) => ({ ...prev, [key]: chosenId }))
+    if (chosenId) setChosen((prev) => ({ ...prev, [key]: chosenId }))
     setBusyGroupKey(key)
     try {
       const updated = await categorizeTransactions(ids, categoryId)
@@ -111,7 +121,6 @@ export function useInboxViewModel() {
         description: `${updated} ${updated === 1 ? "transação" : "transações"}${name ? ` em ${name}` : ""}.`,
         variant: "success",
       })
-      load()
     } catch (error: any) {
       toast({ title: "Não foi possível classificar", description: categorizeErrorMessage(error), variant: "destructive" })
     } finally {
@@ -152,7 +161,6 @@ export function useInboxViewModel() {
       variant: failures > 0 ? "destructive" : "success",
     })
     setIsAcceptingAll(false)
-    load()
   }
 
   return {
@@ -176,8 +184,8 @@ export function useInboxViewModel() {
     categorizeGroup,
     acceptSuggestions,
     retry: () => {
-      setIsLoading(true)
-      load()
+      if (inboxQuery.isError) void inboxQuery.refetch()
+      if (categoriesQuery.isError) void categoriesQuery.refetch()
     },
   }
 }

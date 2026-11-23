@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { ToastAction } from "@/components/ui/toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { getCategories } from "@/lib/storage"
+import { readCategories } from "@/lib/cached-reads"
 import { createCategoryRule, updateCategoryRule } from "@/lib/rules-api"
 import { trackEvent } from "@/lib/events"
 import {
@@ -55,7 +55,8 @@ export function RulePromptListener() {
       buffer.current = []
       const prompt = ruleFeedbackPrompt(aggregateRuleFeedback(items))
       if (prompt.kind === "none") return
-      const cats = await getCategories().catch(() => [] as Category[])
+      // Pelo cache: categorizar não muda categorias, então quase sempre já está carregado.
+      const cats = await readCategories().catch(() => [] as Category[])
       setCategories(cats)
 
       if (prompt.kind === "single-conflict") {

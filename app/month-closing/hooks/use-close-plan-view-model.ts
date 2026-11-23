@@ -1,11 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { useAccount } from "@/components/account/account-context"
 import { useInboxCount } from "@/hooks/use-inbox-count"
-import { closePlan, getClosingSummary, getPlan } from "@/lib/planning-api"
-import { getGoals, getSavingsGoals } from "@/lib/storage"
+import { closePlan } from "@/lib/planning-api"
+import { useClosingSummaryQuery, useGoalsQuery, usePlanQuery, useSavingsGoalsQuery } from "@/hooks/queries"
 import {
   buildCloseBody,
   closingTiming,
@@ -31,6 +31,9 @@ const MONTH_NAMES = [
   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
 ]
 
+const NO_GOALS: Goal[] = []
+const NO_SAVINGS: SavingsGoal[] = []
+
 // Fechar o plano: por padrão o mês anterior, se ele tem plano e ainda não foi
 // fechado (fechamento costuma acontecer depois que o mês acaba); senão, o atual.
 export function useClosePlanViewModel() {
@@ -44,104 +47,103 @@ export function useClosePlanViewModel() {
   }, [currentMonth])
 
   const [targetMonth, setTargetMonth] = useState<string | null>(null)
-  const [status, setStatus] = useState<PlanStatus | null>(null)
-  const [followingPlanStatus, setFollowingPlanStatus] = useState<PlanStatus | null>(null)
-  // Fim do período e sobra prevista do plano (a mesma do Planejar).
-  const [planInfo, setPlanInfo] = useState<{
-    periodEnd: string
-    forecastLeftover: number
-    groups: Array<{ id: string; kind: string | null; name: string; color: string | null; planned: number; spent: number; categoryIds: string[] }>
-  } | null>(null)
-  const [data, setData] = useState<ClosingData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
   const [decisions, setDecisions] = useState<Record<string, WishDecision>>({})
   const [destination, setDestination] = useState<LeftoverDestination | null>(null)
   const [destinationId, setDestinationId] = useState<string>("")
   const [leftoverAmount, setLeftoverAmount] = useState("")
-  const [goals, setGoals] = useState<Goal[]>([])
-  const [savings, setSavings] = useState<SavingsGoal[]>([])
   const [isClosing, setIsClosing] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Escolhe o mês alvo uma vez (mês anterior em aberto tem prioridade).
-  useEffect(() => {
-    if (isReadOnly) return
-    let cancelled = false
-    const { year, month } = parseMonthKey(previousMonth)
-    getPlan(year, month)
-      .then((p) => {
-        if (cancelled) return
-        setTargetMonth(p.status === "DRAFT" || p.status === "CONFIRMED" ? previousMonth : currentMonth)
-      })
-      .catch(() => !cancelled && setTargetMonth(currentMonth))
-    return () => {
-      cancelled = true
-    }
-  }, [previousMonth, currentMonth, isReadOnly])
+  // Escolhe o mês alvo uma vez (mês anterior em aberto tem prioridade) — de
+  // novo só se o "mês atual" mudar (ex.: dia de início do mês carregou).
+  const prev = parseMonthKey(previousMonth)
+  const previousPlanQuery = usePlanQuery(prev.year, prev.month, { enabled: !isReadOnly })
+  const autoKey = `${previousMonth}|${currentMonth}`
+  const [targetChosenFor, setTargetChosenFor] = useState<string | null>(null)
+  if (!isReadOnly && targetChosenFor !== autoKey && (previousPlanQuery.data || previousPlanQuery.isError)) {
+    const p = previousPlanQuery.data
+    setTargetChosenFor(autoKey)
+    setTargetMonth(p && (p.status === "DRAFT" || p.status === "CONFIRMED") ? previousMonth : currentMonth)
+  }
 
+  // Plano, resumo do fechamento e plano do mês seguinte, do cache. Sem mês
+  // alvo ainda, as consultas ficam paradas.
+  const target = parseMonthKey(targetMonth ?? currentMonth)
+  const following = addMonths(target.year, target.month, 1)
+  const planQuery = usePlanQuery(target.year, target.month, { enabled: !!targetMonth })
+  // Resumo indisponível não derruba a tela (fica sem dados, como antes).
+  const closingQuery = useClosingSummaryQuery(target.year, target.month, { enabled: !!targetMonth })
+  // Só para o atalho depois de fechar: "Planejar" ou "Ver o plano".
+  const followingPlanQuery = usePlanQuery(following.year, following.month, { enabled: !!targetMonth })
+
+  const plan = planQuery.data ?? null
+  const data: ClosingData | null = closingQuery.data ?? null
+  const status: PlanStatus | null = plan?.status ?? null
+  const followingPlanStatus: PlanStatus | null = followingPlanQuery.data?.status ?? null
+  // Erro com nova tentativa no ar volta ao skeleton, como antes.
+  const failed = planQuery.isError && !plan
+  const retrying = failed && planQuery.isFetching
+  const isLoading =
+    !targetMonth || planQuery.isPending || closingQuery.isPending || followingPlanQuery.isPending || retrying
+  const loadError = failed && !retrying
+
+  // Fim do período e sobra prevista do plano (a mesma do Planejar).
+  const planInfo = useMemo(() => {
+    if (!plan) return null
+    return {
+      periodEnd: plan.periodEnd,
+      forecastLeftover: planHeadline(plan).value,
+      // Mesmos grupos, cores e valores da barra do Planejar, com a compra de
+      // cada desejo contada em Desejos (e não no grupo da categoria dela).
+      groups: withBoughtWishes(
+        monthBar(plan)
+          .segments.filter((seg) => seg.type === "group")
+          .map((seg) => ({
+            id: seg.groupId ?? seg.key,
+            kind: seg.kind,
+            name: seg.label,
+            color: seg.color,
+            planned: seg.amount,
+            spent: seg.spent,
+            categoryIds: plan.groups.find((g) => g.id === seg.groupId)?.categories.map((c) => c.categoryId) ?? [],
+          })),
+        plan.wishes,
+      ),
+    }
+  }, [plan])
+
+  // O formulário (decisões dos desejos, destino da sobra) parte do resumo do
+  // mês — preenchido ao carregar o mês alvo, ao recarregar e depois de
+  // fechar. Uma revalidação em segundo plano não apaga o que a pessoa
+  // escolheu.
+  const [formSeededFor, setFormSeededFor] = useState<string | null>(null)
+  if (targetMonth && !isLoading && !loadError && formSeededFor !== targetMonth) {
+    setFormSeededFor(targetMonth)
+    setDecisions(defaultDecisions(data?.openWishes ?? []))
+    setDestination(null)
+    setDestinationId("")
+    setLeftoverAmount(data && data.summary.leftover > 0 ? formatMoneyInput(data.summary.leftover) : "")
+    setFormError(null)
+  }
+
+  // Busca de novo e repreenche o formulário. cancelRefetch: false = pega
+  // carona na revalidação que uma gravação já disparou.
+  const refetchPlan = planQuery.refetch
+  const refetchClosing = closingQuery.refetch
+  const refetchFollowing = followingPlanQuery.refetch
   const load = useCallback(async () => {
     if (!targetMonth) return
-    setIsLoading(true)
-    setLoadError(false)
-    const { year, month } = parseMonthKey(targetMonth)
-    try {
-      const following = addMonths(year, month, 1)
-      const [plan, closing, followingPlan] = await Promise.all([
-        getPlan(year, month),
-        getClosingSummary(year, month).catch(() => null),
-        // Só para o atalho depois de fechar: "Planejar" ou "Ver o plano".
-        getPlan(following.year, following.month).catch(() => null),
-      ])
-      setStatus(plan.status)
-      setFollowingPlanStatus(followingPlan?.status ?? null)
-      setPlanInfo({
-        periodEnd: plan.periodEnd,
-        forecastLeftover: planHeadline(plan).value,
-        // Mesmos grupos, cores e valores da barra do Planejar, com a compra de
-        // cada desejo contada em Desejos (e não no grupo da categoria dela).
-        groups: withBoughtWishes(
-          monthBar(plan)
-            .segments.filter((seg) => seg.type === "group")
-            .map((seg) => ({
-              id: seg.groupId ?? seg.key,
-              kind: seg.kind,
-              name: seg.label,
-              color: seg.color,
-              planned: seg.amount,
-              spent: seg.spent,
-              categoryIds: plan.groups.find((g) => g.id === seg.groupId)?.categories.map((c) => c.categoryId) ?? [],
-            })),
-          plan.wishes,
-        ),
-      })
-      setData(closing)
-      setDecisions(defaultDecisions(closing?.openWishes ?? []))
-      setDestination(null)
-      setDestinationId("")
-      setLeftoverAmount(closing && closing.summary.leftover > 0 ? formatMoneyInput(closing.summary.leftover) : "")
-      setFormError(null)
-    } catch (error) {
-      console.error("Falha ao carregar o fechamento:", error)
-      setLoadError(true)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [targetMonth])
+    await Promise.all([
+      refetchPlan({ cancelRefetch: false }),
+      refetchClosing({ cancelRefetch: false }),
+      refetchFollowing({ cancelRefetch: false }),
+    ])
+    setFormSeededFor(null)
+  }, [targetMonth, refetchPlan, refetchClosing, refetchFollowing])
 
-  useEffect(() => {
-    load()
-  }, [load])
-
-  useEffect(() => {
-    if (isReadOnly) return
-    Promise.all([getGoals(), getSavingsGoals()])
-      .then(([g, s]) => {
-        setGoals(g)
-        setSavings(s)
-      })
-      .catch(() => {})
-  }, [isReadOnly])
+  // Destinos da sobra; falha ao carregar = listas vazias, como antes.
+  const goals = useGoalsQuery({ enabled: !isReadOnly }).data ?? NO_GOALS
+  const savings = useSavingsGoalsQuery({ enabled: !isReadOnly }).data ?? NO_SAVINGS
 
   const labelOf = (key: string | null) => {
     if (!key) return ""
@@ -200,7 +202,7 @@ export function useClosePlanViewModel() {
     followingPlanStatus,
     status,
     data,
-    isLoading: isLoading || (!targetMonth && !isReadOnly),
+    isLoading,
     loadError,
     reload: load,
     inboxCount,

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { TagIcon, Heart, ArrowLeft, ArrowRight } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyInput, parseCurrencyInput } from "@/lib/date-utils"
-import { getCategories, getCards, updateTransaction, moveTransactionInvoice } from "@/lib/storage"
+import { updateTransaction, moveTransactionInvoice } from "@/lib/storage"
+import { useCardsQuery, useCategoriesQuery } from "@/hooks/queries"
 import type { Category, Transaction, Card, PaymentMethod } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
@@ -12,6 +13,10 @@ import { AutoCategoryBadge } from "@/components/rules/auto-category-badge"
 import { autoCategorizedLabel, isAutoCategorized } from "@/lib/rules"
 import { FormSheet, SheetPrimaryButton, UnderlineInput } from "@/components/ui/form-sheet"
 import { CategoryChip, Chip, ChipRow, DateChips, FieldLabel, PaymentMethodToggle } from "@/components/transaction-inputs/transaction-inputs"
+
+// Referências estáveis para "ainda sem dado".
+const NO_CATEGORIES: Category[] = []
+const NO_CARDS: Card[] = []
 
 interface EditTransactionDialogProps {
   transaction: Transaction | null
@@ -23,8 +28,9 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
   const { toast } = useToast()
   const { family } = useAccount()
   const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
-  const [categories, setCategories] = useState<Category[]>([])
-  const [cards, setCards] = useState<Card[]>([])
+  // Categorias e cartões do cache; só busca quando o diálogo abre.
+  const categories = useCategoriesQuery({ enabled: !!transaction }).data ?? NO_CATEGORIES
+  const cards = useCardsQuery({ enabled: !!transaction }).data ?? NO_CARDS
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
   const [categoryId, setCategoryId] = useState("")
@@ -37,8 +43,6 @@ export function EditTransactionDialog({ transaction, onClose, onSaved }: EditTra
 
   useEffect(() => {
     if (!transaction) return
-    getCategories().then(setCategories)
-    getCards().then(setCards)
     setDescription(transaction.description)
     setAmount(formatCurrencyInput(Math.round(transaction.amount * 100).toString()))
     setCategoryId(transaction.categoryId ?? "")

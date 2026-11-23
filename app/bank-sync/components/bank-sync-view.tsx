@@ -18,7 +18,8 @@ import { formatCurrency } from "@/lib/date-utils"
 import { pairTransfers } from "@/lib/pair-transfers"
 import { transferBatchSummary } from "@/lib/transfer-batch"
 import type { Card, PaymentMethod, TransactionType } from "@/lib/types"
-import { getMemberCardsMapped, ensureSystemCategory, addTransaction, type ConfirmPluggyPendingResult } from "@/lib/storage"
+import { ensureSystemCategory, addTransaction, type ConfirmPluggyPendingResult } from "@/lib/storage"
+import { readMemberCards } from "@/lib/cached-reads"
 import { createTransactionForFamilyMember } from "@/lib/family"
 import { getCurrentUser } from "@/lib/auth"
 import { useAccount } from "@/components/account/account-context"
@@ -163,7 +164,7 @@ export function BankSyncView() {
 
   const loadMemberCardsIfNeeded = async (memberId: string) => {
     if (!memberId || memberCardsCache[memberId]) return
-    const all = await getMemberCardsMapped(memberId)
+    const all = await readMemberCards(memberId)
     setMemberCardsCache((prev) => ({ ...prev, [memberId]: all.filter((c) => c.hasDebit) }))
   }
 

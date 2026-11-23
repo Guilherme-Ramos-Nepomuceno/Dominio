@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowUpIcon,
@@ -19,7 +19,9 @@ import {
   ArrowsLeftRight,
 } from "@phosphor-icons/react"
 import * as PhosphorIcons from "@phosphor-icons/react"
-import { addTransaction, getCategories, getCards, getMemberCardsMapped, getTransactions, getSavingsGoals, applySavingsGoalDelta, ensureSystemCategory, suggestCategory } from "@/lib/storage"
+import { addTransaction, applySavingsGoalDelta, ensureSystemCategory, suggestCategory } from "@/lib/storage"
+import { readTransactions } from "@/lib/cached-reads"
+import { useCardsQuery, useCategoriesQuery, useMemberCardsQuery, useSavingsGoalsQuery } from "@/hooks/queries"
 import { CardChips, CategoryChip, Chip, ChipRow, DateChips, FieldLabel, PaymentMethodToggle } from "@/components/transaction-inputs/transaction-inputs"
 import { transferToFamilyMember } from "@/lib/family"
 import type { Category, Card, SavingsGoal, TransactionType, RecurrenceType } from "@/lib/types"
@@ -44,6 +46,10 @@ const RESERVE_CATEGORY_BY_TYPE: Record<TransactionType, { name: string; color: s
   income: { name: "Saque", color: "#3b82f6", icon: "HandCoins" },
 }
 
+const NO_CATEGORIES: Category[] = []
+const NO_CARDS: Card[] = []
+const NO_GOALS: SavingsGoal[] = []
+
 const recurrenceOptions: { value: RecurrenceType; label: string }[] = [
   { value: "none", label: "Única" },
   { value: "daily", label: "Diária" },
@@ -55,9 +61,11 @@ const recurrenceOptions: { value: RecurrenceType; label: string }[] = [
 export function TransactionForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [categories, setCategories] = useState<Category[]>([])
-  const [cards, setCards] = useState<Card[]>([])
-  const [goals, setGoals] = useState<SavingsGoal[]>([])
+  // Listas de apoio do formulário vêm do cache (só leitura); o que a pessoa
+  // preenche continua em estado local e não é tocado por revalidações.
+  const categories = useCategoriesQuery().data ?? NO_CATEGORIES
+  const cards = useCardsQuery().data ?? NO_CARDS
+  const goals = useSavingsGoalsQuery().data ?? NO_GOALS
   const { toast } = useToast()
   const { family } = useAccount()
   const hasCoupleAccount = !!family?.members?.some((m) => m.accountType === "COUPLE")
@@ -71,12 +79,6 @@ export function TransactionForm() {
     setCurrentUserId(getCurrentUser()?.id ?? null)
   }, [])
   const familyMembers = family?.members?.filter((m) => m.accountType === "PERSONAL" && m.id !== currentUserId) ?? []
-
-  useEffect(() => {
-    getCategories().then(setCategories)
-    getCards().then(setCards)
-    getSavingsGoals().then(setGoals)
-  }, [])
 
   const hasDebitCard = cards.some((c) => c.hasDebit)
 
@@ -108,7 +110,12 @@ export function TransactionForm() {
   const [isFamilyTransfer, setIsFamilyTransfer] = useState(false)
   const [toMemberId, setToMemberId] = useState("")
   const [toCardId, setToCardId] = useState("")
-  const [memberCards, setMemberCards] = useState<Card[]>([])
+  const memberCardsQuery = useMemberCardsQuery(toMemberId, { enabled: !!toMemberId })
+  const memberCardsData = memberCardsQuery.data
+  const memberCards = useMemo(
+    () => (toMemberId && memberCardsData ? memberCardsData.filter((c) => c.hasDebit) : NO_CARDS),
+    [toMemberId, memberCardsData],
+  )
 
   const filteredCategories = categories.filter((cat) => cat.type === type)
   // As mais registradas primeiro (mesma ordem das pílulas do registro rápido).
@@ -173,17 +180,9 @@ export function TransactionForm() {
     }
   }, [isFamilyTransfer, toMemberId, familyMembers])
 
+  // Trocou o parceiro de destino: a conta escolhida era do anterior.
   useEffect(() => {
     setToCardId("")
-    if (!toMemberId) {
-      setMemberCards([])
-      return
-    }
-    let cancelled = false
-    getMemberCardsMapped(toMemberId).then((memberAll) => {
-      if (!cancelled) setMemberCards(memberAll.filter((c) => c.hasDebit))
-    })
-    return () => { cancelled = true }
   }, [toMemberId])
 
   useEffect(() => {
@@ -222,8 +221,8 @@ export function TransactionForm() {
       return
     }
 
+    // Criar a categoria invalida o cache de categorias — a lista se atualiza sozinha.
     ensureSystemCategory(target.name, type, target.color, target.icon, false).then((id) => {
-      getCategories().then(setCategories)
       setCategoryId(id)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -307,7 +306,8 @@ export function TransactionForm() {
     }
 
     if (isCreditCard && selectedCard?.limit) {
-      const allTransactions = await getTransactions()
+      // Pelo cache: não baixa o histórico inteiro de novo só para conferir o limite.
+      const allTransactions = await readTransactions()
       const transactions = allTransactions.filter(
         (t) => t.cardId === cardId && (t.status === "paid" || t.status === "pending") && t.type === "expense",
       )

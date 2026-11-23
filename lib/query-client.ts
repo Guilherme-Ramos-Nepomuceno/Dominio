@@ -3,6 +3,7 @@ import { ApiError } from "./api"
 import { getActiveAccountSelection } from "./active-account"
 import { getCurrentUser } from "./auth"
 import type { DataDomain } from "./data-events"
+import { rootsToInvalidate } from "./cache-domains"
 
 // Cache das leituras da API (TanStack Query). A ideia: ao trocar de tela, o
 // que já foi carregado aparece na hora e, se estiver velho, é atualizado em
@@ -22,24 +23,6 @@ export function accountScope(): string {
   const account = ctx.type === "personal" ? "personal" : `${ctx.type}:${ctx.id}`
   return `${userId}|${account}`
 }
-
-// Raiz de cada chave = o "assunto" do dado. A invalidação por domínio
-// (DOMAIN_INVALIDATES) trabalha nessas raízes.
-export type QueryRoot =
-  | "transactions"
-  | "categories"
-  | "cards"
-  | "savings"
-  | "goals"
-  | "settings"
-  | "inbox"
-  | "pluggy"
-  | "plan"
-  | "invoice"
-  | "pending-matches"
-  | "month-data"
-  | "rules"
-  | "family"
 
 // Chaves de todas as consultas num lugar só. Sempre [raiz, conta, ...resto].
 export const queryKeys = {
@@ -87,31 +70,13 @@ export const queryKeys = {
   coupleSettlements: (month: string) => ["family", accountScope(), "settlements", month] as const,
 }
 
-// O que cada tipo de gravação pode ter mudado. Conservador de propósito: na
-// dúvida, invalida — buscar de novo é barato, mostrar dado errado não é. O
-// ganho é não rebuscar o que com certeza não mudou (ex.: lançar um gasto não
-// mexe em categorias, cartões, reservas, objetivos, configurações, regras).
-export const DOMAIN_INVALIDATES: Record<DataDomain, QueryRoot[]> = {
-  transactions: ["transactions", "inbox", "plan", "invoice", "pending-matches", "month-data", "pluggy", "family"],
-  categories: ["categories", "transactions", "inbox", "plan", "invoice", "month-data", "rules", "pluggy", "family"],
-  cards: ["cards", "transactions", "invoice", "plan", "month-data", "savings", "pluggy", "pending-matches", "family"],
-  savings: ["savings", "goals", "plan", "transactions", "month-data", "pluggy", "family"],
-  goals: ["goals", "savings", "plan"],
-  settings: ["settings", "plan", "month-data", "invoice"],
-  // Plano em si (orçamento, grupos, desejos). Quem também mexe em dinheiro
-  // (comprar desejo, guardar sobra, fechar o mês) avisa os outros domínios.
-  plan: ["plan", "month-data"],
-  rules: ["rules", "transactions", "inbox", "plan", "pluggy"],
-  pluggy: ["pluggy", "transactions", "inbox", "cards", "savings", "plan", "invoice", "pending-matches", "month-data", "family"],
-  "pluggy-review": ["pluggy"],
-  family: ["family", "month-data", "plan"],
-}
-
-// Sem domínio (aviso antigo, sem detalhe) = invalida tudo.
+// Sem domínio (aviso antigo, sem detalhe) = invalida tudo. Qual domínio
+// invalida o quê: lib/cache-domains.ts.
 export function invalidateDomains(client: QueryClient, domains: readonly DataDomain[] | undefined): Promise<void> {
-  if (!domains || domains.length === 0) return client.invalidateQueries()
-  const roots = new Set<string>(domains.flatMap((d) => DOMAIN_INVALIDATES[d] ?? []))
-  return client.invalidateQueries({ predicate: (query) => roots.has(String(query.queryKey[0])) })
+  const roots = rootsToInvalidate(domains)
+  if (roots === "all") return client.invalidateQueries()
+  const rootNames: ReadonlySet<string> = roots
+  return client.invalidateQueries({ predicate: (query) => rootNames.has(String(query.queryKey[0])) })
 }
 
 function createQueryClient() {

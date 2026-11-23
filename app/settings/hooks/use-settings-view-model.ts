@@ -1,21 +1,19 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/hooks/use-theme"
-import {
-    getSettings,
-    setSettings as saveSettings,
-    getCategories,
-    getTransactions,
-    deleteAllTransactions,
-} from "@/lib/storage"
+import { setSettings as saveSettings, deleteAllTransactions } from "@/lib/storage"
 import type { Category, Transaction } from "@/lib/types"
+import { useCategoriesQuery, useSettingsQuery, useTransactionsQuery } from "@/hooks/queries"
 import { getCurrentUser, updateCurrentUser, logoutUser, type User } from "@/lib/auth"
 import { toast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 import { createFamilyInvite, createCoupleAccount as createCoupleAccountApi } from "@/lib/family"
 import { getAdminMe } from "@/lib/admin"
+
+const NO_CATEGORIES: Category[] = []
+const NO_TRANSACTIONS: Transaction[] = []
 
 export function useSettingsViewModel() {
     const router = useRouter()
@@ -33,9 +31,32 @@ export function useSettingsViewModel() {
     const [categoryGoals, setCategoryGoals] = useState<any[]>([])
     const [showClearDialog, setShowClearDialog] = useState(false)
     const [user, setUser] = useState<User | null>(null)
-    const [categories, setCategories] = useState<Category[]>([])
-    const [transactions, setTransactions] = useState<Transaction[]>([])
-    const [loading, setLoading] = useState(true)
+    const settingsQuery = useSettingsQuery()
+    const categoriesQuery = useCategoriesQuery()
+    const transactionsQuery = useTransactionsQuery()
+    const allCategories = categoriesQuery.data ?? NO_CATEGORIES
+    const transactions = transactionsQuery.data ?? NO_TRANSACTIONS
+    const categories = useMemo(() => allCategories.filter((c) => c.type === "expense"), [allCategories])
+    // O formulário é estado local semeado UMA vez com as configurações do
+    // cache: uma revalidação em segundo plano (salvar, voltar à aba) não pode
+    // apagar o que a pessoa está digitando. Dado velho (ex.: invalidado por um
+    // salvar logo antes de sair da tela) espera a revalidação, para o
+    // formulário não abrir com o valor anterior.
+    const [seeded, setSeeded] = useState(false)
+    const settings = settingsQuery.data
+    const settingsSettled = !(settingsQuery.isStale && settingsQuery.isFetching)
+    if (!seeded && settings && settingsSettled) {
+        setSeeded(true)
+        setSpendingGoal(settings.spendingGoal.toString())
+        setCurrency(settings.currency)
+        setMonthStartDay(settings.monthStartDay ?? 1)
+        setWeekCarryOver(settings.weekCarryOver ?? "MONTH")
+        setPluggyDirectSync(settings.pluggyDirectSync ?? false)
+        setCategoryGoals(settings.categoryGoals || [])
+    }
+    // Erro na leitura também libera a tela (como o antigo `finally`).
+    const loading =
+        (!seeded && !settingsQuery.isError) || categoriesQuery.isPending || transactionsQuery.isPending
     // Link do painel admin só aparece para quem é admin (GET /admin/me).
     const [isAdmin, setIsAdmin] = useState(false)
     useEffect(() => {
@@ -51,19 +72,6 @@ export function useSettingsViewModel() {
 
     useEffect(() => {
         setUser(getCurrentUser())
-
-        Promise.all([getSettings(), getCategories(), getTransactions()])
-            .then(([settings, allCategories, allTransactions]) => {
-                setSpendingGoal(settings.spendingGoal.toString())
-                setCurrency(settings.currency)
-                setMonthStartDay(settings.monthStartDay ?? 1)
-                setWeekCarryOver(settings.weekCarryOver ?? "MONTH")
-                setPluggyDirectSync(settings.pluggyDirectSync ?? false)
-                setCategoryGoals(settings.categoryGoals || [])
-                setCategories(allCategories.filter((c) => c.type === "expense"))
-                setTransactions(allTransactions)
-            })
-            .finally(() => setLoading(false))
     }, [])
 
     const handleUpdateProfile = async (e: React.FormEvent) => {

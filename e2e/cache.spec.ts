@@ -64,17 +64,37 @@ test("registro rápido invalida o cache e a Home mostra o lançamento novo", asy
     date: `${today()}T12:00:00`,
   })
 
+  // Espera o sync automático do login (ele também invalida o cache).
+  const autoSync = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/pluggy/sync")
   await login(page, account)
+  await autoSync
   await expect(page.getByText("1.000,00").first()).toBeVisible()
 
-  const reads = countHomeTransactionReads(page)
   await page.getByRole("button", { name: "Registrar", exact: true }).click()
   const sheet = page.getByRole("dialog")
   for (const key of ["4", "2", "0", "0"]) await sheet.getByRole("button", { name: key, exact: true }).click()
+  await page.waitForLoadState("networkidle")
+
+  // Depois que a gravação responde: o que depende de lançamentos é buscado de
+  // novo; o que um gasto não muda (categorias, cartões, reservas,
+  // configurações) não. (Antes do POST, addTransaction confere o cartão com
+  // uma leitura fresca de /cards de propósito — essa não conta.)
+  const reads = countHomeTransactionReads(page)
+  const untouched: string[] = []
+  let saved = false
+  page.on("response", (res) => {
+    if (res.request().method() === "POST" && new URL(res.url()).pathname === "/transactions") saved = true
+  })
+  page.on("request", (req) => {
+    const path = new URL(req.url()).pathname
+    if (saved && req.method() === "GET" && ["/categories", "/cards", "/savings", "/settings"].includes(path)) untouched.push(path)
+  })
   await sheet.getByRole("button", { name: "Registrar despesa" }).click()
   await expect(sheet).toBeHidden()
 
   // Saldo 1.000,00 − 42,00 (despesa paga hoje).
   await expect(page.getByText("958,00").first()).toBeVisible()
+  await page.waitForLoadState("networkidle")
   expect(reads.count).toBeGreaterThan(0)
+  expect(untouched).toEqual([])
 })

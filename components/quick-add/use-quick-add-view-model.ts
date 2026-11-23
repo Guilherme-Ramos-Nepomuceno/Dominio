@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { addTransaction, getCards, getCategories, suggestCategory, type CategorySuggestion } from "@/lib/storage"
+import { addTransaction, suggestCategory, type CategorySuggestion } from "@/lib/storage"
+import { useCardsQuery, useCategoriesQuery } from "@/hooks/queries"
+import { readCards } from "@/lib/cached-reads"
 import type { Card, Category, PaymentMethod, TransactionType } from "@/lib/types"
 import { trackEvent } from "@/lib/events"
 import { getLastUsedCardId, setLastUsedCardId } from "@/lib/preferences"
@@ -20,6 +22,10 @@ import { useToast } from "@/hooks/use-toast"
 
 const SUGGEST_DEBOUNCE_MS = 350
 
+// Referências estáveis para "ainda sem dado" (ou erro).
+const NO_CATEGORIES: Category[] = []
+const NO_CARDS: Card[] = []
+
 export function useQuickAddViewModel() {
   const router = useRouter()
   const { toast } = useToast()
@@ -34,8 +40,10 @@ export function useQuickAddViewModel() {
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
-  const [categories, setCategories] = useState<Category[]>([])
-  const [cards, setCards] = useState<Card[]>([])
+  // Categorias e contas do cache, buscadas só com a folha aberta. Sem elas o
+  // registro ainda funciona (vai sem conta e sem categoria) — erro = lista vazia.
+  const categories = useCategoriesQuery({ enabled: open }).data ?? NO_CATEGORIES
+  const cards = useCardsQuery({ enabled: open }).data ?? NO_CARDS
   const [suggestion, setSuggestion] = useState<CategorySuggestion | null>(null)
   const [frequent, setFrequent] = useState<string[]>([])
 
@@ -58,16 +66,15 @@ export function useQuickAddViewModel() {
     setOpen(true)
     trackEvent("quick_add_opened")
 
-    Promise.all([getCategories(), getCards()])
-      .then(([cats, allCards]) => {
-        setCategories(cats)
-        setCards(allCards)
+    // Pré-seleciona a última conta usada (se ainda existir) a cada abertura.
+    readCards()
+      .then((allCards) => {
         const last = getLastUsedCardId()
         setCardId(last && allCards.some((c) => c.id === last) ? last : null)
       })
       .catch(() => {
-        // Sem categorias/contas carregadas o registro ainda funciona (vai
-        // sem conta e sem categoria) — a tela não pode travar por isso.
+        // Sem contas carregadas o registro ainda funciona (vai sem conta) —
+        // a tela não pode travar por isso.
       })
   }, [])
 

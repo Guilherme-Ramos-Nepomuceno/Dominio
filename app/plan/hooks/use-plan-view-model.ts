@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { useAccount } from "@/components/account/account-context"
-import { getCards, getCategories } from "@/lib/storage"
+import { useCardsQuery, useCategoriesQuery } from "@/hooks/queries"
 import { createWish, deleteWish, updateWish, wishToGoal, type WishInput } from "@/lib/planning-api"
 import { trackEvent } from "@/lib/events"
 import { effectiveBudget, isPlanEditable, planTotals, type PlanWish } from "@/lib/plan"
@@ -26,17 +26,25 @@ import { toast } from "@/hooks/use-toast"
 import { useWins } from "@/hooks/use-wins"
 import { usePlan } from "./use-plan"
 
+const NO_CATEGORIES: Category[] = []
+const NO_CARDS: Card[] = []
+
 export function usePlanViewModel() {
   const { selectedMonth, periodRangeLabel, period, monthStartDay } = useSelectedMonth()
   const { selection, family, isReadOnly } = useAccount()
   const planState = usePlan(selectedMonth)
-  const { plan, year, month, reload } = planState
+  const { plan, year, month } = planState
   // Vitórias do mês selecionado. Falha aqui não derruba a tela.
   const { wins } = useWins(selectedMonth, !isReadOnly)
   const [showConfirmSummary, setShowConfirmSummary] = useState(false)
 
-  const [categories, setCategories] = useState<Category[]>([])
-  const [cards, setCards] = useState<Card[]>([])
+  // Do cache compartilhado; falha ao carregar continua como lista vazia.
+  const allCategories = useCategoriesQuery().data ?? NO_CATEGORIES
+  const cards = useCardsQuery().data ?? NO_CARDS
+  const categories = useMemo(
+    () => allCategories.filter((c) => c.type === "expense" && !c.excludedFromTotals),
+    [allCategories],
+  )
 
   // Desejo em edição (null = fechado; "new" = novo) e desejo sendo comprado.
   const [editingWish, setEditingWish] = useState<PlanWish | "new" | null>(null)
@@ -47,15 +55,6 @@ export function usePlanViewModel() {
 
   useEffect(() => {
     trackEvent("plan_viewed")
-  }, [])
-
-  useEffect(() => {
-    Promise.all([getCategories(), getCards()])
-      .then(([cats, cardList]) => {
-        setCategories(cats.filter((c) => c.type === "expense" && !c.excludedFromTotals))
-        setCards(cardList)
-      })
-      .catch(() => {})
   }, [])
 
   // "Do casal" só aparece na conta pessoal de quem já tem conta do casal.
@@ -81,6 +80,8 @@ export function usePlanViewModel() {
   const canConfirm = !!plan && canConfirmPlan(plan.status, editable)
   const showWeekLink = !!plan && plan.status === "CONFIRMED" && plan.weeklyLimitEnabled
 
+  // Depois de gravar não precisa recarregar: a gravação invalida o plano no
+  // cache (lib/data-events.ts) e ele se atualiza sozinho.
   const saveWish = useCallback(
     async (input: WishInput, existing: PlanWish | null) => {
       try {
@@ -94,14 +95,13 @@ export function usePlanViewModel() {
             toast({ title: "Desejo salvo na conta do casal", description: "Ele aparece no plano da conta do casal." })
           }
         }
-        await reload()
         return true
       } catch (error: any) {
         toast({ title: "Não foi possível salvar o desejo", description: error?.message, variant: "destructive" })
         return false
       }
     },
-    [reload, year, month],
+    [year, month],
   )
 
   const confirmDeleteWish = useCallback(async () => {
@@ -109,11 +109,10 @@ export function usePlanViewModel() {
     try {
       await deleteWish(deletingWish.id)
       setDeletingWish(null)
-      await reload()
     } catch (error: any) {
       toast({ title: "Não foi possível remover o desejo", description: error?.message, variant: "destructive" })
     }
-  }, [deletingWish, reload])
+  }, [deletingWish])
 
   const confirmWishToGoal = useCallback(async () => {
     if (!goalingWish) return
@@ -122,11 +121,10 @@ export function usePlanViewModel() {
       trackEvent("wish_to_goal", { from: "plan" })
       toast({ title: "Virou objetivo", description: `“${goalingWish.name}” está em Objetivos, para juntar aos poucos.`, variant: "success" })
       setGoalingWish(null)
-      await reload()
     } catch (error: any) {
       toast({ title: "Não foi possível virar objetivo", description: error?.message, variant: "destructive" })
     }
-  }, [goalingWish, reload])
+  }, [goalingWish])
 
   // Margem negativa: pede um aviso antes de confirmar (PRD, feature 1).
   const [negativeConfirm, setNegativeConfirm] = useState<number | null>(null)

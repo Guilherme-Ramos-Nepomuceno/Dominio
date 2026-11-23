@@ -1,27 +1,37 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { getPendingTransactions, cancelRecurringTransaction } from "@/lib/storage"
+import { useState, useMemo } from "react"
+import { cancelRecurringTransaction } from "@/lib/storage"
 import { useToast } from "@/hooks/use-toast"
+import { useTransactionsQuery } from "@/hooks/queries"
+import type { Transaction } from "@/lib/types"
+
+// Referência estável para "ainda sem dado" — um [] novo a cada render
+// invalidaria os useMemo abaixo.
+const NO_TRANSACTIONS: Transaction[] = []
+
+// `recurrenceId` não está no tipo, mas o agrupamento abaixo sempre o tentou
+// primeiro (antes a lista era `any`) — mantido igual.
+type RecurringRow = Transaction & { recurrenceId?: string }
 
 export function useRecurringViewModel() {
-    const [transactions, setTransactions] = useState<any[]>([])
     const [transactionToCancel, setTransactionToCancel] = useState<string | null>(null)
-    const [loading, setLoading] = useState(true)
     const { toast } = useToast()
 
-    const loadData = useCallback(async () => {
-        try {
-            const pending = await getPendingTransactions()
-            setTransactions(pending)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    useEffect(() => {
-        loadData()
-    }, [loadData])
+    // Pendências (mais antigas primeiro) saem do histórico em cache — o que
+    // getPendingTransactions fazia, sem baixar tudo de novo. Cancelar avisa o
+    // domínio e a lista se atualiza sozinha.
+    const transactionsQuery = useTransactionsQuery()
+    const allTransactions = transactionsQuery.data ?? NO_TRANSACTIONS
+    const transactions = useMemo<RecurringRow[]>(
+        () =>
+            allTransactions
+                .filter((t) => t.status === "pending")
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+        [allTransactions],
+    )
+    // Só no primeiro carregamento — revalidação em segundo plano não volta o skeleton.
+    const loading = transactionsQuery.isPending
 
     const confirmCancelRecurrence = async () => {
         if (!transactionToCancel) return
@@ -32,7 +42,6 @@ export function useRecurringViewModel() {
                 description: "Esta e todas as próximas ocorrências foram canceladas.",
                 variant: "success",
             })
-            await loadData()
         } catch (error: any) {
             toast({
                 title: "Erro ao cancelar",

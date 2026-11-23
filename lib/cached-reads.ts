@@ -1,5 +1,5 @@
 import { getQueryClient, queryKeys } from "./query-client"
-import { getCards, getCategories, getSavingsGoals, getTransactions } from "./storage"
+import { getCards, getCategories, getMemberCardsMapped, getSavingsGoals, getTransactions } from "./storage"
 import type { Card, Category, SavingsGoal, Transaction } from "./types"
 
 // Leituras para usar FORA de componentes (handler de salvar, validação antes
@@ -22,4 +22,8 @@ export function readCards(): Promise<Card[]> {
 
 export function readSavingsGoals(): Promise<SavingsGoal[]> {
   return getQueryClient().fetchQuery({ queryKey: queryKeys.savingsGoals(), queryFn: getSavingsGoals })
+}
+
+export function readMemberCards(memberId: string): Promise<Card[]> {
+  return getQueryClient().fetchQuery({ queryKey: queryKeys.member("cards", memberId), queryFn: () => getMemberCardsMapped(memberId) })
 }
