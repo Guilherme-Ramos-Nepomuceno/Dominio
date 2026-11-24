@@ -42,3 +42,4 @@ ADRs não são editados: uma decisão nova substitui a antiga num ADR novo, com 
 | [031](031-reservas-alocadas-em-objetivos.md) | Reservas separadas para objetivos, tipo da reserva e investimentos por tipo | Dominio + dominio-api |
 | [032](032-reserva-por-grupo-sem-cartao.md) | Reserva por grupo (Segurança, Planejado, Futuro), sem cartão obrigatório | Dominio + dominio-api |
 | [033](033-composicao-do-saldo-das-reservas.md) | Composição do saldo das reservas, reserva Guardado e ajuste automático | Dominio + dominio-api |
+| [034](034-cache-das-leituras-com-tanstack-query.md) | Cache das leituras com TanStack Query e invalidação por domínio | Dominio |

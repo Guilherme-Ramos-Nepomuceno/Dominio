@@ -1,45 +1,45 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 import { CaretDown } from "@phosphor-icons/react"
-import { getCategories } from "@/lib/storage"
-import { getPluggyCategoryMap, setPluggyCategoryMapping } from "@/lib/rules-api"
+import { setPluggyCategoryMapping } from "@/lib/rules-api"
 import type { PluggyCategoryMapping } from "@/lib/rules"
 import type { Category } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { AppSelect } from "@/components/ui/app-select"
+import { useCategoriesQuery, usePluggyCategoryMapQuery } from "@/hooks/queries"
+
+const NO_CATEGORIES: Category[] = []
 
 // Categoria que o banco (Pluggy) dá a cada lançamento → categoria da conta.
 // Lançamentos com categoria mapeada já chegam categorizados ("automático").
 export function PluggyCategoryMapSection() {
   const { toast } = useToast()
   const [isOpen, setIsOpen] = useState(false)
-  const [rows, setRows] = useState<PluggyCategoryMapping[] | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
+  // Só busca com a seção aberta; fechada, segue mostrando o que está no cache.
+  const mapQuery = usePluggyCategoryMapQuery({ enabled: isOpen })
+  const categoriesQuery = useCategoriesQuery({ enabled: isOpen })
+  // Edição otimista: o que a pessoa acabou de escolher (e depois a resposta do
+  // salvar, que traz o mapa inteiro) vale sobre o cache até a revalidação.
+  const [localRows, setLocalRows] = useState<PluggyCategoryMapping[] | null>(null)
+  const loaded = mapQuery.data && categoriesQuery.data
+  const rows = localRows ?? (loaded ? mapQuery.data! : null)
+  const allCategories = categoriesQuery.data ?? NO_CATEGORIES
+  const categories = useMemo(() => allCategories.filter((c) => !c.excludedFromTotals), [allCategories])
   const [savingKey, setSavingKey] = useState<string | null>(null)
-  const [loadError, setLoadError] = useState(false)
-
-  useEffect(() => {
-    if (!isOpen || rows !== null) return
-    Promise.all([getPluggyCategoryMap(), getCategories()])
-      .then(([map, cats]) => {
-        setRows(map)
-        setCategories(cats.filter((c) => !c.excludedFromTotals))
-      })
-      .catch(() => setLoadError(true))
-  }, [isOpen, rows])
+  const loadError = !rows && (mapQuery.isError || categoriesQuery.isError)
 
   const change = async (pluggyCategory: string, categoryId: string | null) => {
     if (!rows) return
-    const previous = rows
-    setRows(rows.map((r) => (r.pluggyCategory === pluggyCategory ? { ...r, categoryId, source: categoryId ? "LEARNED" : r.source } : r)))
+    const previous = localRows
+    setLocalRows(rows.map((r) => (r.pluggyCategory === pluggyCategory ? { ...r, categoryId, source: categoryId ? "LEARNED" : r.source } : r)))
     setSavingKey(pluggyCategory)
     try {
       // A resposta traz o mapa inteiro (null volta ao padrão, que pode ter categoria).
-      setRows(await setPluggyCategoryMapping(pluggyCategory, categoryId))
+      setLocalRows(await setPluggyCategoryMapping(pluggyCategory, categoryId))
     } catch (error: any) {
-      setRows(previous)
+      setLocalRows(previous)
       toast({ title: "Não foi possível salvar", description: error?.message, variant: "destructive" })
     } finally {
       setSavingKey(null)

@@ -3,6 +3,7 @@ import { mapWeekSave, type WeekSave, type WeekSaveDestination } from "./week"
 // desejos. Tipos e mapeamento em lib/plan.ts.
 
 import { ApiError, fetchApi } from "./api"
+import { invalidateCachedData, notifyDataChanged } from "./data-events"
 import { isReadOnly } from "./storage"
 import {
   mapCategoryGroup,
@@ -25,8 +26,11 @@ function assertWritable(): void {
 }
 
 // Mudanças no plano/desejos afetam Home (card da semana) e outras telas.
+// "plan-update": telas do plano que ainda escutam o evento direto. O cache
+// também fica sabendo (domínio "plan" = plano, semana, vitórias, grupos...).
 function notifyPlanUpdate(): void {
   if (typeof window !== "undefined") window.dispatchEvent(new Event("plan-update"))
+  invalidateCachedData("plan")
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +133,7 @@ export async function wishToGoal(id: string): Promise<void> {
   assertWritable()
   await fetchApi(`/wishes/${id}/goal`, { method: "POST" })
   notifyPlanUpdate()
+  invalidateCachedData("goals")
 }
 
 export async function reorderWishes(ids: string[]): Promise<void> {
@@ -194,7 +199,7 @@ export async function buyWish(id: string, input: BuyWishInput): Promise<Wish> {
   }
   notifyPlanUpdate()
   // Criar a transação da compra muda saldo/listas.
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("storage-update"))
+  notifyDataChanged("plan", "transactions")
   return mapWish(raw?.wish ?? raw)
 }
 
@@ -225,6 +230,8 @@ export async function saveWeekLeftover(
   assertWritable()
   const raw = await fetchApi(`/plans/${year}/${month}/week/leftover`, { method: "POST", body: JSON.stringify(body) })
   notifyPlanUpdate()
+  // A sobra vai para um objetivo ou reserva.
+  invalidateCachedData("savings", "goals")
   return mapWeekSave(raw)!
 }
 
@@ -241,6 +248,6 @@ export async function closePlan(
   const raw = await fetchApi(`/plans/${year}/${month}/close`, { method: "POST", body: JSON.stringify(body) })
   notifyPlanUpdate()
   // Sobra enviada a objetivo/reserva muda saldos.
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("storage-update"))
+  notifyDataChanged("plan", "transactions", "savings", "goals")
   return { plan: mapPlan(raw?.plan ?? raw), summary: mapClosingSummary(raw?.summary) }
 }

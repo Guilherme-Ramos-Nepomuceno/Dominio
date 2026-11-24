@@ -1,45 +1,84 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  getPluggyConnection,
   savePluggyCredentials,
   addPluggyItem,
   createPluggyConnectToken,
   removePluggyItem,
-  getPluggyInvestments,
   updatePluggyItemSyncFrom,
   listPluggyAccounts,
   mapPluggyAccount,
   syncPluggyTransactions,
-  getPluggyPending,
   updatePluggyPending,
   confirmPluggyPending,
-  getCategories,
-  getCards,
   addCategory,
   ensureSystemCategory,
-  type PluggyConnectionStatus,
   type PluggyItemStatus,
   type PluggyAccount,
   type PluggyPendingTransaction,
   type PluggyInvestment,
 } from "@/lib/storage"
 import type { Category, Card, PaymentMethod, TransactionType } from "@/lib/types"
+import {
+  useCardsQuery,
+  useCategoriesQuery,
+  usePluggyConnectionQuery,
+  usePluggyInvestmentsQuery,
+  usePluggyPendingQuery,
+} from "@/hooks/queries"
 import { useToast } from "@/hooks/use-toast"
 import { pluggySyncMessage } from "@/lib/pluggy-sync-message"
 import { DEFAULT_CATEGORY_COLOR } from "@/app/categories/components/add-category-dialog"
 import { openPluggyConnect } from "@/lib/pluggy-connect"
 
+const NO_CATEGORIES: Category[] = []
+const NO_CARDS: Card[] = []
+const NO_PENDING: PluggyPendingTransaction[] = []
+const NO_INVESTMENTS: PluggyInvestment[] = []
+
 export function useBankSyncViewModel() {
   const { toast } = useToast()
 
-  const [connection, setConnection] = useState<PluggyConnectionStatus | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [cards, setCards] = useState<Card[]>([])
-  const [pendingRows, setPendingRows] = useState<PluggyPendingTransaction[]>([])
-  const [investments, setInvestments] = useState<PluggyInvestment[]>([])
-  const [isLoaded, setIsLoaded] = useState(false)
+  // Conexão, categorias, cartões, fila e investimentos vêm do cache.
+  const connectionQuery = usePluggyConnectionQuery()
+  const categoriesQuery = useCategoriesQuery()
+  const cardsQuery = useCardsQuery()
+  const pendingQuery = usePluggyPendingQuery()
+  // Investimentos são um extra da tela: se falharem, o resto (conexão e
+  // revisão) continua funcionando — erro vira lista vazia.
+  const investmentsQuery = usePluggyInvestmentsQuery()
+
+  const connection = connectionQuery.data ?? null
+  const cards = cardsQuery.data ?? NO_CARDS
+  const investments = investmentsQuery.data ?? NO_INVESTMENTS
+
+  // Categoria criada na revisão aparece na hora, antes da revalidação.
+  const [createdCategories, setCreatedCategories] = useState<Category[]>([])
+  const cachedCategories = categoriesQuery.data ?? NO_CATEGORIES
+  const categories = useMemo(() => {
+    const extra = createdCategories.filter((c) => !cachedCategories.some((cat) => cat.id === c.id))
+    return extra.length > 0 ? [...cachedCategories, ...extra] : cachedCategories
+  }, [cachedCategories, createdCategories])
+
+  // Fila de revisão: a pessoa edita várias linhas antes de confirmar. Enquanto
+  // não mexe, a lista segue o cache (`localRows` null). Na primeira edição
+  // vira cópia local, e uma revalidação em segundo plano (inclusive a que a
+  // própria edição dispara, domínio "pluggy-review") não a substitui mais —
+  // só uma recarga explícita (loadAll: sincronizar, confirmar...) volta a
+  // seguir o cache, já atualizado.
+  const [localRows, setLocalRows] = useState<PluggyPendingTransaction[] | null>(null)
+  const cachedRows = pendingQuery.data ?? NO_PENDING
+  const pendingRows = localRows ?? cachedRows
+
+  // Como antes, a tela só aparece com conexão, categorias, cartões e fila
+  // carregados (investimentos só precisam ter terminado, bem ou mal).
+  const isLoaded =
+    connectionQuery.data !== undefined &&
+    categoriesQuery.data !== undefined &&
+    cardsQuery.data !== undefined &&
+    pendingQuery.data !== undefined &&
+    !investmentsQuery.isPending
   const [reconnectingItemId, setReconnectingItemId] = useState<string | null>(null)
   const [removingItemId, setRemovingItemId] = useState<string | null>(null)
 
@@ -52,51 +91,61 @@ export function useBankSyncViewModel() {
   const [accountsByItem, setAccountsByItem] = useState<Record<string, PluggyAccount[]>>({})
   const [loadingAccountsItemId, setLoadingAccountsItemId] = useState<string | null>(null)
 
+  // "Transferência" só nasce sozinha na primeira vez que uma transferência é
+  // salva — garante ela ao abrir a tela pra pessoa poder escolher na revisão,
+  // igual ao import manual de extrato. Criar/corrigir a categoria invalida o
+  // cache de categorias, então a lista se atualiza sozinha.
+  useEffect(() => {
+    void Promise.all([
+      ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
+      ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
+    ]).catch(() => undefined)
+  }, [])
+
+  // Recarga explícita depois de sincronizar, confirmar, mapear conta...: busca
+  // tudo de novo (aguardando, como antes — quem chama segue com a lista nova)
+  // e devolve a fila ao cache, descartando a cópia local.
   // Uma recarga por vez: várias confirmações seguidas reaproveitam a recarga
   // em andamento em vez de abrir outra (cada uma dispara várias consultas na
   // API e, empilhadas, esgotavam o pool de conexões do banco).
   const loadingRef = useRef<Promise<void> | null>(null)
+  const refetchConnection = connectionQuery.refetch
+  const refetchCategories = categoriesQuery.refetch
+  const refetchCards = cardsQuery.refetch
+  const refetchPending = pendingQuery.refetch
+  const refetchInvestments = investmentsQuery.refetch
   const loadAll = useCallback(() => {
     if (loadingRef.current) return loadingRef.current
     const run = async () => {
-      // "Transferência" só nasce sozinha na primeira vez que uma transferência é
-      // salva — garante ela aqui antes pra pessoa poder escolher na revisão,
-      // igual ao import manual de extrato.
-      await Promise.all([
-        ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
-        ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
+      const startedAt = Date.now()
+      let [, , , pending] = await Promise.all([
+        refetchConnection(),
+        refetchCategories(),
+        refetchCards(),
+        refetchPending(),
+        refetchInvestments(),
       ])
-      const [conn, cats, allCards, pending, invs] = await Promise.all([
-        getPluggyConnection(),
-        getCategories(),
-        getCards(),
-        getPluggyPending(),
-        // Investimentos são um extra da tela: se falharem, o resto (conexão e
-        // revisão) continua funcionando.
-        getPluggyInvestments().catch(() => [] as PluggyInvestment[]),
-      ])
-      setConnection(conn)
-      setCategories(cats)
-      setCards(allCards)
-      setPendingRows(pending)
-      setInvestments(invs)
-      setIsLoaded(true)
+      // Outra busca (ex.: a invalidação de uma gravação logo depois) pode ter
+      // substituído a nossa no meio do caminho — espera essa, que é mais nova.
+      if (pending.dataUpdatedAt < startedAt && pending.isFetching) {
+        pending = await refetchPending({ cancelRefetch: false })
+      }
+      // Falhou a fila: mantém a cópia local (o que já foi confirmado continua
+      // fora da tela) e avisa quem chamou.
+      if (pending.isError) throw pending.error
+      if (pending.dataUpdatedAt >= startedAt) setLocalRows(null)
     }
     loadingRef.current = run().finally(() => {
       loadingRef.current = null
     })
     return loadingRef.current
-  }, [])
-
-  useEffect(() => {
-    loadAll()
-  }, [loadAll])
+  }, [refetchConnection, refetchCategories, refetchCards, refetchPending, refetchInvestments])
 
   const createCategory = async (type: TransactionType, name: string, icon: string) => {
     // Categorias não têm cor própria na interface (ícones monocromáticos em
     // todo o app) — mesma cor fixa usada em app/categories/add-category-dialog.tsx.
     const created = await addCategory({ name, color: DEFAULT_CATEGORY_COLOR, type, icon })
-    setCategories((prev) => [...prev, created])
+    setCreatedCategories((prev) => [...prev, created])
     return created
   }
 
@@ -279,7 +328,8 @@ export function useBankSyncViewModel() {
     const localPatch: Partial<PluggyPendingTransaction> = { ...rest }
     if ("invoicePaymentDecision" in updates) localPatch.invoicePaymentDecision = invoicePaymentDecision ?? undefined
     if ("duplicateDecision" in updates) localPatch.duplicateDecision = duplicateDecision ?? undefined
-    setPendingRows((prev) => prev.map((r) => (r.externalId === externalId ? { ...r, ...localPatch } : r)))
+    // Cópia nova (nunca altera o objeto do cache); a partir daqui a fila é local.
+    setLocalRows((prev) => (prev ?? cachedRows).map((r) => (r.externalId === externalId ? { ...r, ...localPatch } : r)))
     updatePluggyPending(row.id, updates).catch((error: any) => {
       toast({ title: "Não foi possível salvar a edição", description: error.message, variant: "destructive" })
     })
@@ -300,7 +350,7 @@ export function useBankSyncViewModel() {
     // antes deixava a linha na tela por vários segundos depois do "Confirmado".
     const failed = new Set(result.rowErrors.map((e) => e.pendingId))
     const sent = new Set(ids)
-    setPendingRows((prev) => prev.filter((r) => !sent.has(r.id) || failed.has(r.id)))
+    setLocalRows((prev) => (prev ?? cachedRows).filter((r) => !sent.has(r.id) || failed.has(r.id)))
     setIsConfirming(false)
 
     if (result.rowErrors.length > 0) {

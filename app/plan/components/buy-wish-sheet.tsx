@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react"
 import { CheckCircle, CircleNotch, Receipt } from "@phosphor-icons/react"
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
-import { buyWish, getWishCandidates, type WishCandidate } from "@/lib/planning-api"
+import { buyWish, type WishCandidate } from "@/lib/planning-api"
 import { formatCurrency, formatDate } from "@/lib/date-utils"
 import { formatMoneyInput, parseMoneyInput, type PlanWish } from "@/lib/plan"
 import { todayLocalISODate } from "@/lib/quick-add"
 import { trackEvent } from "@/lib/events"
 import type { Card, PaymentMethod } from "@/lib/types"
 import { toast } from "@/hooks/use-toast"
+import { useWishCandidatesQuery } from "@/hooks/queries"
 import { cn } from "@/lib/utils"
 import { AppSelect } from "@/components/ui/app-select"
 
@@ -23,10 +24,19 @@ interface BuyWishSheetProps {
 const inputClass =
   "w-full px-4 py-3 rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 
+const NO_CANDIDATES: WishCandidate[] = []
+
 // "Comprei": liga o desejo a uma transação que já existe (candidatas que o
 // backend acha parecidas) ou lança a compra agora.
 export function BuyWishSheet({ wish, cards, onClose, onBought }: BuyWishSheetProps) {
-  const [candidates, setCandidates] = useState<WishCandidate[] | null>(null)
+  // Candidatas do cache (lançar/categorizar transação invalida); falha ao
+  // buscar vira lista vazia, como antes. null = carregando.
+  const candidatesQuery = useWishCandidatesQuery(wish?.id ?? "", { enabled: !!wish })
+  const candidates: WishCandidate[] | null = !wish
+    ? null
+    : (candidatesQuery.data ?? (candidatesQuery.isError ? NO_CANDIDATES : null))
+  // Desejo para o qual a aba inicial (já lancei / lançar agora) já foi escolhida.
+  const [modeChosenFor, setModeChosenFor] = useState<PlanWish | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [mode, setMode] = useState<"pick" | "new">("pick")
   const [amount, setAmount] = useState("")
@@ -36,29 +46,21 @@ export function BuyWishSheet({ wish, cards, onClose, onBought }: BuyWishSheetPro
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Ao abrir, a aba inicial depende de haver candidatas — decidida uma vez
+  // por abertura, quando elas chegam (ou na hora, se já estavam no cache).
+  if (!wish && modeChosenFor) setModeChosenFor(null)
+  if (wish && candidates && modeChosenFor !== wish) {
+    setModeChosenFor(wish)
+    setMode(candidates.length > 0 ? "pick" : "new")
+  }
+
   useEffect(() => {
     if (!wish) return
-    setCandidates(null)
     setSelected(null)
     setAmount(formatMoneyInput(wish.estimatedAmount))
     setDate(todayLocalISODate())
     setCardId("")
     setError(null)
-    let cancelled = false
-    getWishCandidates(wish.id)
-      .then((list) => {
-        if (cancelled) return
-        setCandidates(list)
-        setMode(list.length > 0 ? "pick" : "new")
-      })
-      .catch(() => {
-        if (cancelled) return
-        setCandidates([])
-        setMode("new")
-      })
-    return () => {
-      cancelled = true
-    }
   }, [wish])
 
   const selectedCard = cards.find((c) => c.id === cardId)

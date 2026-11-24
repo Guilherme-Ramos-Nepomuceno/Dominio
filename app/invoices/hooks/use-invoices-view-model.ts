@@ -1,7 +1,10 @@
 "use client"
 
-import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react"
-import { getTransactions, getCards, getCategories, markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice, getManualBankMatches, mergeManualWithBank, dismissManualBankMatch } from "@/lib/storage"
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react"
+import { useQueries, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
+import { markTransactionAsPaid, cancelTransaction, getInvoice, updateInvoiceDates, moveTransactionInvoice, mergeManualWithBank, dismissManualBankMatch } from "@/lib/storage"
+import { queryKeys } from "@/lib/query-client"
+import { useCardsQuery, useCategoriesQuery, useManualBankMatchesQuery, useTransactionsQuery } from "@/hooks/queries"
 import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import type { Card, Transaction, Category, Invoice, ManualBankMatch } from "@/lib/types"
@@ -9,42 +12,48 @@ import { effectiveTransactionType, findCategory } from "@/lib/category-utils"
 import { countsAsInvoiceRefund, countsInInvoice, invoiceTotal, openInvoiceMonthKey, sumAmounts } from "@/lib/card-invoice"
 import { useToast } from "@/hooks/use-toast"
 
+// Referências estáveis para "ainda sem dado" — um [] novo a cada render
+// invalidaria os useMemo abaixo.
+const NO_CARDS: Card[] = []
+const NO_TRANSACTIONS: Transaction[] = []
+const NO_CATEGORIES: Category[] = []
+const NO_MATCHES: ManualBankMatch[] = []
+
+// Junta as faturas de cada cartão por id. Fora do componente para o `combine`
+// do useQueries ser estável (senão recalcula a cada render). Fatura que falhou
+// só fica de fora — o cartão continua pelo cálculo padrão (dia de fechamento).
+function combineInvoices(results: UseQueryResult<Invoice>[]): Record<string, Invoice> {
+    const byCard: Record<string, Invoice> = {}
+    for (const r of results) if (r.data) byCard[r.data.cardId] = r.data
+    return byCard
+}
+
 export function useInvoicesViewModel() {
-    const [cards, setCards] = useState<Card[]>([])
     const { selectedMonth, setSelectedMonth } = useSelectedMonth()
-    const [transactions, setTransactions] = useState<Transaction[]>([])
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
     const [partialAmount, setPartialAmount] = useState("")
-    const [categories, setCategories] = useState<Category[]>([])
-    // A fatura REAL de cada cartão nesse mês (pode ter sido editada individualmente,
-    // diferente do padrão do cartão) — buscada sob demanda por cartão+mês.
-    const [invoicesByCard, setInvoicesByCard] = useState<Record<string, Invoice>>({})
-    const [loading, setLoading] = useState(true)
     const [isPaying, setIsPaying] = useState(false)
     const [isMoving, setIsMoving] = useState(false)
-    // "É a mesma compra?" do cartão selecionado (só cartão ligado ao banco).
-    const [bankMatches, setBankMatches] = useState<ManualBankMatch[]>([])
     const [busyMatchId, setBusyMatchId] = useState<string | null>(null)
     const { toast } = useToast()
+    const queryClient = useQueryClient()
 
-    const loadData = useCallback(async () => {
-        try {
-            const [allCards, allTransactions, allCategories] = await Promise.all([
-                getCards(),
-                getTransactions(),
-                getCategories(),
-            ])
-            setCards(allCards.filter((c) => c.hasCredit))
-            setTransactions(allTransactions)
-            setCategories(allCategories)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    useEffect(() => {
-        loadData()
-    }, [loadData])
+    // Tudo do cache: pagar, cancelar, mover de fatura etc. avisam o domínio e
+    // as consultas (inclusive as faturas) se atualizam sozinhas.
+    const cardsQuery = useCardsQuery()
+    const transactionsQuery = useTransactionsQuery()
+    const categoriesQuery = useCategoriesQuery()
+    const allCards = cardsQuery.data ?? NO_CARDS
+    const cards = useMemo(() => allCards.filter((c) => c.hasCredit), [allCards])
+    const transactions = transactionsQuery.data ?? NO_TRANSACTIONS
+    const categories = categoriesQuery.data ?? NO_CATEGORIES
+    // Só no primeiro carregamento — revalidação em segundo plano não volta o skeleton.
+    const loading = cardsQuery.isPending || transactionsQuery.isPending || categoriesQuery.isPending
+    // A gravação já disparou a revalidação; pagar/mover espera ela terminar
+    // antes de liberar o botão (cancelRefetch: false pega carona na mesma
+    // busca) — senão dava para pagar de novo o que acabou de ser pago.
+    const refetchTransactions = transactionsQuery.refetch
+    const waitForFreshTransactions = () => refetchTransactions({ cancelRefetch: false })
 
     useEffect(() => {
         if (selectedCardId === null && cards.length > 0) {
@@ -98,20 +107,16 @@ export function useInvoicesViewModel() {
         [],
     )
 
-    useEffect(() => {
-        if (cards.length === 0) return
-        const [year, month] = selectedMonth.split("-").map(Number)
-        let cancelled = false
-
-        Promise.all(cards.map((card) => getInvoice(card.id, year, month).then((inv) => [card.id, inv] as const)))
-            .then((entries) => {
-                if (cancelled) return
-                setInvoicesByCard(Object.fromEntries(entries))
-            })
-            .catch(() => { /* fatura ainda funciona pelo cálculo padrão se isso falhar */ })
-
-        return () => { cancelled = true }
-    }, [cards, selectedMonth])
+    // A fatura REAL de cada cartão nesse mês (pode ter sido editada individualmente,
+    // diferente do padrão do cartão) — uma consulta por cartão+mês, em cache.
+    const [invoiceYear, invoiceMonth] = selectedMonth.split("-").map(Number)
+    const invoicesByCard = useQueries({
+        queries: cards.map((card) => ({
+            queryKey: queryKeys.invoice(card.id, invoiceYear, invoiceMonth),
+            queryFn: () => getInvoice(card.id, invoiceYear, invoiceMonth),
+        })),
+        combine: combineInvoices,
+    })
 
     const getFormattedMonthTitle = (monthStr: string) => {
         if (!monthStr) return ""
@@ -195,18 +200,11 @@ export function useInvoicesViewModel() {
 
     const selectedInvoice = cardInvoices.find((inv) => inv.card.id === selectedCardId)
 
+    // "É a mesma compra?" do cartão selecionado (só cartão ligado ao banco).
     const selectedBankLinked = !!cards.find((c) => c.id === selectedCardId)?.bank?.credit
-    const loadBankMatches = useCallback(async () => {
-        if (!selectedCardId || !selectedBankLinked) {
-            setBankMatches([])
-            return
-        }
-        setBankMatches(await getManualBankMatches(selectedCardId))
-    }, [selectedCardId, selectedBankLinked])
-
-    useEffect(() => {
-        loadBankMatches()
-    }, [loadBankMatches])
+    const bankMatchesEnabled = !!selectedCardId && selectedBankLinked
+    const bankMatchesQuery = useManualBankMatchesQuery(selectedCardId ?? "", { enabled: bankMatchesEnabled })
+    const bankMatches = bankMatchesEnabled ? (bankMatchesQuery.data ?? NO_MATCHES) : NO_MATCHES
 
     // "É a mesma": a compra do banco fica com o nome e a categoria do
     // lançamento à mão, que some (com as outras parcelas dele).
@@ -222,7 +220,6 @@ export function useInvoicesViewModel() {
                     : `"${match.manual.description}" agora é a compra do banco.`,
                 variant: "success",
             })
-            await Promise.all([loadData(), loadBankMatches()])
         } catch (error: any) {
             toast({ title: "Não foi possível juntar", description: error?.message, variant: "destructive" })
         } finally {
@@ -231,7 +228,13 @@ export function useInvoicesViewModel() {
     }
 
     const handleDismissMatch = async (match: ManualBankMatch) => {
-        setBankMatches((prev) => prev.filter((m) => m.manual.id !== match.manual.id))
+        // Some da lista na hora (cópia nova no cache, nunca alterar a lista no
+        // lugar); a invalidação depois da gravação confirma com o servidor.
+        if (selectedCardId) {
+            queryClient.setQueryData<ManualBankMatch[]>(queryKeys.manualBankMatches(selectedCardId), (prev) =>
+                prev?.filter((m) => m.manual.id !== match.manual.id),
+            )
+        }
         await dismissManualBankMatch(match.manual.id, match.bank.id).catch(() => {})
     }
 
@@ -239,7 +242,8 @@ export function useInvoicesViewModel() {
         if (!selectedCardId) return
         const [year, month] = selectedMonth.split("-").map(Number)
         const updated = await updateInvoiceDates(selectedCardId, year, month, updates)
-        setInvoicesByCard((prev) => ({ ...prev, [selectedCardId]: updated }))
+        // Mostra a data nova já; a invalidação (domínio "cards") revalida depois.
+        queryClient.setQueryData(queryKeys.invoice(selectedCardId, year, month), updated)
     }
 
     const handleMoveTransaction = async (transactionId: string, direction: "next" | "previous") => {
@@ -247,7 +251,7 @@ export function useInvoicesViewModel() {
         setIsMoving(true)
         try {
             await moveTransactionInvoice(transactionId, direction)
-            await loadData()
+            await waitForFreshTransactions()
         } finally {
             setIsMoving(false)
         }
@@ -262,7 +266,7 @@ export function useInvoicesViewModel() {
                 for (const transaction of selectedInvoice.pendingTransactions) {
                     await markTransactionAsPaid(transaction.id, selectedCardId || undefined)
                 }
-                await loadData()
+                await waitForFreshTransactions()
                 setPartialAmount("")
             } finally {
                 setIsPaying(false)
@@ -300,7 +304,7 @@ export function useInvoicesViewModel() {
                 for (const id of transactionsToPay) {
                     await markTransactionAsPaid(id, selectedCardId || undefined)
                 }
-                await loadData()
+                await waitForFreshTransactions()
                 setPartialAmount("")
             } finally {
                 setIsPaying(false)
@@ -311,7 +315,6 @@ export function useInvoicesViewModel() {
     const handleCancelTransaction = async (transactionId: string) => {
         if (confirm("Deseja cancelar esta transação?")) {
             await cancelTransaction(transactionId)
-            await loadData()
         }
     }
 

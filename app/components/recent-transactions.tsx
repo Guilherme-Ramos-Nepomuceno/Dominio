@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/date-utils"
 import { groupByDay } from "@/lib/home"
 import { toISODate } from "@/lib/period"
-import { getCategories } from "@/lib/storage"
+import { useCategoriesQuery } from "@/hooks/queries"
 import type { Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import * as PhosphorIcons from "@phosphor-icons/react"
@@ -17,6 +17,9 @@ import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { useCategoryGroups } from "@/hooks/use-category-groups"
 import { transactionIconColor } from "@/lib/plan-layout"
 import { useAccount } from "@/components/account/account-context"
+
+// Referência estável para "ainda sem categorias".
+const NO_CATEGORIES: Category[] = []
 
 interface RecentTransactionsProps {
   transactions: Transaction[]
@@ -31,15 +34,10 @@ interface RecentTransactionsProps {
 export function RecentTransactions({ transactions, maxItems = 5, filterLabel, onClearFilter }: RecentTransactionsProps) {
   // Na conta do casal todo lançamento já é do casal: o coração só repete.
   const showCasal = useAccount().selection.type !== "couple"
-  const [categories, setCategories] = useState<Category[]>([])
+  // Categorias do cache (as mesmas da Home inteira) — sem busca própria.
+  const categories = useCategoriesQuery().data ?? NO_CATEGORIES
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const groups = useCategoryGroups()
-
-  useEffect(() => {
-    (async () => {
-      setCategories(await getCategories())
-    })()
-  }, [])
 
   const sortedTransactions = [...transactions]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())

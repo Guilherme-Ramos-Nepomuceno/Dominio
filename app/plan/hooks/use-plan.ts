@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { getPlan, updatePlan, confirmPlan, reorderWishes, type PlanUpdate } from "@/lib/planning-api"
 import {
   newlyFittingWishIds,
@@ -11,105 +12,93 @@ import {
   type Plan,
 } from "@/lib/plan"
 import { parseMonthKey } from "@/lib/period"
+import { queryKeys } from "@/lib/query-client"
+import { usePlanQuery } from "@/hooks/queries"
 import { toast } from "@/hooks/use-toast"
 
 const HIGHLIGHT_MS = 4000
 
 // Estado do plano de um mês, compartilhado pela torre (/plan) e pelo detalhe
-// de grupo (/plan/[groupId]): carrega, aplica edições de forma otimista
-// (lib/plan.ts recalcula a margem e os desejos na hora), manda ao backend e
-// fica com a resposta dele. Desejos que passam a caber ficam destacados por
-// alguns segundos.
+// de grupo (/plan/[groupId]): lê do cache (hooks/queries.ts), aplica edições
+// de forma otimista (lib/plan.ts recalcula a margem e os desejos na hora),
+// manda ao backend e grava a resposta dele no cache. Desejos que passam a
+// caber ficam destacados por alguns segundos.
 export function usePlan(monthKeyStr: string) {
   const { year, month } = parseMonthKey(monthKeyStr)
-  const [plan, setPlan] = useState<Plan | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+  const queryClient = useQueryClient()
+  const query = usePlanQuery(year, month)
+
+  // Versão otimista enquanto uma gravação está no ar. Fica por cima do cache
+  // para que uma revalidação em segundo plano (foco, outra gravação) não
+  // desfaça na tela o que a pessoa acabou de editar.
+  const [optimistic, setOptimistic] = useState<Plan | null>(null)
+  const optimisticRef = useRef<Plan | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [highlightedWishIds, setHighlightedWishIds] = useState<string[]>([])
-  const planRef = useRef<Plan | null>(null)
-  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Ignora respostas de requisições antigas (troca de mês, edições seguidas).
+  // Ignora respostas de gravações antigas (edições seguidas).
   const requestSeq = useRef(0)
 
-  const applyPlan = useCallback((next: Plan) => {
-    const prev = planRef.current
-    if (prev) {
-      const fresh = newlyFittingWishIds(prev.wishes, next.wishes)
-      if (fresh.length > 0) {
-        setHighlightedWishIds((current) => Array.from(new Set([...current, ...fresh])))
-        if (highlightTimer.current) clearTimeout(highlightTimer.current)
-        highlightTimer.current = setTimeout(() => setHighlightedWishIds([]), HIGHLIGHT_MS)
-      }
-    }
-    planRef.current = next
-    setPlan(next)
+  const setLocal = useCallback((next: Plan | null) => {
+    optimisticRef.current = next
+    setOptimistic(next)
   }, [])
 
-  const load = useCallback(async () => {
-    const seq = ++requestSeq.current
-    setLoadError(false)
-    try {
-      const result = await getPlan(year, month)
-      if (seq !== requestSeq.current) return
-      // Troca de mês não deve "destacar" desejos do mês novo.
-      if (planRef.current && (planRef.current.year !== result.year || planRef.current.month !== result.month)) {
-        planRef.current = null
-      }
-      applyPlan(result)
-    } catch (error) {
-      if (seq !== requestSeq.current) return
-      console.error("Falha ao carregar o plano:", error)
-      setLoadError(true)
-    } finally {
-      if (seq === requestSeq.current) setIsLoading(false)
-    }
-  }, [year, month, applyPlan])
+  // A versão otimista é de um mês só — trocar de mês volta a mostrar o cache.
+  const local = optimistic && optimistic.year === year && optimistic.month === month ? optimistic : null
+  const plan = local ?? query.data ?? null
 
+  // Destaque dos desejos que passaram a caber: compara com o plano mostrado
+  // antes (ajuste de estado durante o render, sem efeito). Troca de mês não
+  // destaca nada.
+  const [shownPlan, setShownPlan] = useState<Plan | null>(plan)
+  if (plan !== shownPlan) {
+    setShownPlan(plan)
+    if (shownPlan && plan && shownPlan.year === plan.year && shownPlan.month === plan.month) {
+      const fresh = newlyFittingWishIds(shownPlan.wishes, plan.wishes)
+      if (fresh.length > 0) setHighlightedWishIds((current) => Array.from(new Set([...current, ...fresh])))
+    }
+  }
+
+  // Cada novo destaque reinicia o relógio, como antes.
   useEffect(() => {
-    setIsLoading(true)
-    planRef.current = null
-    setPlan(null)
-    load()
-    // Transação nova/categorizada muda o gasto do mês.
-    window.addEventListener("storage-update", load)
-    return () => window.removeEventListener("storage-update", load)
-  }, [load])
+    if (highlightedWishIds.length === 0) return
+    const timer = setTimeout(() => setHighlightedWishIds([]), HIGHLIGHT_MS)
+    return () => clearTimeout(timer)
+  }, [highlightedWishIds])
 
-  useEffect(() => () => {
-    if (highlightTimer.current) clearTimeout(highlightTimer.current)
-  }, [])
-
-  // Aplica `optimistic` na hora e manda `request`; em erro, volta ao estado anterior.
+  // Aplica `apply` na hora e manda `request`; em erro, volta ao estado anterior.
   const mutate = useCallback(
-    async (optimistic: ((p: Plan) => Plan) | null, request: () => Promise<Plan | void>, errorTitle: string) => {
-      const before = planRef.current
-      if (before && optimistic) applyPlan(optimistic(before))
+    async (apply: ((p: Plan) => Plan) | null, request: () => Promise<Plan | void>, errorTitle: string) => {
+      const key = queryKeys.plan(year, month)
+      const current = optimisticRef.current
+      const before =
+        current && current.year === year && current.month === month ? current : (queryClient.getQueryData<Plan>(key) ?? null)
+      if (before && apply) setLocal(apply(before))
       const seq = ++requestSeq.current
       setIsSaving(true)
       try {
         const result = await request()
         if (seq !== requestSeq.current) return true
-        if (result) applyPlan(result)
-        else await load()
+        // A resposta vira o dado do cache (as outras telas do plano já veem);
+        // a revalidação disparada pela gravação só confirma.
+        if (result) queryClient.setQueryData(key, result)
+        else await queryClient.refetchQueries({ queryKey: key })
+        setLocal(null)
         return true
       } catch (error: any) {
-        if (before && seq === requestSeq.current) {
-          planRef.current = before
-          setPlan(before)
-        }
+        if (seq === requestSeq.current) setLocal(null)
         toast({ title: errorTitle, description: error?.message || "Tente novamente em instantes.", variant: "destructive" })
         return false
       } finally {
         setIsSaving(false)
       }
     },
-    [applyPlan, load],
+    [queryClient, setLocal, year, month],
   )
 
   const save = useCallback(
-    (updates: PlanUpdate, optimistic: ((p: Plan) => Plan) | null) =>
-      mutate(optimistic, () => updatePlan(year, month, updates), "Não foi possível salvar o plano"),
+    (updates: PlanUpdate, apply: ((p: Plan) => Plan) | null) =>
+      mutate(apply, () => updatePlan(year, month, updates), "Não foi possível salvar o plano"),
     [mutate, year, month],
   )
 
@@ -151,15 +140,28 @@ export function usePlan(monthKeyStr: string) {
     [mutate, year, month],
   )
 
+  // cancelRefetch: false = se uma revalidação já está no ar (ex.: a que a
+  // gravação disparou), espera por ela em vez de buscar de novo.
+  const { refetch } = query
+  const reload = useCallback(async () => {
+    await refetch({ cancelRefetch: false })
+  }, [refetch])
+
+  const failed = query.isError && !plan
+  const retrying = failed && query.isFetching
+
   return {
     year,
     month,
     plan,
-    isLoading,
-    loadError,
+    // Skeleton só no primeiro carregamento (e ao tentar de novo depois de um
+    // erro); revalidação mostra o que já tem.
+    isLoading: query.isPending || retrying,
+    // Falha numa revalidação com plano em mãos não troca a tela pelo erro.
+    loadError: failed && !retrying,
     isSaving,
     highlightedWishIds,
-    reload: load,
+    reload,
     setBudget,
     setPlannedVariable,
     setWeeklyLimitEnabled,

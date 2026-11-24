@@ -1,48 +1,27 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { getWins } from "@/lib/planning-api"
+import { useCallback } from "react"
+import { useWinsQuery } from "@/hooks/queries"
 import { getActiveAccountSelection } from "@/lib/active-account"
 import { parseMonthKey, toISODate } from "@/lib/period"
-import type { WinsData } from "@/lib/wins"
 
 // Vitórias do mês `monthKey` com a semana de hoje (GET /plans/:y/:m/wins).
-// Usado por Minha semana e Planejar mês; recarrega junto com transações e
-// plano. Falha aqui nunca derruba a tela: sem dados, as telas só não mostram
-// as vitórias.
+// Usado por Minha semana e Planejar mês; vem do cache e se atualiza junto com
+// transações e plano (invalidação do domínio "plan"). Falha aqui nunca derruba
+// a tela: sem dados, as telas só não mostram as vitórias.
 export function useWins(monthKey: string, enabled = true) {
-  const [wins, setWins] = useState<WinsData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const seq = useRef(0)
+  const active = enabled && getActiveAccountSelection().type !== "partner"
+  const { year, month } = parseMonthKey(monthKey)
+  const query = useWinsQuery(year, month, toISODate(new Date()), { enabled: active })
 
-  const load = useCallback(async () => {
-    if (!enabled || getActiveAccountSelection().type === "partner") {
-      setIsLoading(false)
-      return
-    }
-    const current = ++seq.current
-    try {
-      const { year, month } = parseMonthKey(monthKey)
-      const result = await getWins(year, month, toISODate(new Date()))
-      if (current === seq.current) setWins(result)
-    } catch (error) {
-      if (current === seq.current) console.error("Falha ao carregar as vitórias:", error)
-    } finally {
-      if (current === seq.current) setIsLoading(false)
-    }
-  }, [monthKey, enabled])
+  const { refetch } = query
+  const reload = useCallback(async () => {
+    if (active) await refetch()
+  }, [active, refetch])
 
-  useEffect(() => {
-    setWins(null)
-    setIsLoading(true)
-    load()
-    window.addEventListener("storage-update", load)
-    window.addEventListener("plan-update", load)
-    return () => {
-      window.removeEventListener("storage-update", load)
-      window.removeEventListener("plan-update", load)
-    }
-  }, [load])
-
-  return { wins, isLoading, reload: load }
+  return {
+    wins: active ? (query.data ?? null) : null,
+    isLoading: active && query.isPending,
+    reload,
+  }
 }

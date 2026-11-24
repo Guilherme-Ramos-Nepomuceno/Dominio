@@ -1,24 +1,36 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useMemo } from "react"
+import { useQueries } from "@tanstack/react-query"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { useAccount } from "@/components/account/account-context"
 import { computeTotalBalanceFrom } from "./use-transactions"
-import {
-    getTransactions,
-    getCategories,
-    getCards,
-    getSavingsGoals,
-    getMemberTransactionsMapped,
-    getMemberSavingsMapped,
-    getMemberCardsMapped,
-} from "@/lib/storage"
+import { useCardsQuery, useCategoriesQuery, useSavingsGoalsQuery, useTransactionsQuery } from "@/hooks/queries"
+import { queryKeys } from "@/lib/query-client"
+import { getMemberCardsMapped, getMemberSavingsMapped, getMemberTransactionsMapped } from "@/lib/storage"
 import type { Transaction, Category, SavingsGoal, Card } from "@/lib/types"
+import type { UseQueryResult } from "@tanstack/react-query"
 
 function dedupeById<T extends { id: string }>(items: T[]): T[] {
     const map = new Map<string, T>()
     items.forEach((item) => map.set(item.id, item))
     return Array.from(map.values())
+}
+
+// Referências estáveis para "ainda sem dado".
+const NO_TRANSACTIONS: Transaction[] = []
+const NO_CATEGORIES: Category[] = []
+const NO_SAVINGS: SavingsGoal[] = []
+const NO_CARDS: Card[] = []
+
+// Junta as consultas de cada parceiro num resultado só. Função fora do
+// componente (referência estável): o useQueries só recalcula quando algum
+// resultado muda, e devolve as mesmas listas se nada mudou.
+function combineMembers<T>(results: UseQueryResult<T[]>[]) {
+    return {
+        lists: results.map((r) => r.data),
+        pending: results.some((r) => r.isPending),
+    }
 }
 
 // Consolida os dados da conta do casal com o histórico COMPLETO dos dois parceiros
@@ -30,6 +42,9 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
 // próprios lançamentos + o que os parceiros marcaram isCasal — aqui somamos o
 // restante de cada parceiro e deduplicamos por id (uma transação isCasal aparece
 // nos dois lados, mas é a mesma linha).
+//
+// Tudo vem do cache (as mesmas chaves de hooks/queries.ts): cancelar/editar um
+// lançamento invalida os domínios e o total combinado se atualiza sozinho.
 export function useFamilyHomeData(selectedMonth: string, enabled: boolean) {
     const { selection, family } = useAccount()
     const { monthStartDay } = useSelectedMonth()
@@ -38,62 +53,86 @@ export function useFamilyHomeData(selectedMonth: string, enabled: boolean) {
         () => family?.members?.filter((m) => m.accountType === "PERSONAL") ?? [],
         [family],
     )
+    const active = enabled && isCoupleAccount && personalMembers.length > 0
 
-    const [loading, setLoading] = useState(false)
-    const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
-    const [categories, setCategories] = useState<Category[]>([])
-    const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([])
-    const [cards, setCards] = useState<Card[]>([])
+    const ownTransactions = useTransactionsQuery({ enabled: active })
+    const ownCategories = useCategoriesQuery({ enabled: active })
+    const ownSavings = useSavingsGoalsQuery({ enabled: active })
+    const ownCards = useCardsQuery({ enabled: active })
 
-    useEffect(() => {
-        if (!enabled || !isCoupleAccount || personalMembers.length === 0) return
+    // Quantidade de parceiros varia — por isso useQueries, com as mesmas
+    // chaves/buscas dos hooks useMember*Query.
+    const memberTransactions = useQueries({
+        queries: personalMembers.map((m) => ({
+            queryKey: queryKeys.member("transactions", m.id),
+            queryFn: () => getMemberTransactionsMapped(m.id),
+            enabled: active,
+        })),
+        combine: combineMembers<Transaction>,
+    })
+    const memberSavings = useQueries({
+        queries: personalMembers.map((m) => ({
+            queryKey: queryKeys.member("savings", m.id),
+            queryFn: () => getMemberSavingsMapped(m.id),
+            enabled: active,
+        })),
+        combine: combineMembers<SavingsGoal>,
+    })
+    const memberCards = useQueries({
+        queries: personalMembers.map((m) => ({
+            queryKey: queryKeys.member("cards", m.id),
+            queryFn: () => getMemberCardsMapped(m.id),
+            enabled: active,
+        })),
+        combine: combineMembers<Card>,
+    })
 
-        let cancelled = false
+    // Só no primeiro carregamento — revalidar não volta ao skeleton.
+    const loading =
+        active &&
+        (ownTransactions.isPending ||
+            ownCategories.isPending ||
+            ownSavings.isPending ||
+            ownCards.isPending ||
+            memberTransactions.pending ||
+            memberSavings.pending ||
+            memberCards.pending)
 
-        const load = () => {
-            setLoading(true)
-            return Promise.all([
-                getTransactions(),
-                getCategories(),
-                getSavingsGoals(),
-                getCards(),
-                ...personalMembers.map((m) => getMemberTransactionsMapped(m.id)),
-                ...personalMembers.map((m) => getMemberSavingsMapped(m.id)),
-                ...personalMembers.map((m) => getMemberCardsMapped(m.id)),
-            ])
-                .then((results) => {
-                    if (cancelled) return
-                    const [ownTransactions, ownCategories, ownSavings, ownCards, ...rest] = results as [
-                        Transaction[],
-                        Category[],
-                        SavingsGoal[],
-                        Card[],
-                        ...Transaction[][],
-                    ]
-                    const memberTransactions = rest.slice(0, personalMembers.length) as unknown as Transaction[][]
-                    const memberSavings = rest.slice(personalMembers.length, personalMembers.length * 2) as unknown as SavingsGoal[][]
-                    const memberCards = rest.slice(personalMembers.length * 2) as unknown as Card[][]
-
-                    setAllTransactions(dedupeById([ownTransactions, ...memberTransactions].flat()))
-                    setCategories(ownCategories)
-                    setSavingsGoals(dedupeById([ownSavings, ...memberSavings].flat()))
-                    setCards(dedupeById([ownCards, ...memberCards].flat()))
-                })
-                .finally(() => { if (!cancelled) setLoading(false) })
+    // Tudo ou nada (como antes): se alguma parte faltar (carregando ou erro),
+    // não mostra um total parcial como se fosse o da família.
+    const consolidated = useMemo(() => {
+        const ownT = ownTransactions.data
+        const ownC = ownCategories.data
+        const ownS = ownSavings.data
+        const ownK = ownCards.data
+        const mT = memberTransactions.lists
+        const mS = memberSavings.lists
+        const mK = memberCards.lists
+        if (
+            !active ||
+            !ownT || !ownC || !ownS || !ownK ||
+            mT.some((l) => !l) || mS.some((l) => !l) || mK.some((l) => !l)
+        ) {
+            return { allTransactions: NO_TRANSACTIONS, categories: NO_CATEGORIES, savingsGoals: NO_SAVINGS, cards: NO_CARDS }
         }
-
-        load()
-
-        // Sem isso, cancelar/editar um lançamento (que dispara esse evento em
-        // vez de recarregar a página inteira) deixava o total combinado do
-        // casal parado no valor antigo até a próxima navegação remontar o hook.
-        window.addEventListener("storage-update", load)
-        return () => {
-            cancelled = true
-            window.removeEventListener("storage-update", load)
+        return {
+            allTransactions: dedupeById([ownT, ...(mT as Transaction[][])].flat()),
+            categories: ownC,
+            savingsGoals: dedupeById([ownS, ...(mS as SavingsGoal[][])].flat()),
+            cards: dedupeById([ownK, ...(mK as Card[][])].flat()),
         }
-    }, [enabled, isCoupleAccount, personalMembers, selectedMonth])
+    }, [
+        active,
+        ownTransactions.data,
+        ownCategories.data,
+        ownSavings.data,
+        ownCards.data,
+        memberTransactions.lists,
+        memberSavings.lists,
+        memberCards.lists,
+    ])
 
+    const { allTransactions, categories, savingsGoals, cards } = consolidated
     const totals = useMemo(
         () =>
             computeTotalBalanceFrom(allTransactions, categories, savingsGoals, selectedMonth, ["Transferência Familiar"], monthStartDay),

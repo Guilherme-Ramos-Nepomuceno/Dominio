@@ -1,10 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useMemo, useState } from "react"
 import { Plus, Check } from "@phosphor-icons/react"
-import { getCategories, addCategory } from "@/lib/storage"
+import { addCategory } from "@/lib/storage"
 import type { Category, TransactionType } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { useCategoriesQuery } from "@/hooks/queries"
+
+const NO_CATEGORIES: Category[] = []
 
 interface CategorySelectorProps {
   type: TransactionType
@@ -33,14 +36,17 @@ const predefinedColors = [
 ]
 
 export function CategorySelector({ type, value, onChange }: CategorySelectorProps) {
-  const [categories, setCategories] = useState<Category[]>([])
+  const all = useCategoriesQuery().data ?? NO_CATEGORIES
+  // Recém-criada aparece na hora, antes da revalidação do cache trazê-la.
+  const [created, setCreated] = useState<Category[]>([])
+  const categories = useMemo(() => {
+    const ofType = all.filter((cat) => cat.type === type)
+    const extra = created.filter((c) => c.type === type && !all.some((cat) => cat.id === c.id))
+    return [...ofType, ...extra]
+  }, [all, created, type])
   const [isAdding, setIsAdding] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
   const [selectedColor, setSelectedColor] = useState(predefinedColors[0])
-
-  useEffect(() => {
-    getCategories().then((all) => setCategories(all.filter((cat) => cat.type === type)))
-  }, [type])
 
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) return
@@ -51,7 +57,7 @@ export function CategorySelector({ type, value, onChange }: CategorySelectorProp
       type,
     })
 
-    setCategories([...categories, newCategory])
+    setCreated((list) => [...list, newCategory])
     onChange(newCategory.id)
     setIsAdding(false)
     setNewCategoryName("")

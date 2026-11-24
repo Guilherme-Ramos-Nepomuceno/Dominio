@@ -1,13 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { CaretRight, Sparkle } from "@phosphor-icons/react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
-import { getPlan } from "@/lib/planning-api"
+import { usePlanQuery } from "@/hooks/queries"
 import { parseMonthKey } from "@/lib/period"
-import type { Plan } from "@/lib/plan"
 import { formatMoneyWhole, monthBar, monthBarPlanned, planHeadline } from "@/lib/plan-layout"
 import { trackEvent } from "@/lib/events"
 import { cn } from "@/lib/utils"
@@ -32,32 +30,13 @@ interface HomeMonthSectionProps {
 // resposta principal da tela (nível 1): como foi o mês passado, ou o convite
 // para planejar o próximo. Os números são os do Planejar.
 export function HomeMonthSection({ monthKey, when, spentWithoutPlan }: HomeMonthSectionProps) {
-  const [plan, setPlan] = useState<Plan | null>(null)
-  const [failed, setFailed] = useState(false)
-
-  const load = useCallback(async () => {
-    try {
-      const { year, month } = parseMonthKey(monthKey)
-      setPlan(await getPlan(year, month))
-      setFailed(false)
-    } catch (error) {
-      console.error("Falha ao carregar o plano na Home:", error)
-      setFailed(true)
-    }
-  }, [monthKey])
-
-  useEffect(() => {
-    load()
-    window.addEventListener("plan-update", load)
-    window.addEventListener("storage-update", load)
-    return () => {
-      window.removeEventListener("plan-update", load)
-      window.removeEventListener("storage-update", load)
-    }
-  }, [load])
+  // Plano do mês pelo cache: gravações de transações e do plano invalidam o
+  // domínio "plan" e a seção se atualiza sozinha.
+  const { year, month } = parseMonthKey(monthKey)
+  const { data: plan, isError } = usePlanQuery(year, month)
 
   // Falha aqui não derruba a Home: a seção só não aparece.
-  if (failed) return null
+  if (isError) return null
   if (!plan) return <Skeleton className="h-20 rounded-xl" />
 
   const monthName = MONTH_NAMES[plan.month - 1] ?? ""

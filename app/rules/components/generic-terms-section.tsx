@@ -1,32 +1,31 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Plus, X } from "@phosphor-icons/react"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
-import { getGenericTerms, setGenericTerms, type GenericTerms } from "@/lib/rules-api"
+import { setGenericTerms, type GenericTerms } from "@/lib/rules-api"
 import { toast } from "@/hooks/use-toast"
+import { useGenericTermsQuery } from "@/hooks/queries"
 
 // Termos genéricos da conta: palavras que dizem COMO o dinheiro andou (pix,
 // ted, recebido...) ou o banco, não QUEM é. Em "A classificar" os lançamentos
 // se juntam pelo que sobra (o nome); só com termo genérico, junta só com
 // texto idêntico. Também não viram regra sozinhos.
 export function GenericTermsSection({ isReadOnly }: { isReadOnly: boolean }) {
-  const [data, setData] = useState<GenericTerms | null>(null)
+  const query = useGenericTermsQuery()
+  // A resposta do salvar já é a lista nova: mostra na hora, sem esperar a
+  // revalidação do cache. Sem dado (carregando ou erro), a seção não aparece.
+  const [saved, setSaved] = useState<GenericTerms | null>(null)
+  const data = saved ?? query.data ?? null
   const [draft, setDraft] = useState("")
   const [isSaving, setIsSaving] = useState(false)
-
-  useEffect(() => {
-    getGenericTerms()
-      .then(setData)
-      .catch(() => setData(null))
-  }, [])
 
   if (!data) return null
 
   const save = async (terms: string[] | null) => {
     setIsSaving(true)
     try {
-      setData(await setGenericTerms(terms))
+      setSaved(await setGenericTerms(terms))
     } catch (e: any) {
       toast({ title: "Não foi possível salvar os termos", description: e?.message, variant: "destructive" })
     } finally {

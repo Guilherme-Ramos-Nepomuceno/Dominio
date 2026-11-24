@@ -1,14 +1,11 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useCallback } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
-    getPendingTransactions,
-    getCategories,
     markTransactionAsPaid,
     cancelTransaction,
     cancelRecurringTransaction,
-    getCards,
-    getPendingPaymentMatches,
     settlePendingWithPayment,
     dismissPendingPaymentMatch,
     type PendingPaymentMatch,
@@ -16,17 +13,61 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 import { getCurrentUser } from "@/lib/auth"
+import { queryKeys } from "@/lib/query-client"
+import { useCardsQuery, useCategoriesQuery, usePendingPaymentMatchesQuery, useTransactionsQuery } from "@/hooks/queries"
 import type { Category, Card, Transaction } from "@/lib/types"
+
+// Referências estáveis para "ainda sem dado" — um [] novo a cada render
+// invalidaria os useMemo abaixo.
+const NO_TRANSACTIONS: Transaction[] = []
+const NO_CATEGORIES: Category[] = []
+const NO_CARDS: Card[] = []
+const NO_MATCHES: PendingPaymentMatch[] = []
 
 export function usePendingViewModel() {
     const { toast } = useToast()
+    const queryClient = useQueryClient()
 
-    const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
-    const [categories, setCategories] = useState<Category[]>([])
-    const [cards, setCards] = useState<Card[]>([])
-    const [isLoaded, setIsLoaded] = useState(false)
+    // Tudo do cache: dar baixa, cancelar etc. avisam o domínio e as consultas
+    // se atualizam sozinhas.
+    const transactionsQuery = useTransactionsQuery()
+    const categoriesQuery = useCategoriesQuery()
+    const cardsQuery = useCardsQuery()
+    const matchesQuery = usePendingPaymentMatchesQuery()
+    const allTransactions = transactionsQuery.data ?? NO_TRANSACTIONS
+    const categories = categoriesQuery.data ?? NO_CATEGORIES
+    const cards = cardsQuery.data ?? NO_CARDS
+    const matches = matchesQuery.data ?? NO_MATCHES
+    // Só no primeiro carregamento — revalidação em segundo plano não volta o skeleton.
+    const isLoaded = !transactionsQuery.isPending && !categoriesQuery.isPending && !cardsQuery.isPending && !matchesQuery.isPending
+
+    // Pendências de qualquer mês, mais antigas primeiro (o que
+    // getPendingTransactions fazia, mas sem baixar o histórico de novo).
+    const pendingTransactions = useMemo(
+        () =>
+            allTransactions
+                .filter((t) => t.status === "pending")
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+        [allTransactions],
+    )
     // "Parece que você já pagou": pendência → lançamento do banco que a pagou.
-    const [paymentMatches, setPaymentMatches] = useState<Map<string, PendingPaymentMatch["transaction"]>>(new Map())
+    const paymentMatches = useMemo(
+        () => new Map<string, PendingPaymentMatch["transaction"]>(matches.map((m) => [m.pendingId, m.transaction])),
+        [matches],
+    )
+
+    const refetchTransactions = transactionsQuery.refetch
+    const refetchCategories = categoriesQuery.refetch
+    const refetchCards = cardsQuery.refetch
+    const refetchMatches = matchesQuery.refetch
+    const refresh = useCallback(async () => {
+        await Promise.all([refetchTransactions(), refetchCategories(), refetchCards(), refetchMatches()])
+    }, [refetchTransactions, refetchCategories, refetchCards, refetchMatches])
+    // A gravação já disparou a revalidação; dar baixa espera ela terminar antes
+    // de fechar/liberar (cancelRefetch: false pega carona na mesma busca) —
+    // senão a pendência paga continuava na lista e dava para pagar de novo.
+    const waitForFreshTransactions = () => refetchTransactions({ cancelRefetch: false })
+
     const [busyMatchId, setBusyMatchId] = useState<string | null>(null)
 
     const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null)
@@ -44,24 +85,6 @@ export function usePendingViewModel() {
         .filter((m) => m.accountType === "PERSONAL")
         .map((m) => ({ id: m.id, name: (m.name || m.email).split(" ")[0] }))
     const [paidBy, setPaidBy] = useState<string>("")
-
-    const loadData = useCallback(async () => {
-        const [allPending, allCategories, allCards, matches] = await Promise.all([
-            getPendingTransactions(),
-            getCategories(),
-            getCards(),
-            getPendingPaymentMatches(),
-        ])
-        setPendingTransactions(allPending)
-        setCategories(allCategories)
-        setCards(allCards)
-        setPaymentMatches(new Map(matches.map((m) => [m.pendingId, m.transaction])))
-        setIsLoaded(true)
-    }, [])
-
-    useEffect(() => {
-        loadData()
-    }, [loadData])
 
     const visibleTransactions = useMemo(() => {
         const filtered = pendingTransactions.filter((t) => {
@@ -150,7 +173,7 @@ export function usePendingViewModel() {
                 variant: "success"
             })
 
-            await loadData()
+            await waitForFreshTransactions()
             setSelectedTransaction(null)
             setSelectedCard("")
             setConfirmDate("")
@@ -167,7 +190,7 @@ export function usePendingViewModel() {
         try {
             await settlePendingWithPayment(pendingId, match.id)
             toast({ title: "Baixa feita", description: `Ligada a "${match.description}" do banco, sem contar duas vezes.`, variant: "success" })
-            await loadData()
+            await waitForFreshTransactions()
         } catch (error: any) {
             toast({ title: "Não foi possível dar baixa", description: error?.message, variant: "destructive" })
         } finally {
@@ -178,18 +201,17 @@ export function usePendingViewModel() {
     const dismissMatch = async (pendingId: string) => {
         const match = paymentMatches.get(pendingId)
         if (!match) return
-        setPaymentMatches((prev) => {
-            const next = new Map(prev)
-            next.delete(pendingId)
-            return next
-        })
+        // Some da lista na hora (cópia nova no cache, nunca alterar no lugar);
+        // a invalidação depois da gravação confirma com o servidor.
+        queryClient.setQueryData<PendingPaymentMatch[]>(queryKeys.pendingPaymentMatches(), (prev) =>
+            prev?.filter((m) => m.pendingId !== pendingId),
+        )
         await dismissPendingPaymentMatch(pendingId, match.id).catch(() => {})
     }
 
     const confirmCancel = async () => {
         if (transactionToCancel) {
             await cancelTransaction(transactionToCancel)
-            await loadData()
             toast({
                 title: "Transação cancelada",
                 description: "A transação foi removida das pendências.",
@@ -203,7 +225,6 @@ export function usePendingViewModel() {
         if (!transactionToCancelRecurrence) return
         try {
             await cancelRecurringTransaction(transactionToCancelRecurrence)
-            await loadData()
             toast({
                 title: "Recorrência cancelada",
                 description: "Esta e todas as próximas ocorrências foram canceladas.",
@@ -245,7 +266,7 @@ export function usePendingViewModel() {
         isConfirmingPayment,
         confirmCancel,
         confirmCancelRecurrence,
-        refresh: loadData,
+        refresh,
         isCoupleView,
         payers,
         paidBy,

@@ -1,14 +1,17 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import { useSelectedMonth } from "@/lib/selected-month-context"
 import { useAccount } from "@/components/account/account-context"
-import { getCategoryGroups, moveCategoryToGroup, updateCategoryGroup } from "@/lib/planning-api"
+import { moveCategoryToGroup, updateCategoryGroup } from "@/lib/planning-api"
 import { isPlanEditable, type CategoryGroup } from "@/lib/plan"
 import { groupColor, planHeadline, planPeriodLabel, spentProgress } from "@/lib/plan-layout"
+import { useCategoryGroupsQuery } from "@/hooks/queries"
 import { toast } from "@/hooks/use-toast"
 import { usePlan } from "./use-plan"
+
+const NO_GROUPS: CategoryGroup[] = []
 
 export function useGroupDetailViewModel() {
   const params = useParams<{ groupId: string }>()
@@ -18,19 +21,11 @@ export function useGroupDetailViewModel() {
   const planState = usePlan(selectedMonth)
   const { plan, reload } = planState
 
-  const [groups, setGroups] = useState<CategoryGroup[]>([])
+  // Grupos (destinos de "mover categoria") e plano vêm do cache; renomear e
+  // mover invalidam os dois (domínio "plan"), sem recarregar à mão.
+  const groups = useCategoryGroupsQuery().data ?? NO_GROUPS
   const [isRenaming, setIsRenaming] = useState(false)
   const [movingCategoryId, setMovingCategoryId] = useState<string | null>(null)
-
-  const loadGroups = useCallback(() => {
-    getCategoryGroups()
-      .then(setGroups)
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    loadGroups()
-  }, [loadGroups])
 
   const group = useMemo(() => plan?.groups.find((g) => g.id === groupId) ?? null, [plan, groupId])
   const editable = !!plan && isPlanEditable(plan.status) && !isReadOnly
@@ -48,12 +43,11 @@ export function useGroupDetailViewModel() {
       try {
         await updateCategoryGroup(group.id, { name: trimmed })
         setIsRenaming(false)
-        await Promise.all([reload(), loadGroups()])
       } catch (error: any) {
         toast({ title: "Não foi possível renomear o grupo", description: error?.message, variant: "destructive" })
       }
     },
-    [group, reload, loadGroups],
+    [group],
   )
 
   const toggleWeeklyLimit = useCallback(
@@ -61,12 +55,11 @@ export function useGroupDetailViewModel() {
       if (!group) return
       try {
         await updateCategoryGroup(group.id, { countsInWeeklyLimit: value })
-        await reload()
       } catch (error: any) {
         toast({ title: "Não foi possível alterar o grupo", description: error?.message, variant: "destructive" })
       }
     },
-    [group, reload],
+    [group],
   )
 
   const moveCategory = useCallback(
@@ -77,14 +70,17 @@ export function useGroupDetailViewModel() {
         await moveCategoryToGroup(categoryId, targetGroupId)
         const target = groups.find((g) => g.id === targetGroupId)
         toast({ title: "Categoria movida", description: target ? `Agora está em ${target.name}.` : undefined })
-        await Promise.all([reload(), loadGroups()])
+        // Segura o "movendo" até o plano novo chegar (pega carona na
+        // revalidação que a gravação já disparou), para a categoria não
+        // piscar no grupo antigo.
+        await reload()
       } catch (error: any) {
         toast({ title: "Não foi possível mover a categoria", description: error?.message, variant: "destructive" })
       } finally {
         setMovingCategoryId(null)
       }
     },
-    [groupId, groups, reload, loadGroups],
+    [groupId, groups, reload],
   )
 
   return {

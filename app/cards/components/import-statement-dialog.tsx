@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { X, UploadSimple, FileText, Question, CheckCircle, ArrowsLeftRight } from "@phosphor-icons/react"
 import type { Card, Category, ImportPreviewRow, PaymentMethod, TransactionType } from "@/lib/types"
-import { getCategories, getCards, getMemberCardsMapped, ensureSystemCategory, addCategory, addTransaction, previewStatementImport, confirmStatementImport, type ConfirmImportRow } from "@/lib/storage"
+import { ensureSystemCategory, addCategory, addTransaction, previewStatementImport, confirmStatementImport, type ConfirmImportRow } from "@/lib/storage"
+import { readMemberCards } from "@/lib/cached-reads"
 import { DEFAULT_CATEGORY_COLOR } from "@/app/categories/components/add-category-dialog"
 import { createTransactionForFamilyMember } from "@/lib/family"
 import { formatCurrency } from "@/lib/date-utils"
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useAccount } from "@/components/account/account-context"
 import { getCurrentUser } from "@/lib/auth"
+import { readCards, readCategories } from "@/lib/cached-reads"
 import type { ReviewRow } from "./import-review/types"
 import { ReviewStep } from "./import-review/review-step"
 import { TransferMemberPicker, TransferCardPicker } from "./import-review/transfer-account-picker"
@@ -66,8 +68,10 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
     Promise.all([
       ensureSystemCategory("Transferência", "expense", "#3b82f6", "HandArrowUp", true),
       ensureSystemCategory("Transferência", "income", "#3b82f6", "HandArrowDown", true),
-    ]).then(() => getCategories().then(setCategories))
-    getCards().then((all) => setOwnDebitCards(all.filter((c) => c.hasDebit && c.id !== card.id)))
+    ]).then(() => readCategories().then(setCategories))
+    // Leituras pelo cache (lista local porque "criar categoria" na revisão
+    // acrescenta na hora, sem esperar a revalidação).
+    readCards().then((all) => setOwnDebitCards(all.filter((c) => c.hasDebit && c.id !== card.id)))
   }, [card])
 
   if (!card) return null
@@ -88,7 +92,7 @@ export function ImportStatementDialog({ card, onClose, onImported }: ImportState
 
   const loadMemberCardsIfNeeded = async (memberId: string) => {
     if (!memberId || memberCardsCache[memberId]) return
-    const all = await getMemberCardsMapped(memberId)
+    const all = await readMemberCards(memberId)
     setMemberCardsCache((prev) => ({ ...prev, [memberId]: all.filter((c) => c.hasDebit) }))
   }
 

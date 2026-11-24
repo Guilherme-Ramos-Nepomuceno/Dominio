@@ -7,6 +7,7 @@ import { AccountProvider } from "@/components/account/account-context"
 import { SelectedMonthProvider } from "@/lib/selected-month-context"
 import { Toaster } from "@/components/ui/toaster"
 import { SessionBootstrap } from "@/components/session/session-bootstrap"
+import { QueryProvider } from "@/components/session/query-provider"
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register"
 import { RulePromptListener } from "@/components/rules/rule-prompt-listener"
 import { GuideProvider } from "@/components/guide/guide-provider"
@@ -74,16 +75,18 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${fontSans.className} ${fontSans.variable} ${fontDisplay.variable} antialiased`}>
-        <AuthGuard>
-          <AccountProvider>
-            <GuideProvider>
-              <SelectedMonthProvider>{children}</SelectedMonthProvider>
-            </GuideProvider>
-            <SessionBootstrap />
-            <ScreenTracker />
-            <RulePromptListener />
-          </AccountProvider>
-        </AuthGuard>
+        <QueryProvider>
+          <AuthGuard>
+            <AccountProvider>
+              <GuideProvider>
+                <SelectedMonthProvider>{children}</SelectedMonthProvider>
+              </GuideProvider>
+              <SessionBootstrap />
+              <ScreenTracker />
+              <RulePromptListener />
+            </AccountProvider>
+          </AuthGuard>
+        </QueryProvider>
         <Toaster />
         <ServiceWorkerRegister />
         <Analytics />

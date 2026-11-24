@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { CaretRightIcon } from "@phosphor-icons/react"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getCategories, getTransactions } from "@/lib/storage"
+import { useCategoriesQuery, useTransactionsQuery } from "@/hooks/queries"
 import { isInternalTransfer } from "@/hooks/use-transactions"
 import { useCategoryGroups } from "@/hooks/use-category-groups"
 import { useSelectedMonth } from "@/lib/selected-month-context"
@@ -13,7 +13,6 @@ import { asSpending, categoryKeyOf, findCategory, spendingType, UNCATEGORIZED_KE
 import { transactionIconColor } from "@/lib/plan-layout"
 import { formatMoneyNoCents } from "@/lib/closing"
 import { compassDeviation, compassHeadline, type CompassRange } from "@/lib/compass"
-import type { Category, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const PREVIOUS_MONTHS = 3
@@ -28,7 +27,14 @@ const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(
 export function CompassDeviation({ onSelectCategory }: { onSelectCategory: (key: string) => void }) {
   const { selectedMonth, currentMonth, monthStartDay } = useSelectedMonth()
   const groups = useCategoryGroups()
-  const [data, setData] = useState<{ categories: Category[]; transactions: Transaction[] } | null>(null)
+  // Histórico e categorias do cache compartilhado — gravações invalidam e a
+  // bússola se recalcula sozinha.
+  const categoriesData = useCategoriesQuery().data
+  const transactionsData = useTransactionsQuery().data
+  const data = useMemo(
+    () => (categoriesData && transactionsData ? { categories: categoriesData, transactions: transactionsData } : null),
+    [categoriesData, transactionsData],
+  )
   const [showAll, setShowAll] = useState(false)
   // Linha tocada: abre o balão com o detalhe (tocar de novo, ou fora, fecha).
   const [openKey, setOpenKey] = useState<string | null>(null)
@@ -41,20 +47,6 @@ export function CompassDeviation({ onSelectCategory }: { onSelectCategory: (key:
     document.addEventListener("pointerdown", close)
     return () => document.removeEventListener("pointerdown", close)
   }, [openKey])
-
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      const [categories, transactions] = await Promise.all([getCategories(), getTransactions()])
-      if (!cancelled) setData({ categories, transactions })
-    }
-    load()
-    window.addEventListener("storage-update", load)
-    return () => {
-      cancelled = true
-      window.removeEventListener("storage-update", load)
-    }
-  }, [])
 
   useEffect(() => {
     setShowAll(false)

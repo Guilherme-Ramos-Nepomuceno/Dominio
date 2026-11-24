@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { useMonthData, isInternalTransfer } from "@/hooks/use-transactions"
 import { useFamilyTotals } from "@/hooks/use-family-totals"
 import { getInvoiceMonth } from "@/lib/date-utils"
 import { useSelectedMonth } from "@/lib/selected-month-context"
-import { getSettings, getCategories, getCards, getTransactions, cancelTransaction } from "@/lib/storage"
+import { cancelTransaction } from "@/lib/storage"
+import { useCardsQuery, useCategoriesQuery, useSettingsQuery, useTransactionsQuery } from "@/hooks/queries"
 import { useToast } from "@/hooks/use-toast"
 import type { CategoryAlert } from "@/app/types/category"
 import type { AppSettings, Category, Card, Transaction } from "@/lib/types"
@@ -18,6 +19,12 @@ export interface StatsFilters {
     paymentMethod: "all" | "debit" | "credit"
     status: "all" | "paid" | "open"
 }
+
+// Referências estáveis para "ainda sem dado" (não invalidam os useMemo).
+const DEFAULT_SETTINGS: AppSettings = { spendingGoal: 0, currency: "BRL", firstDayOfWeek: 0, categoryGoals: [] }
+const NO_CATEGORIES: Category[] = []
+const NO_CARDS: Card[] = []
+const NO_TRANSACTIONS: Transaction[] = []
 
 const DEFAULT_FILTERS: StatsFilters = {
     search: "",
@@ -37,30 +44,25 @@ export function useStatsViewModel() {
     const { isCoupleAccount, familyTotals, loadingFamilyTotals } = useFamilyTotals(selectedMonth, viewMode === "familia")
 
     const monthData = useMonthData(selectedMonth)
-    const [settings, setSettingsState] = useState<AppSettings>({ spendingGoal: 0, currency: "BRL", firstDayOfWeek: 0, categoryGoals: [] })
-    const [categories, setCategories] = useState<Category[]>([])
-    const [cards, setCards] = useState<Card[]>([])
-    const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
-    const [loading, setLoading] = useState(true)
+    // Do cache compartilhado (hooks/queries.ts); gravações invalidam sozinhas.
+    const settingsQuery = useSettingsQuery()
+    const categoriesQuery = useCategoriesQuery()
+    const cardsQuery = useCardsQuery()
+    const transactionsQuery = useTransactionsQuery()
+    const settings = settingsQuery.data ?? DEFAULT_SETTINGS
+    const categories = categoriesQuery.data ?? NO_CATEGORIES
+    const cards = cardsQuery.data ?? NO_CARDS
+    const allTransactions = transactionsQuery.data ?? NO_TRANSACTIONS
+    // Skeleton só no primeiro carregamento.
+    const loading = settingsQuery.isPending || categoriesQuery.isPending || cardsQuery.isPending || transactionsQuery.isPending
 
-    const loadData = useCallback(async () => {
-        try {
-            const [settingsData, categoriesData, cardsData, transactionsData] = await Promise.all([
-                getSettings(),
-                getCategories(),
-                getCards(),
-                getTransactions(),
-            ])
-            setSettingsState(settingsData)
-            setCategories(categoriesData)
-            setCards(cardsData)
-            setAllTransactions(transactionsData)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    useEffect(() => { loadData() }, [loadData])
+    const refetchSettings = settingsQuery.refetch
+    const refetchCategories = categoriesQuery.refetch
+    const refetchCards = cardsQuery.refetch
+    const refetchTransactions = transactionsQuery.refetch
+    const refresh = useCallback(async () => {
+        await Promise.all([refetchSettings(), refetchCategories(), refetchCards(), refetchTransactions()])
+    }, [refetchSettings, refetchCategories, refetchCards, refetchTransactions])
 
     // Pool "Geral": mesmo critério de sempre — mês pela data da própria transação.
     // O gráfico "Fluxo de Gastos" já soma pendentes (ex: ocorrências futuras de
@@ -152,8 +154,9 @@ export function useStatsViewModel() {
                 description: "O lançamento foi revertido com sucesso.",
                 variant: "success",
             })
+            // Sem recarregar a página: o cancelamento invalida o cache e a
+            // lista se atualiza sozinha.
             setTransactionToCancel(null)
-            window.location.reload()
         }
     }
 
@@ -203,6 +206,6 @@ export function useStatsViewModel() {
         sortedDates,
         confirmCancelTransaction,
         categoryAlerts,
-        refresh: loadData,
+        refresh,
     }
 }

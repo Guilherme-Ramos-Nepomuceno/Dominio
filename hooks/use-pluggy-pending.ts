@@ -1,28 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { getPluggyPendingCount } from "@/lib/storage"
+import { usePluggyPendingCountQuery } from "@/hooks/queries"
 
-// Mesmo padrão de usePendingSummary (hooks/use-transactions.ts) — reage ao
-// evento global "storage-update" pra manter o sino de notificação em dia sem
-// precisar de polling.
+// Contador do sino de notificação. Vem do cache: sync e confirmações da
+// Pluggy invalidam o domínio e o número se atualiza sem polling.
 export function usePluggyPendingSummary() {
-  const [count, setCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setCount(await getPluggyPendingCount())
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    load()
-
-    const handleStorageUpdate = () => load()
-    window.addEventListener("storage-update", handleStorageUpdate)
-    return () => window.removeEventListener("storage-update", handleStorageUpdate)
-  }, [load])
-
-  return { count, loading }
+  const query = usePluggyPendingCountQuery()
+  // `loading` só no primeiro carregamento — revalidar não pisca o sino.
+  return { count: query.data ?? 0, loading: query.isPending }
 }

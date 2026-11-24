@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process"
 export function sql(query: string): string {
   return execFileSync(
     "docker",
-    ["exec", "-i", "dominio-test-db", "psql", "-U", "dominio_test", "-d", "dominio_test", "-v", "ON_ERROR_STOP=1", "-tA"],
+    ["exec", "-i", process.env.E2E_DB_CONTAINER ?? "dominio-test-db", "psql", "-U", "dominio_test", "-d", "dominio_test", "-v", "ON_ERROR_STOP=1", "-tA"],
     { input: query, encoding: "utf8" },
   ).trim()
 }

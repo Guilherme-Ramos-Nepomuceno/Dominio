@@ -56,7 +56,6 @@ export function StatsView() {
         sortedDates,
         confirmCancelTransaction,
         categoryAlerts,
-        refresh
     } = useStatsViewModel()
 
     const [editingTransaction, setEditingTransaction] = useState<any>(null)
@@ -66,8 +65,8 @@ export function StatsView() {
     const hasCoupleAccount = selection.type === "personal" && !!family?.members?.some((m) => m.accountType === "COUPLE")
 
     const toggleCasal = async (transaction: any) => {
+        // A gravação invalida o cache; a lista se atualiza sozinha.
         await updateTransaction(transaction.id, { isCasal: !transaction.isCasal })
-        refresh()
     }
 
     const getLocalDateKey = (date: Date) => date.toLocaleDateString('sv-SE')
@@ -279,7 +278,7 @@ export function StatsView() {
             <EditTransactionDialog
                 transaction={editingTransaction}
                 onClose={() => setEditingTransaction(null)}
-                onSaved={() => { setEditingTransaction(null); refresh(); }}
+                onSaved={() => setEditingTransaction(null)}
             />
 
             <AlertDialog open={!!transactionToCancel} onOpenChange={() => setTransactionToCancel(null)}>
