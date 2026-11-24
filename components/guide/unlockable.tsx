@@ -7,7 +7,7 @@ import { useAccount } from "@/components/account/account-context"
 import { useGuide } from "@/components/guide/guide-provider"
 import { trackEvent } from "@/lib/events"
 import { tourState } from "@/lib/guide"
-import { UNLOCKS_TOUR, unlockTransitions, unlockedTitle, type UnlockScreen, type UnlockStatus } from "@/lib/unlocks"
+import { UNLOCKS_TOUR, isUnlockedFor, lockedStatuses, unlockTransitions, unlockedTitle, type UnlockScreen, type UnlockStatus } from "@/lib/unlocks"
 import { cn } from "@/lib/utils"
 import { SectionTitle } from "@/app/plan/components/plan-ui"
 
@@ -44,9 +44,14 @@ export function useUnlocks(screen: UnlockScreen, statuses: UnlockStatus[] | null
   const byId = new Map((statuses ?? []).map((s) => [s.id, s]))
   return {
     // Conta do casal, ou tela sem desbloqueio agora (outro mês): mostra tudo.
-    isUnlocked: (id: string) => !personal || !statuses || !!byId.get(id)?.unlocked,
+    // O que já foi liberado uma vez continua liberado (ver isUnlockedFor).
+    isUnlocked: (id: string) => {
+      if (!personal || !statuses) return true
+      const s = byId.get(id)
+      return !!s && isUnlockedFor(s, acked)
+    },
     isNew: (id: string) => fresh.includes(id),
-    locked: personal && statuses ? statuses.filter((s) => !s.unlocked) : [],
+    locked: personal && statuses ? lockedStatuses(statuses, acked) : [],
     // O que falta para liberar, para o exemplo ("… · 1 de 3").
     hintOf: (id: string) => {
       const s = byId.get(id)

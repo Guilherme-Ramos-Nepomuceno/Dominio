@@ -104,6 +104,21 @@ export function homeUnlocks(input: HomeUnlockInput): UnlockStatus[] {
   ]
 }
 
+// --- Liberado de vez ---
+
+// O que já foi liberado uma vez (está no `acked` do roteiro "unlocks") não
+// volta a bloquear. As regras olham o dado do momento — "gasto nesta semana",
+// "3 dias com gasto no mês" — e voltariam a esconder a seção toda semana ou
+// todo mês, trocando o dado real (mesmo que zerado) pelo exemplo. O exemplo é
+// para a conta nova, não para a segunda-feira de quem já usa o app.
+export function isUnlockedFor(status: UnlockStatus, acked: string[] | null): boolean {
+  return status.unlocked || !!acked?.includes(status.id)
+}
+
+export function lockedStatuses(statuses: UnlockStatus[], acked: string[] | null): UnlockStatus[] {
+  return statuses.filter((s) => !isUnlockedFor(s, acked))
+}
+
 // --- O que anunciar ---
 
 export function initMarker(screen: UnlockScreen): string {

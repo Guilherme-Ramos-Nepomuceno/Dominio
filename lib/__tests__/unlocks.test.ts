@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { daysWithSpending, homeUnlocks, initMarker, unlockTransitions, weekUnlocks } from "../unlocks.ts"
+import { daysWithSpending, homeUnlocks, initMarker, isUnlockedFor, lockedStatuses, unlockTransitions, weekUnlocks } from "../unlocks.ts"
 
 const freshWeek = { daysWithSpending: 0, completedWeeks: 0, categoriesThisWeek: 0, hasLastWeek: false }
 
@@ -54,4 +54,20 @@ test("dias com gasto: conta só os dias em que o acumulado subiu", () => {
     { cumulativeSpent: null },
   ]
   assert.equal(daysWithSpending(series), 2)
+})
+
+test("o que já foi liberado não volta a bloquear numa semana nova sem gasto", () => {
+  // Segunda-feira de quem já usa o app: nada nesta semana ainda (o banco
+  // costuma trazer as compras do cartão 1–2 dias depois).
+  const statuses = homeUnlocks({ spentThisWeek: 0, expensesThisMonth: 500 })
+  const weekSoFar = statuses.find((s) => s.id === "home-week-so-far")!
+  assert.equal(isUnlockedFor(weekSoFar, ["_init-home", "home-week-so-far", "home-daily"]), true)
+  assert.deepEqual(lockedStatuses(statuses, ["_init-home", "home-week-so-far", "home-daily"]), [])
+})
+
+test("conta nova (nada anunciado ainda): segue bloqueado até o primeiro gasto", () => {
+  const statuses = homeUnlocks({ spentThisWeek: 0, expensesThisMonth: 0 })
+  assert.deepEqual(lockedStatuses(statuses, ["_init-home"]).map((s) => s.id), ["home-week-so-far", "home-daily"])
+  // Progresso do guiado ainda carregando: vale só o dado do momento.
+  assert.deepEqual(lockedStatuses(statuses, null).map((s) => s.id), ["home-week-so-far", "home-daily"])
 })
