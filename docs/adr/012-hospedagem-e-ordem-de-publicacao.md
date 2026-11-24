@@ -38,7 +38,7 @@ O front e a API são repositórios separados, publicados separadamente. As mudan
 
 - Coordenar dois deploys é manual, e não há pipeline que garanta a ordem.
 - O plano gratuito do Render pode "dormir" e deixar a primeira requisição lenta.
-- **Pendência:** o front ainda tem `pnpm-lock.yaml` ao lado do `package-lock.json`. Falta remover o arquivo do pnpm.
+- **Resolvido (2026-11-24):** o `pnpm-lock.yaml` do front foi removido; só o `package-lock.json` vale.
 
 ## Links
 
