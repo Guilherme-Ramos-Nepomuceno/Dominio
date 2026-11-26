@@ -2,8 +2,6 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
   mapPlan,
-  barSegments,
-  wishFitState,
   newlyFittingWishIds,
   moveItem,
   allocateWishes,
@@ -107,26 +105,6 @@ test("mapeia o plano, ordenando grupos e desejos e convertendo números", () => 
   assert.equal(effectiveBudget(plan), 5000)
   assert.equal(isPlanEditable(plan.status), true)
   assert.equal(isPlanEditable("CLOSED"), false)
-})
-
-test("barra do grupo: comprometido, variável e gasto na mesma escala", () => {
-  const b = barSegments({ committed: 2000, plannedVariable: 1000, spent: 1500 })
-  assert.equal(Math.round(b.committedPct), 67)
-  assert.equal(Math.round(b.variablePct), 33)
-  assert.equal(b.spentPct, 50)
-  assert.equal(b.overspent, false)
-  const over = barSegments({ committed: 0, plannedVariable: 100, spent: 200 })
-  assert.equal(over.overspent, true)
-  assert.equal(over.overAmount, 100)
-  assert.equal(over.variablePct, 50)
-  assert.equal(over.spentPct, 100)
-  assert.deepEqual(barSegments({ committed: 0, plannedVariable: 0, spent: 0 }).spentPct, 0)
-})
-
-test("estado do desejo", () => {
-  assert.equal(wishFitState({ fits: true, missing: 0, estimatedAmount: 100 }), "fits")
-  assert.equal(wishFitState({ fits: false, missing: 30, estimatedAmount: 100 }), "partial")
-  assert.equal(wishFitState({ fits: false, missing: 100, estimatedAmount: 100 }), "none")
 })
 
 test("distribui a margem pelos desejos em ordem de prioridade (regra do backend)", () => {

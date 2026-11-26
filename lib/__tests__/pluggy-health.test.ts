@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { healthLine, canReconnect, needsAction, healthDetails, isActiveInvestment, rateLabel, investmentSubtitle } from "../pluggy-health.ts"
+import { healthLine, canReconnect, needsAction, healthDetails, rateLabel, investmentSubtitle } from "../pluggy-health.ts"
 
 test("conexão saudável e longe de vencer: sem linha de status nem reconexão", () => {
   const item = { health: "OK" as const, consentDaysLeft: 300 }
@@ -42,12 +42,6 @@ test("detalhes: quando o banco atualizou e até quando vale a autorização", ()
     consentDaysLeft: 307,
   })
   assert.deepEqual(lines, ["Banco atualizado em 14/11/2026", "Autorização válida até 17/09/2027 (307 dias)"])
-})
-
-test("investimento resgatado ou zerado sai da lista principal", () => {
-  assert.equal(isActiveInvestment({ status: "ACTIVE", balance: 107.56 }), true)
-  assert.equal(isActiveInvestment({ status: "TOTAL_WITHDRAWAL", balance: 0 }), false)
-  assert.equal(isActiveInvestment({ status: "ACTIVE", balance: 0 }), false)
 })
 
 test("taxa em português: % do CDI, IPCA + fixo, prefixado", () => {

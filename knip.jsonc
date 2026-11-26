@@ -1,0 +1,17 @@
+// ADR-035: arquivo, export, tipo e dependência sem uso.
+// Roda em dois modos no `npm run check:debt`:
+//   knip                         projeto todo (testes e scripts contam como uso)
+//   knip --production --exports  só o código do app: export que só teste usa é sem uso
+// Export mantido de propósito leva a tag JSDoc `@public` com o motivo.
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  // Rodados à mão (scripts) ou carregados pelo navegador por URL (service worker).
+  "entry": ["scripts/*.mjs", "public/sw.js"],
+  // Export usado dentro do próprio arquivo: o código está vivo.
+  "ignoreExportsUsedInFile": true,
+  "ignoreIssues": {
+    // Kit shadcn (components.json): as peças de cada componente vêm juntas, e
+    // as que o app ainda não usa podem ficar. O arquivo em si precisa ser usado.
+    "components/ui/**": ["exports", "types"]
+  }
+}

@@ -82,7 +82,7 @@ export function getCurrentPlanMonthKey(monthStartDay: number, now: Date = new Da
 }
 
 // Parte "YYYY-MM-DD" de uma data vinda da API. Mesma convenção do resto do
-// app (isSameMonth compara o prefixo da string ISO), para não mudar o mês em
+// app (o mês é o prefixo da string ISO), para não mudar o mês em
 // que uma transação cai só por causa do fuso.
 export function datePart(dateString: string): string {
   return dateString.slice(0, 10)
@@ -112,9 +112,4 @@ export function periodLabel(monthKeyStr: string, monthStartDay: number): string 
   if (normalizeMonthStartDay(monthStartDay) === 1) return null
   const { year, month } = parseMonthKey(monthKeyStr)
   return formatPeriodRange(getPlanPeriod(year, month, monthStartDay))
-}
-
-// Dias do período (inclusive) e quantos já passaram até `today`.
-export function periodDayCount(period: Pick<PlanPeriod, "start" | "end">): number {
-  return Math.round((period.end.getTime() - period.start.getTime()) / 86_400_000) + 1
 }

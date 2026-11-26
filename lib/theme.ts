@@ -40,10 +40,3 @@ export const setTheme = (theme: ThemeMode) => {
   }
   syncSystemBar(theme)
 }
-
-export const toggleTheme = (): ThemeMode => {
-  const current = getTheme()
-  const next = current === "light" ? "dark" : "light"
-  setTheme(next)
-  return next
-}

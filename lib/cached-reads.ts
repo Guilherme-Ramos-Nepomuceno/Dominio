@@ -1,6 +1,6 @@
 import { getQueryClient, queryKeys } from "./query-client"
-import { getCards, getCategories, getMemberCardsMapped, getSavingsGoals, getTransactions } from "./storage"
-import type { Card, Category, SavingsGoal, Transaction } from "./types"
+import { getCards, getCategories, getMemberCardsMapped, getTransactions } from "./storage"
+import type { Card, Category, Transaction } from "./types"
 
 // Leituras para usar FORA de componentes (handler de salvar, validação antes
 // de gravar...). Passam pelo mesmo cache dos hooks de hooks/queries.ts:
@@ -18,10 +18,6 @@ export function readCategories(): Promise<Category[]> {
 
 export function readCards(): Promise<Card[]> {
   return getQueryClient().fetchQuery({ queryKey: queryKeys.cards(), queryFn: getCards })
-}
-
-export function readSavingsGoals(): Promise<SavingsGoal[]> {
-  return getQueryClient().fetchQuery({ queryKey: queryKeys.savingsGoals(), queryFn: getSavingsGoals })
 }
 
 export function readMemberCards(memberId: string): Promise<Card[]> {

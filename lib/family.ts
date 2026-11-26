@@ -107,14 +107,6 @@ export function getMemberMonthData(memberId: string, year: number, month: number
     return fetchApi(`/family/members/${memberId}/stats/month-data/${year}/${month}`)
 }
 
-export function getMemberTotalBalance(memberId: string, year: number, month: number) {
-    return fetchApi(`/family/members/${memberId}/stats/total-balance/${year}/${month}`)
-}
-
-export function getMemberCategoryBreakdown(memberId: string, year: number, month: number) {
-    return fetchApi(`/family/members/${memberId}/stats/category-breakdown/${year}/${month}`)
-}
-
 export interface TransferToFamilyMemberDTO {
     fromCardId: string
     toMemberId: string

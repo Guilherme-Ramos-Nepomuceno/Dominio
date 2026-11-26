@@ -224,5 +224,3 @@ export function useClosePlanViewModel() {
     formError,
   }
 }
-
-export type ClosePlanViewModel = ReturnType<typeof useClosePlanViewModel>

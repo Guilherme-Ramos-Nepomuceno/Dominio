@@ -11,7 +11,6 @@ import type {
   TransactionStatus,
   TransactionType,
   PaymentMethod,
-  BankName,
   Invoice,
   ImportPreviewRow,
   ManualBankMatch,
@@ -272,11 +271,6 @@ export async function mergeCards(id: string, mergeCardId: string): Promise<Card>
   const merged = await fetchApi(`/cards/${id}/merge`, { method: "POST", body: JSON.stringify({ mergeCardId }) })
   notifyDataChanged("cards")
   return mapCardFromApi(merged)
-}
-
-export async function getAccountBalance(cardId: string): Promise<number> {
-  const cards = await getCards()
-  return cards.find((c) => c.id === cardId)?.calculatedBalance ?? 0
 }
 
 // ---------------------------------------------------------------------------
@@ -953,14 +947,6 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
   const result = await fetchApi(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(mapTransactionToApi(updates)) })
   notifyDataChanged("transactions")
   if (updates.categoryId) emitRuleFeedback(result, updates.categoryId)
-}
-
-// Apaga a transação. Se ela for a "cabeça" de um grupo de parcelas/recorrência,
-// o backend já cancela as demais em cascata (FK onDelete: Cascade).
-export async function deleteTransaction(id: string): Promise<void> {
-  assertWritable()
-  await fetchApi(`/transactions/${id}`, { method: "DELETE" })
-  notifyDataChanged("transactions")
 }
 
 export async function deleteAllTransactions(): Promise<void> {

@@ -28,8 +28,6 @@ const EXPENSE_VIEWS: Record<ExpenseView, { label: string; hint: string }> = {
 }
 
 interface IncomeExpenseCardsProps {
-  income: number
-  expense: number
   transactions?: any[]
   // Histórico completo (sem recorte de mês) usado pelo gráfico semanal, para que dias
   // de uma semana que cai em dois meses diferentes não fiquem zerados.
@@ -57,7 +55,6 @@ interface IncomeExpenseCardsProps {
 }
 
 export function IncomeExpenseCards({
-  income,
   transactions = [],
   allTransactions,
   selectedMonth,
@@ -189,8 +186,7 @@ export function IncomeExpenseCards({
 
   // O número grande precisa bater com o que as barras mostram — o gráfico
   // sempre usa "hoje - 6 dias" (ou o mês civil atual/anterior), independente
-  // do mês navegado no cabeçalho, enquanto `income`/`expense` (props) são
-  // escopados pelo mês selecionado ali. Sem isso, navegar pra um mês sem
+  // do mês navegado no cabeçalho, e não os totais do mês selecionado ali. Sem isso, navegar pra um mês sem
   // dados zera o número mas as barras continuam mostrando os dias reais.
   const displayedIncomeValue = useMemo(
     () => incomeChartData.reduce((sum, d) => sum + d.value, 0),

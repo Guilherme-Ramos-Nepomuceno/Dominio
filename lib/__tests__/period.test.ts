@@ -9,14 +9,12 @@ import {
   periodLabel,
   normalizeMonthStartDay,
   addMonths,
-  periodDayCount,
 } from "../period.ts"
 
 test("mês civil quando começa no dia 1", () => {
   const p = getPlanPeriod(2026, 2, 1)
   assert.equal(p.startISO, "2026-02-01")
   assert.equal(p.endISO, "2026-02-28")
-  assert.equal(periodDayCount(p), 28)
 })
 
 test("período do dia 5 até a véspera do dia 5 do mês seguinte", () => {

@@ -257,26 +257,10 @@ export function daysLeftLabel(days: number): string {
   return `${days} dias até o fim da semana`
 }
 
-// projectedDiff > 0 = sobra (planejado − projetado); < 0 = acima do planejado.
-export function paceMessage(
-  projectedDiff: number,
-  format: (v: number) => string,
-): { text: string; tone: "ok" | "over" | "neutral" } {
-  if (Math.abs(projectedDiff) < 1) return { text: "No ritmo atual, você termina o mês bem no planejado.", tone: "neutral" }
-  if (projectedDiff > 0) return { text: `No ritmo atual, você termina o mês com ${format(projectedDiff)} de sobra.`, tone: "ok" }
-  return { text: `No ritmo atual, você termina o mês ${format(Math.abs(projectedDiff))} acima do planejado.`, tone: "over" }
-}
-
 export function streakLabel(streak: number): string | null {
   if (streak <= 0) return null
   if (streak === 1) return "1 semana no azul"
   return `${streak} semanas seguidas no azul`
-}
-
-// Gastos da semana, do mais recente para o mais antigo, com os sem categoria contados.
-export function sortWeekTransactions(transactions: WeekTransaction[]): { list: WeekTransaction[]; uncategorized: number } {
-  const list = transactions.slice().sort((a, b) => b.date.localeCompare(a.date))
-  return { list, uncategorized: list.filter((t) => !t.categoryId).length }
 }
 
 // --- Tela nova: ritmo, gráficos, semanas e categorias ---

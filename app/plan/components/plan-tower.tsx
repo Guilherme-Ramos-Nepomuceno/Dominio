@@ -3,18 +3,9 @@
 import Link from "next/link"
 import { CaretRight, Check, Equals, TrendUp } from "@phosphor-icons/react"
 import type { Plan } from "@/lib/plan"
-import {
-  formatMoneyWhole,
-  groupListRows,
-  monthBar,
-  monthBarSummary,
-  planHeadline,
-  spentProgress,
-  type MonthBar as MonthBarData,
-} from "@/lib/plan-layout"
+import { formatMoneyWhole, groupListRows, spentProgress, type MonthBar as MonthBarData } from "@/lib/plan-layout"
 import { groupStatusLabel, vsLastMonthHint, type WinsData } from "@/lib/wins"
 import { cn } from "@/lib/utils"
-import { MonthBar } from "./month-bar"
 import { ColorDot, SectionTitle, SpentBar } from "./plan-ui"
 
 interface PlanGroupListProps {
@@ -125,29 +116,5 @@ export function PlanGroupList({ plan, bar, groupHref, className, groupStatus, vs
         })}
       </ul>
     </section>
-  )
-}
-
-interface PlanTowerProps {
-  plan: Plan
-  groupHref: (groupId: string) => string
-}
-
-// Versão compacta (onboarding): barra do mês, "para onde vai" e a sobra.
-export function PlanTower({ plan, groupHref }: PlanTowerProps) {
-  const bar = monthBar(plan)
-  const headline = planHeadline(plan)
-  return (
-    <div className="space-y-6">
-      <MonthBar bar={bar} summary={monthBarSummary(bar)} showSpending={false} groupHref={groupHref} />
-      <PlanGroupList plan={plan} bar={bar} groupHref={groupHref} />
-      <div className="flex items-baseline justify-between gap-3 border-t border-border pt-3">
-        <span className="text-sm text-muted-foreground">{headline.label}</span>
-        <span className={cn("text-lg font-semibold tabular-nums", headline.negative ? "text-expense" : "text-foreground")}>
-          {formatMoneyWhole(headline.value)}
-        </span>
-      </div>
-      {headline.shortfallText && <p className="-mt-4 text-xs text-expense">{headline.shortfallText}</p>}
-    </div>
   )
 }

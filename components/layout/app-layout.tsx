@@ -24,7 +24,6 @@ interface AppLayoutProps {
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { AccountSwitcher } from "@/components/account/account-switcher"
 import { MonthHeaderSelector } from "@/components/ui/month-header-selector"
-import { usePathname } from "next/navigation"
 import { QuickAddSheet } from "@/components/quick-add/quick-add-sheet"
 import { useQuickAddViewModel } from "@/components/quick-add/use-quick-add-view-model"
 import { useAccount } from "@/components/account/account-context"
@@ -34,7 +33,6 @@ import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed"
 import { QUICK_ADD_OPEN_EVENT } from "@/components/guide/sample-preview"
 
 export function AppLayout({ children, showMonthFilter = false, primaryAction, wide = false }: AppLayoutProps) {
-  const pathname = usePathname()
   const { isReadOnly } = useAccount()
   // Anota as telas visitadas para o "← Voltar" das telas derivadas.
   useNavTrail()

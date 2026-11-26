@@ -7,7 +7,6 @@ import {
   dayDots,
   dayDotsSummary,
   recoveryMessage,
-  recoveryShort,
   weekClosedCelebration,
   wishProgressMessage,
   groupStatusLabel,
@@ -79,11 +78,6 @@ test("dayDots: letra do dia, hoje destacado e rótulo acessível", () => {
   assert.equal(dots[1].label, "segunda (hoje): sem gasto até agora")
   assert.equal(dayDotsSummary(dots), "Dias da semana até hoje: 1 sem gasto, 1 acima do ideal.")
   assert.equal(dayDotsSummary([]), "Nenhum dia da semana passou ainda.")
-})
-
-test("recoveryShort: mesma conta da frase longa, para o cartão da Home", () => {
-  assert.equal(norm(recoveryShort({ perDayToRecover: 28.49, untilDate: "2026-11-07" })), "até R$ 28 por dia até sábado para fechar no limite")
-  assert.equal(recoveryShort(null), null)
 })
 
 test("recoveryMessage: arredonda o valor por dia para baixo e cita o dia da semana", () => {

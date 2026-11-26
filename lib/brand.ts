@@ -8,6 +8,7 @@
 export const BRAND_NAME = "Domínio"
 export const BRAND_SIGNATURE = "Seu mês no azul."
 export const BRAND_EXPLANATION = "Ter domínio não é cortar tudo. É saber quanto dá pra gastar hoje."
+/** @public A API repete esta frase na notificação do começo do mês (ADR-030); aqui fica a fonte do texto. */
 export const BRAND_CALL = "Domine o mês. Fique no azul."
 export const BRAND_ACHIEVEMENT = "Seu mês, seu domínio."
 

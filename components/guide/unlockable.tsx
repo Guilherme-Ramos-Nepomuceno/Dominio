@@ -2,14 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { motion, useReducedMotion } from "framer-motion"
-import { LockSimple, LockSimpleOpen, Sparkle } from "@phosphor-icons/react"
+import { LockSimpleOpen, Sparkle } from "@phosphor-icons/react"
 import { useAccount } from "@/components/account/account-context"
 import { useGuide } from "@/components/guide/guide-provider"
 import { trackEvent } from "@/lib/events"
 import { tourState } from "@/lib/guide"
 import { UNLOCKS_TOUR, isUnlockedFor, lockedStatuses, unlockTransitions, unlockedTitle, type UnlockScreen, type UnlockStatus } from "@/lib/unlocks"
-import { cn } from "@/lib/utils"
-import { SectionTitle } from "@/app/plan/components/plan-ui"
 
 // Desbloqueios de uma tela. Na primeira visita grava sem festa o que já está
 // liberado; depois, o que liberar é anunciado uma vez (e fica "novo" até a
@@ -93,42 +91,5 @@ export function Unlockable({ isNew, title, children }: { isNew: boolean; title: 
       </motion.p>
       {children}
     </motion.div>
-  )
-}
-
-// "Ainda vai aparecer aqui": o que falta para cada parte bloqueada, com o
-// progresso quando dá para medir.
-export function LockedList({ items, className }: { items: UnlockStatus[]; className?: string }) {
-  if (items.length === 0) return null
-  return (
-    <section aria-labelledby="locked-title" className={className}>
-      <SectionTitle id="locked-title">Ainda vai aparecer aqui</SectionTitle>
-      <ul className="mt-1 divide-y divide-border">
-        {items.map((item) => (
-          <li key={item.id} className="flex items-start gap-3 py-3">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground">
-              <LockSimple size={14} weight="bold" aria-hidden />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">{item.title}</p>
-              <p className="text-xs text-muted-foreground text-pretty">{item.hint}</p>
-              {item.progress && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: "var(--plan-track)" }}>
-                    <div
-                      className={cn("h-full rounded-full bg-foreground/70 transition-[width] duration-500")}
-                      style={{ width: `${(item.progress.current / item.progress.target) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
-                    {item.progress.current} de {item.progress.target}
-                  </span>
-                </div>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
   )
 }

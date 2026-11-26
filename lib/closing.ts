@@ -92,12 +92,6 @@ export function buildCloseBody(decisions: Record<string, WishDecision>, choice: 
   return body
 }
 
-export function adherenceTone(pct: number): "ok" | "warning" | "over" {
-  if (pct <= 100) return "ok"
-  if (pct <= 110) return "warning"
-  return "over"
-}
-
 const SHORT_MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
 // Mês ainda correndo (hoje ≤ fim do período): dá para fechar, mas a sobra

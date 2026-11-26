@@ -74,11 +74,6 @@ export interface InvestmentLike {
   dueDate: string | null
 }
 
-// Resgatado (ou zerado) não interessa na lista principal.
-export function isActiveInvestment(inv: Pick<InvestmentLike, "status" | "balance">): boolean {
-  return inv.status !== "TOTAL_WITHDRAWAL" && inv.balance > 0
-}
-
 // Agrupa os investimentos pelo tipo que a Pluggy manda (CDB, LCI e Tesouro
 // ficam em "Renda fixa"). A ordem dos grupos é fixa, e grupo vazio não aparece.
 export type InvestmentGroupKey = "FIXED_INCOME" | "EQUITY" | "MUTUAL_FUND" | "ETF" | "COE" | "OTHER"

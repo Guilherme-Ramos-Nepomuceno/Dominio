@@ -6,8 +6,6 @@
 import type { Category, Transaction, TransactionType } from "./types"
 
 export const UNCATEGORIZED_LABEL = "Sem categoria"
-// Cinza neutro (equivalente ao gray-400) — nunca vermelho/alerta.
-export const UNCATEGORIZED_COLOR = "#9ca3af"
 // Chave usada em agregações (fatia "Sem categoria" nos gráficos/filtros) no
 // lugar de um id real de categoria.
 export const UNCATEGORIZED_KEY = "__uncategorized__"
@@ -56,14 +54,6 @@ export function spendingType(categories: Category[], t: Pick<Transaction, "categ
 // Chave de agrupamento por categoria (id real ou a chave "Sem categoria").
 export function categoryKeyOf(t: Pick<Transaction, "categoryId">): string {
   return t.categoryId || UNCATEGORIZED_KEY
-}
-
-export function categoryLabel(category: Category | undefined | null): string {
-  return category?.name ?? UNCATEGORIZED_LABEL
-}
-
-export function categoryColor(category: Category | undefined | null): string {
-  return category?.color ?? UNCATEGORIZED_COLOR
 }
 
 // Rótulo de categoria de uma transação: "Sem categoria" só quando de fato não
