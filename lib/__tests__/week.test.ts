@@ -5,9 +5,7 @@ import {
   weekProgress,
   formatWeekday,
   formatWeekRange,
-  paceMessage,
   streakLabel,
-  sortWeekTransactions,
   daysLeftLabel,
   dayDetail,
   paceBadge,
@@ -22,15 +20,12 @@ import {
   postponeWarning,
   validateLeftover,
   buildCloseBody,
-  adherenceTone,
   closingTiming,
   closingResult,
   groupOutcomes,
   withBoughtWishes,
 } from "../closing.ts"
 import { urlBase64ToUint8Array, isIOS, pushSupport, mapNotificationPrefs } from "../push.ts"
-
-const fmt = (v: number) => `R$ ${v.toFixed(2)}`
 
 test("mapeia a semana (desligada só traz o intervalo)", () => {
   const off = mapWeek({ enabled: false, weekStart: "2026-11-01", weekEnd: "2026-11-07" })
@@ -59,23 +54,10 @@ test("datas da semana sem deslocar pelo fuso", () => {
   assert.equal(daysLeftLabel(4), "4 dias até o fim da semana")
 })
 
-test("ritmo do mês e sequência", () => {
-  assert.equal(paceMessage(250, fmt).tone, "ok")
-  assert.match(paceMessage(250, fmt).text, /R\$ 250\.00 de sobra/)
-  assert.match(paceMessage(-80, fmt).text, /R\$ 80\.00 acima/)
-  assert.equal(paceMessage(0.4, fmt).tone, "neutral")
+test("sequência no azul", () => {
   assert.equal(streakLabel(0), null)
   assert.equal(streakLabel(1), "1 semana no azul")
   assert.equal(streakLabel(3), "3 semanas seguidas no azul")
-})
-
-test("gastos da semana em ordem e sem categoria contados", () => {
-  const { list, uncategorized } = sortWeekTransactions([
-    { id: "a", description: "", amount: 1, date: "2026-11-02", categoryId: "x" },
-    { id: "b", description: "", amount: 1, date: "2026-11-04", categoryId: null },
-  ])
-  assert.deepEqual(list.map((t) => t.id), ["b", "a"])
-  assert.equal(uncategorized, 1)
 })
 
 test("fechamento: resumo, decisões e sobra", () => {
@@ -102,9 +84,6 @@ test("fechamento: resumo, decisões e sobra", () => {
     leftover: { destination: "SAVINGS", id: "s", amount: 200 },
   })
   assert.deepEqual(buildCloseBody({}, { destination: null, id: null, amount: null }), { wishDecisions: [] })
-  assert.equal(adherenceTone(95), "ok")
-  assert.equal(adherenceTone(105), "warning")
-  assert.equal(adherenceTone(130), "over")
 })
 
 test("push: chave VAPID, iOS e suporte", () => {

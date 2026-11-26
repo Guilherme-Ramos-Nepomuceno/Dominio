@@ -269,43 +269,6 @@ export function splitSpentByPlanned(items: SpentItem[], planned: number): { with
   return { within, over, overAmount: Math.max(0, round2(total - Math.max(0, planned))) }
 }
 
-export interface BarSegments {
-  // Percentuais (0–100) da largura total da barra.
-  committedPct: number
-  variablePct: number
-  spentPct: number
-  overspent: boolean
-  // Quanto passou do planejado (0 se não passou).
-  overAmount: number
-}
-
-// Barra planejado × gasto de um grupo/categoria: o fundo é o planejado
-// (comprometido + variável, em tons diferentes) e o gasto é a linha por cima.
-// A escala é o maior entre planejado e gasto, para o estouro aparecer.
-export function barSegments(item: { committed: number; plannedVariable: number; spent: number }): BarSegments {
-  const planned = Math.max(0, item.committed) + Math.max(0, item.plannedVariable)
-  const spent = Math.max(0, item.spent)
-  const scale = Math.max(planned, spent)
-  if (scale <= 0) return { committedPct: 0, variablePct: 0, spentPct: 0, overspent: false, overAmount: 0 }
-  const pct = (v: number) => Math.min(100, Math.max(0, (v / scale) * 100))
-  return {
-    committedPct: pct(Math.max(0, item.committed)),
-    variablePct: pct(Math.max(0, item.plannedVariable)),
-    spentPct: pct(spent),
-    overspent: spent > planned + 0.004,
-    overAmount: Math.max(0, round2(spent - planned)),
-  }
-}
-
-export type WishFitState = "fits" | "partial" | "none"
-
-// "cabe este mês" / "faltam R$ X" (cabe em parte) / "ainda não cabe" (nada sobra).
-export function wishFitState(w: Pick<PlanWish, "fits" | "missing" | "estimatedAmount">): WishFitState {
-  if (w.fits) return "fits"
-  if (w.missing > 0 && w.missing < w.estimatedAmount) return "partial"
-  return "none"
-}
-
 export function sortByPriority<T extends { priority: number }>(items: T[]): T[] {
   return items.slice().sort((a, b) => a.priority - b.priority)
 }

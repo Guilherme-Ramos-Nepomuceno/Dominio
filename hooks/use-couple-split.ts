@@ -64,7 +64,7 @@ export function useCoupleSplit(monthKey: string, enabled = true) {
   const [saving, setSaving] = useState(false)
 
   // Os três históricos (os dois parceiros + a conta do casal) vêm do cache,
-  // com as mesmas chaves de useMemberTransactionsQuery/useMemberCategoriesQuery.
+  // nas chaves queryKeys.member("transactions" | "categories", id).
   // Gravações invalidam os domínios e a divisão se recalcula sozinha.
   const owners = useMemo(
     () => (couple ? [...personal.map((m) => m.id), couple.id] : []),

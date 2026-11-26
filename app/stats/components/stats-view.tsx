@@ -38,7 +38,6 @@ export function StatsView() {
     const { periodRangeLabel } = useSelectedMonth()
     const {
         selectedMonth,
-        setSelectedMonth,
         filters,
         setFilters,
         viewMode,

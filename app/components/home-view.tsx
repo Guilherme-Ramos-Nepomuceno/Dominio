@@ -74,7 +74,6 @@ export function HomeView() {
     // Exemplos da conta nova: só no mês atual da própria conta, com a semana carregada.
     const showSamples = showPlanning && isCurrentMonth && !!week?.enabled && unlocks.locked.length > 0
     const sampleTx = useMemo(() => sampleTransactions(new Date()), [])
-    const sampleSpent = sampleTx.reduce((sum, t) => sum + t.amount, 0)
     const sampleWeek = (w: NonNullable<typeof week>) => {
         const days = sampleWeekDays(w.days, w.idealPerDay)
         return { ...w, days, spentThisWeek: Math.round(days.reduce((sum, d) => sum + d.spent, 0) * 100) / 100 }
@@ -173,8 +172,6 @@ export function HomeView() {
                             <BentoTile order={4}>
                                 <SamplePreview hint={unlocks.hintOf("home-daily")}>
                                     <IncomeExpenseCards
-                                        income={0}
-                                        expense={sampleSpent}
                                         transactions={sampleTx}
                                         allTransactions={sampleTx}
                                         selectedMonth={selectedMonth}
@@ -197,8 +194,6 @@ export function HomeView() {
                                 <BentoTile order={5}>
                                 <SamplePreview hint={unlocks.hintOf("home-daily")}>
                                     <IncomeExpenseCards
-                                        income={0}
-                                        expense={sampleSpent}
                                         transactions={sampleTx}
                                         allTransactions={sampleTx}
                                         selectedMonth={selectedMonth}
@@ -214,8 +209,6 @@ export function HomeView() {
                                 <BentoTile order={5}>
                                 <Unlockable isNew={unlocks.isNew("home-daily")} title="Gastos por dia">
                                 <IncomeExpenseCards
-                                    income={balanceData.income}
-                                    expense={balanceData.expense}
                                     transactions={balanceData.transactions}
                                     allTransactions={balanceData.allTransactions}
                                     selectedMonth={selectedMonth}

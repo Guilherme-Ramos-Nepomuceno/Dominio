@@ -84,7 +84,7 @@ async function request(endpoint: string, options: RequestInit) {
 
     try {
         return await response.json()
-    } catch (e) {
+    } catch {
         return null; // Handle cases where response says OK but isn't valid JSON
     }
 }

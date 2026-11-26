@@ -43,3 +43,4 @@ ADRs não são editados: uma decisão nova substitui a antiga num ADR novo, com 
 | [032](032-reserva-por-grupo-sem-cartao.md) | Reserva por grupo (Segurança, Planejado, Futuro), sem cartão obrigatório | Dominio + dominio-api |
 | [033](033-composicao-do-saldo-das-reservas.md) | Composição do saldo das reservas, reserva Guardado e ajuste automático | Dominio + dominio-api |
 | [034](034-cache-das-leituras-com-tanstack-query.md) | Cache das leituras com TanStack Query e invalidação por domínio | Dominio |
+| [035](035-checagem-de-debito-tecnico-no-ci.md) | Checagem de débito técnico em toda mudança: knip, teto do lint e sem TODO | Dominio |

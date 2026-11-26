@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   check:
-    name: Tipos e testes de regra
+    name: Tipos, testes de regra e débito técnico
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit -p .
       - run: npm test
+      # ADR-035: knip (arquivo, export e dependência sem uso), teto do lint e TODO.
+      - run: npm run check:debt
 
   build:
     name: Build

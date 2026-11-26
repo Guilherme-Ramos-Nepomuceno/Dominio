@@ -1,0 +1,9 @@
+{
+  "$comment": "ADR-035. Teto de avisos do lint por regra: só pode baixar. Regra fora da lista tem teto zero.",
+  "lintWarnings": {
+    "react-hooks/set-state-in-effect": 38,
+    "react-hooks/exhaustive-deps": 3,
+    "@next/next/no-img-element": 1,
+    "@next/next/no-location-assign-relative-destination": 1
+  }
+}

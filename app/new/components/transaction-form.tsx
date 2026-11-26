@@ -7,14 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowUpIcon,
   ArrowDownIcon,
-  CalendarIcon,
-  CreditCardIcon,
-  TagIcon,
-  WalletIcon,
-  RepeatIcon,
   WarningCircle,
   PlusCircle,
-  PiggyBank,
   Heart,
   ArrowsLeftRight,
 } from "@phosphor-icons/react"

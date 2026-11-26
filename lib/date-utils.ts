@@ -19,53 +19,9 @@ export const formatMonth = (dateString: string): string => {
   return `${months[month - 1]} ${year}`
 }
 
-export const formatShortMonth = (dateString: string): string => {
-  if (!dateString) return ""
-  const [year, month] = dateString.split("-").map(Number)
-  
-  const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-  
-  return months[month - 1]
-}
-
 export const getCurrentMonth = (): string => {
   const date = new Date()
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-}
-
-// CORREÇÃO 3: Usando construtor seguro (Ano, Mês, Dia, Hora)
-export const getNextMonth = (month: string): string => {
-  const [year, m] = month.split("-").map(Number)
-  // Define dia 1 ao meio-dia (12:00) para evitar pular dia
-  const date = new Date(year, m, 1, 12, 0, 0) 
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-}
-
-export const getPreviousMonth = (month: string): string => {
-  const [year, m] = month.split("-").map(Number)
-  const date = new Date(year, m - 2, 1, 12, 0, 0)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-}
-
-export const getMonthRange = (centerMonth: string, range = 6): string[] => {
-  const months: string[] = []
-  let current = centerMonth
-
-  for (let i = 0; i < range; i++) {
-    current = getPreviousMonth(current)
-  }
-
-  for (let i = 0; i <= range * 2; i++) {
-    months.push(current)
-    current = getNextMonth(current)
-  }
-
-  return months
-}
-
-export const isSameMonth = (date1: string, date2: string): boolean => {
-  if (!date1 || !date2) return false
-  return date1.substring(0, 7) === date2.substring(0, 7)
 }
 
 // Cartão de crédito com dia de fechamento: uma compra feita NAQUELE dia ou
@@ -86,10 +42,6 @@ export const getInvoiceMonth = (dateString: string, closingDate?: number | null)
   }
 
   return `${year}-${String(month).padStart(2, "0")}`
-}
-
-export const parseCurrency = (value: string): number => {
-  return Number.parseFloat(value.replace(/[^\d,]/g, "").replace(",", ".")) || 0
 }
 
 export const formatCurrencyInput = (value: string): string => {

@@ -34,7 +34,7 @@ function combineMonthData(results: UseQueryResult<MemberMonthData>[]) {
 // Soma os totais próprios de cada parceiro pessoal (via /family/members/:id/stats,
 // já com permissão verificada no backend) — dá o "gasto/ganho geral dos dois" sem
 // duplicar as despesas isCasal (que já estão contidas no total de quem lançou).
-// Vem do cache (mesma chave de useMemberMonthDataQuery): cancelar/editar um
+// Vem do cache (chave queryKeys.memberMonthData): cancelar/editar um
 // lançamento invalida "month-data" e o total se atualiza sozinho.
 export function useFamilyTotals(selectedMonth: string, enabled: boolean) {
     const { selection, family } = useAccount()

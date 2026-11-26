@@ -91,11 +91,6 @@ export async function confirmPlan(year: number, month: number): Promise<Plan> {
 // Desejos
 // ---------------------------------------------------------------------------
 
-export async function getWishes(year: number, month: number): Promise<Wish[]> {
-  const raw = await fetchApi(`/wishes?year=${year}&month=${month}`)
-  return (raw || []).map(mapWish)
-}
-
 export interface WishInput {
   name: string
   estimatedAmount: number

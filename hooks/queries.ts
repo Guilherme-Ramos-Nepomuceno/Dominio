@@ -8,11 +8,8 @@ import {
   getGoals,
   getInbox,
   getInboxCount,
-  getInvoice,
   getManualBankMatches,
   getMemberCardsMapped,
-  getMemberSavingsMapped,
-  getMemberTransactionsMapped,
   getMonthData,
   getPendingPaymentMatches,
   getPluggyConnection,
@@ -23,7 +20,6 @@ import {
   getSavingsGoals,
   getSettings,
   getTransactions,
-  listPluggyAccounts,
 } from "@/lib/storage"
 import {
   getCategoryGroups,
@@ -32,10 +28,9 @@ import {
   getWeek,
   getWins,
   getWishCandidates,
-  getWishes,
 } from "@/lib/planning-api"
 import { getCategoryRules, getGenericTerms, getPluggyCategoryMap, getRuleSuggestions } from "@/lib/rules-api"
-import { getCoupleSettlements, getMemberCategories, getMemberMonthData } from "@/lib/family"
+import { getCoupleSettlements } from "@/lib/family"
 
 // Consultas cacheadas compartilhadas entre telas (lib/query-client.ts). O
 // dado devolvido é o MESMO objeto para todos os componentes que usam a
@@ -104,10 +99,6 @@ export function usePluggyInvestmentsQuery(opts: Opts = {}) {
   return useQuery({ queryKey: queryKeys.pluggyInvestments(), queryFn: getPluggyInvestments, ...opts })
 }
 
-export function usePluggyAccountsQuery(itemId: string, opts: Opts = {}) {
-  return useQuery({ queryKey: queryKeys.pluggyAccounts(itemId), queryFn: () => listPluggyAccounts(itemId), ...opts })
-}
-
 // --- Plano -----------------------------------------------------------------
 
 export function usePlanQuery(year: number, month: number, opts: Opts = {}) {
@@ -130,19 +121,11 @@ export function useCategoryGroupsQuery(opts: Opts = {}) {
   return useQuery({ queryKey: queryKeys.categoryGroups(), queryFn: getCategoryGroups, ...opts })
 }
 
-export function useWishesQuery(year: number, month: number, opts: Opts = {}) {
-  return useQuery({ queryKey: queryKeys.wishes(year, month), queryFn: () => getWishes(year, month), ...opts })
-}
-
 export function useWishCandidatesQuery(wishId: string, opts: Opts = {}) {
   return useQuery({ queryKey: queryKeys.wishCandidates(wishId), queryFn: () => getWishCandidates(wishId), ...opts })
 }
 
 // --- Faturas, pendências e totais ------------------------------------------
-
-export function useInvoiceQuery(cardId: string, year: number, month: number, opts: Opts = {}) {
-  return useQuery({ queryKey: queryKeys.invoice(cardId, year, month), queryFn: () => getInvoice(cardId, year, month), ...opts })
-}
 
 export function useManualBankMatchesQuery(cardId: string, opts: Opts = {}) {
   return useQuery({ queryKey: queryKeys.manualBankMatches(cardId), queryFn: () => getManualBankMatches(cardId), ...opts })
@@ -154,14 +137,6 @@ export function usePendingPaymentMatchesQuery(opts: Opts = {}) {
 
 export function useMonthDataQuery(year: number, month: number, opts: Opts = {}) {
   return useQuery({ queryKey: queryKeys.monthData(year, month), queryFn: () => getMonthData(year, month), ...opts })
-}
-
-export function useMemberMonthDataQuery(memberId: string, year: number, month: number, opts: Opts = {}) {
-  return useQuery({
-    queryKey: queryKeys.memberMonthData(memberId, year, month),
-    queryFn: () => getMemberMonthData(memberId, year, month),
-    ...opts,
-  })
 }
 
 // --- Regras ----------------------------------------------------------------
@@ -184,20 +159,8 @@ export function useGenericTermsQuery(opts: Opts = {}) {
 
 // --- Família ---------------------------------------------------------------
 
-export function useMemberTransactionsQuery(memberId: string, opts: Opts = {}) {
-  return useQuery({ queryKey: queryKeys.member("transactions", memberId), queryFn: () => getMemberTransactionsMapped(memberId), ...opts })
-}
-
-export function useMemberCategoriesQuery(memberId: string, opts: Opts = {}) {
-  return useQuery({ queryKey: queryKeys.member("categories", memberId), queryFn: () => getMemberCategories(memberId), ...opts })
-}
-
 export function useMemberCardsQuery(memberId: string, opts: Opts = {}) {
   return useQuery({ queryKey: queryKeys.member("cards", memberId), queryFn: () => getMemberCardsMapped(memberId), ...opts })
-}
-
-export function useMemberSavingsQuery(memberId: string, opts: Opts = {}) {
-  return useQuery({ queryKey: queryKeys.member("savings", memberId), queryFn: () => getMemberSavingsMapped(memberId), ...opts })
 }
 
 export function useCoupleSettlementsQuery(month: string, opts: Opts = {}) {

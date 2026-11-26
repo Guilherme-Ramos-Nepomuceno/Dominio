@@ -194,5 +194,3 @@ export function usePlanViewModel() {
     closeConfirmSummary: () => setShowConfirmSummary(false),
   }
 }
-
-export type PlanViewModel = ReturnType<typeof usePlanViewModel>

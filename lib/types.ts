@@ -134,10 +134,6 @@ export interface CardBank {
   } | null
 }
 
-export interface CardTransaction extends Transaction {
-  cardId?: string
-}
-
 export interface Goal {
   id: string
   name: string

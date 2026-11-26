@@ -64,18 +64,3 @@ export function SkeletonSummary({ count = 2, className }: { count?: number; clas
     </div>
   )
 }
-
-// Um card retangular genérico (Objetivos ainda usa cards).
-export function SkeletonCard({ className }: { className?: string }) {
-  return <Skeleton className={cn("rounded-2xl min-h-45", className)} />
-}
-
-export function SkeletonCardGrid({ count = 3, className }: { count?: number; className?: string }) {
-  return (
-    <div className={cn("grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6", className)}>
-      {Array.from({ length: count }).map((_, i) => (
-        <SkeletonCard key={i} />
-      ))}
-    </div>
-  )
-}
