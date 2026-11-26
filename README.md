@@ -69,3 +69,7 @@ As decisões ficam em [docs/adr](docs/adr/README.md).
 | Todos os menus | `/all-menus` ([README](app/all-menus/README.md)) | Todas as telas, em 4 grupos |
 | Admin | `/admin` | Eventos de produto (só administradores) |
 | Login e convite | `/login` ([README](app/login/README.md)), `/join/[token]` | Entrada e convite para a conta do casal |
+
+## Licença
+
+[PolyForm Noncommercial 1.0.0](LICENSE): uso, estudo e modificação são livres para fins não comerciais, desde que mantido o aviso de autoria. O uso comercial depende de autorização do autor.
