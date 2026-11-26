@@ -56,7 +56,7 @@ async function request(endpoint: string, options: RequestInit) {
     if (!response.ok) {
         const errorBody = await response.json().catch(() => null)
         // Erro de validação (422) traz o motivo em issues[]: mostra o primeiro
-        // ("Senha deve ter no mínimo 6 caracteres") em vez de "ValidationException".
+        // ("Senha deve ter no mínimo 8 caracteres") em vez de "ValidationException".
         const issue = Array.isArray(errorBody?.issues) ? errorBody.issues.find((i: any) => typeof i?.message === 'string') : null
         const message = issue?.message || errorBody?.error || errorBody?.message || 'Não foi possível completar a operação.'
 
